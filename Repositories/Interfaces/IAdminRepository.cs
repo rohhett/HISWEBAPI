@@ -70,7 +70,54 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<IEnumerable<MRDShelfMasterModel>> GetMRDShelfMaster(int roomId, int rackId, int? shelfId = 0, int? activeFlag = 0);
         ServiceResult<PatientDocumentMasterResponse> CreateUpdatePatientDocumentMaster(PatientDocumentMasterRequest request, AllGlobalValues globalValues);
         ServiceResult<IEnumerable<PatientDocumentMasterModel>> GetPatientDocumentMaster(int? isActive = null);
+        ServiceResult<IEnumerable<OutSourceLabMasterModel>> GetOutSourceLabMasterList( int? isActive = null);
+        ServiceResult<SaveOutSourceLabMasterResponse> SaveOutSourceLabMaster( SaveOutSourceLabMasterRequest request, AllGlobalValues globalValues);
+        ServiceResult<IEnumerable<RateListMasterModel>> GetRateListMaster(string? rateListName, int? isActive);
+        ServiceResult<string> CreateUpdateRateListMaster(CreateUpdateRateListMasterRequest request, AllGlobalValues globalValues);
+        ServiceResult<IEnumerable<object>> GetTariffMaster(
+        string rateListId, string patientType, string bedTypeId,
+        string doctorId, string categoryId, string subCategoryId,
+        string subSubCategoryId, string serviceItemId, string serviceName);
+        ServiceResult<string> CreateUpdateTariffMaster( CreateUpdateTariffMasterRequest request, AllGlobalValues globalValues);
+        ServiceResult<InsuranceCompanyMasterResponse> CreateUpdateInsuranceCompanyMaster(InsuranceCompanyMasterRequest request, AllGlobalValues globalValues);
+        ServiceResult<IEnumerable<InsuranceCompanyMasterModel>> GetInsuranceCompanyMasterList();
+        ServiceResult<CorporateTypeMasterResponse> CreateUpdateCorporateTypeMaster(CorporateTypeMasterRequest request, AllGlobalValues globalValues);
+        ServiceResult<IEnumerable<CorporateTypeMasterModel>> GetCorporateTypeMasterList();
+        ServiceResult<CorporateMasterResponse> CreateUpdateCorporateMaster(CorporateMasterRequest request, AllGlobalValues globalValues);
+        ServiceResult<IEnumerable<CorporateMasterDetailModel>> GetCorporateMasterList(int? corporateId = null, string corporateName = null, int? insuranceCompanyId = null, string insuranceCompanyName = null, int? isActive = null);
+        ServiceResult<string> UpdateCorporateMasterStatus(int corporateId, int isActive, AllGlobalValues globalValues);
 
+        ServiceResult<DiscountApprovalMasterResponse> CreateUpdateDiscountApprovalMaster(DiscountApprovalMasterRequest request, AllGlobalValues globalValues);
+        ServiceResult<IEnumerable<DiscountApprovalMasterModel>> GetDiscountApprovalMasterList(string name = null, int? isActive = null);
+        ServiceResult<object> SaveUserwiseDiscountMaster(List<UserwiseDiscountMasterRequest> request, AllGlobalValues globalValues);
+        ServiceResult<object> GetUserwiseDiscountMaster();
 
+        // Doctor Header Master
+        ServiceResult<CreateUpdateDoctorHeaderResponse> CreateUpdateDoctorHeader(
+            CreateUpdateDoctorHeaderRequest request,
+            AllGlobalValues globalValues);
+
+        ServiceResult<IEnumerable<DoctorHeaderMasterModel>> GetAllDoctorHeaderMaster(int? headerId = null);
+
+        ServiceResult<IEnumerable<DoctorHeaderLOVModel>> GetDoctorHeaderLOVs(int headerId);
+
+        ServiceResult<IEnumerable<DoctorHeaderMappingModel>> GetDoctorHeaderMappingForMaster(
+            int typeId,
+            int relatedToId);
+
+        ServiceResult<string> SaveDoctorHeaderDepartmentMapping(
+            SaveDoctorHeaderMappingRequest request,
+            AllGlobalValues globalValues);
+
+        ServiceResult<object> CreateUpdateServiceItemMaster(CreateUpdateServiceItemMasterRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> CreateUpdatePrintGroupMaster(CreateUpdatePrintGroupMasterRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetPrintGroupMaster(int? printGroupId);
+        ServiceResult<object> CreateUpdateWardNameMaster(CreateUpdateWardNameMasterRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetWardNameMaster(int? wardNameId);
+
+        ServiceResult<CreateUpdateFloorMasterResponse> CreateUpdateFloorMaster(CreateUpdateFloorMasterRequest request, AllGlobalValues globalValues);
+        ServiceResult<IEnumerable<FloorMasterModel>> GetFloorList(int? floorId = null);
+        ServiceResult<CreateUpdateBedMasterResponse> CreateUpdateBedMaster(CreateUpdateBedMasterRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetAllBedList(int? bedId = null, int? isActive = null);
     }
 }

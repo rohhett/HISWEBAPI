@@ -621,5 +621,249 @@ namespace HISWEBAPI.Controllers
                 data = serviceResult.Data
             });
         }
+
+        [HttpPost("createUpdateProMaster")]
+        [Authorize]
+        public IActionResult CreateUpdateProMaster([FromBody] CreateUpdateProMasterRequest request)
+        {
+            _log.Info($"CreateUpdateProMaster called. ProId={request.ProId}, ProName={request.ProName}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for PRO Master insert/update.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            // Validate IsActive value
+            if (request.IsActive != 0 && request.IsActive != 1)
+            {
+                _log.Warn("Invalid IsActive value provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "IsActive must be 0 or 1",
+                    errors = new { isActive = request.IsActive }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _doctorRepository.CreateUpdateProMaster(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"PRO Master operation completed: {serviceResult.Message}");
+            else
+                _log.Warn($"PRO Master operation failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+      
+        [HttpGet("getProList")]
+        [Authorize]
+        public IActionResult GetProList(
+            [FromQuery] int? proId = null,
+            [FromQuery] int? isActive = null)
+        {
+            _log.Info($"GetProList called. ProId={proId?.ToString() ?? "All"}, IsActive={isActive?.ToString() ?? "All"}");
+
+            // Validate IsActive parameter if provided
+            if (isActive.HasValue && isActive.Value != 0 && isActive.Value != 1)
+            {
+                _log.Warn($"Invalid IsActive parameter: {isActive.Value}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "IsActive must be 0 (Inactive), 1 (Active), or null (All)",
+                    errors = new { isActive }
+                });
+            }
+
+            var serviceResult = _doctorRepository.GetProList(proId, isActive);
+
+            if (serviceResult.Result)
+                _log.Info($"PRO list fetched successfully from cache: {serviceResult.Message}");
+            else
+                _log.Warn($"No PRO records found: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+
+
+      
+        [HttpPost("createUpdateReferDoctor")]
+        [Authorize]
+        public IActionResult CreateUpdateReferDoctor([FromBody] CreateUpdateReferDoctorRequest request)
+        {
+            _log.Info($"CreateUpdateReferDoctor called. ReferDoctorId={request.ReferDoctorId}, Name={request.Name}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for Refer Doctor insert/update.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            // Validate Active value
+            if (request.Active != 0 && request.Active != 1)
+            {
+                _log.Warn("Invalid Active value provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "Active must be 0 or 1",
+                    errors = new { active = request.Active }
+                });
+            }
+
+            // Validate ProId
+            if (request.ProId < 0)
+            {
+                _log.Warn("Invalid ProId value provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "ProId must be greater than or equal to 0",
+                    errors = new { proId = request.ProId }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _doctorRepository.CreateUpdateReferDoctor(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"Refer Doctor operation completed: {serviceResult.Message}");
+            else
+                _log.Warn($"Refer Doctor operation failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("updateReferDoctorMasterStatus")]
+        [Authorize]
+        public IActionResult UpdateReferDoctorMasterStatus([FromQuery] int referDoctorId, [FromQuery] int isActive)
+        {
+            _log.Info($"UpdateReferDoctorMasterStatus called. ReferDoctorId={referDoctorId}, IsActive={isActive}");
+
+            if (referDoctorId <= 0)
+            {
+                _log.Warn("Invalid ReferDoctorId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "ReferDoctorId must be greater than 0",
+                    errors = new { referDoctorId }
+                });
+            }
+
+            if (isActive != 0 && isActive != 1)
+            {
+                _log.Warn("Invalid IsActive value provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "IsActive must be 0 or 1",
+                    errors = new { isActive }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _doctorRepository.UpdateReferDoctorMasterStatus(referDoctorId, isActive, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"ReferDoctor status updated successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"ReferDoctor status update failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getReferDoctorList")]
+        [Authorize]
+        public IActionResult GetReferDoctorList(
+            [FromQuery] int? referDoctorId = null,
+            [FromQuery] int? isActive = null)
+        {
+            _log.Info($"GetReferDoctorList called. ReferDoctorId={referDoctorId?.ToString() ?? "All"}, IsActive={isActive?.ToString() ?? "All"}");
+
+            // Validate IsActive parameter if provided
+            if (isActive.HasValue && isActive.Value != 0 && isActive.Value != 1)
+            {
+                _log.Warn($"Invalid IsActive parameter: {isActive.Value}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "IsActive must be 0 (Inactive), 1 (Active), or null (All)",
+                    errors = new { isActive }
+                });
+            }
+
+            var serviceResult = _doctorRepository.GetReferDoctorList(referDoctorId, isActive);
+
+            if (serviceResult.Result)
+                _log.Info($"Refer Doctor list fetched successfully from cache: {serviceResult.Message}");
+            else
+                _log.Warn($"No Refer Doctor records found: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
     }
 }

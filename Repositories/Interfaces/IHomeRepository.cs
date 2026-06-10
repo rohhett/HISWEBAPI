@@ -22,7 +22,22 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<DTO.FileStreamResult> GetFile(string filePath);
         ServiceResult<FileBase64Result> GetFileAsBase64(string filePath);
         ServiceResult<FileExistsResult> CheckFileExists(string filePath);
-        ServiceResult<IEnumerable<DoctorMasterModel>> GetDoctorMasterListByBranchId(int branchId,int? departmentId = null, int? specializationId = null,byte? isDoctorUnit = null);
-
+        ServiceResult<IEnumerable<DoctorMasterModel>> GetDoctorMasterListByBranchId(int branchId,int? departmentId = null, int? specializationId = null, int? canApproveLabReport = null, byte? isDoctorUnit = null);
+        ServiceResult<IEnumerable<CategoryTypeModel>> GetCategoryTypeList(string categoryTypeIds);
+        ServiceResult<IEnumerable<CategoryModel>> GetCategoryList(string categoryIds, string categoryTypeIds);
+        ServiceResult<CreateUpdateCategoryResponse> CreateUpdateCategory(CreateUpdateCategoryRequest request, AllGlobalValues globalValues);
+        ServiceResult<IEnumerable<SubCategoryModel>> GetSubCategoryList(string categoryIds);
+        ServiceResult<IEnumerable<SubSubCategoryModel>> GetSubSubCategoryList(string subCategoryIds);
+        ServiceResult<CreateUpdateSubCategoryResponse> CreateUpdateSubCategory(CreateUpdateSubCategoryRequest request, AllGlobalValues globalValues);
+        ServiceResult<CreateUpdateSubSubCategoryResponse> CreateUpdateSubSubCategory(CreateUpdateSubSubCategoryRequest request, AllGlobalValues globalValues);
+        ServiceResult<IEnumerable<ServiceItemMasterModel>> GetServiceItemList(int? serviceItemId, int? isActive,string categoryTypeId, string categoryId, int? subCategoryId, int? subSubCategoryId, int? labTypeId, int? reportTypeId, string serviceName);
+        ServiceResult<IEnumerable<PaymentModeMasterModel>> GetPaymentModeMasterList(string paymentModeName = null, int? isActive = null);
+        ServiceResult<string> UpdateServiceItemMasterStatus(int serviceItemId, int isActive, AllGlobalValues globalValues);
+        ServiceResult<IEnumerable<CorporatePaymentModeModel>> GetCorporatePaymentModes(int corporateId, int isRefundPaymentModes);
+        ServiceResult<IEnumerable<DiscountApprovalModel>> GetDiscountApprovalForBilling(string discountType, int branchId);
+        ServiceResult<object> CheckBedStatus(int bedId);
+        ServiceResult<object> CheckPatientAdmitted(int patientId);
+        ServiceResult<object> GetBedTypes(int branchId, int roomTypeId);
+        ServiceResult<object> GetAvailableBeds(int branchId, int typeId);
     }
 }

@@ -18,8 +18,11 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<IEnumerable<DoctorUnitMappingModel>> GetDoctorUnitMapping(int unitId);
         ServiceResult<IEnumerable<DoctorTimingDetailsModel>> GetDoctorTimingDetails(int doctorId);
         ServiceResult<string> UpdateDoctorMasterStatus(int doctorId, int isActive, AllGlobalValues globalValues);
-
-
+        ServiceResult<CreateUpdateProMasterResponse> CreateUpdateProMaster(CreateUpdateProMasterRequest request, AllGlobalValues globalValues);
+        ServiceResult<IEnumerable<ProMasterModel>> GetProList( int? proId = null,int? isActive = null);
+        ServiceResult<CreateUpdateReferDoctorResponse> CreateUpdateReferDoctor( CreateUpdateReferDoctorRequest request, AllGlobalValues globalValues);
+        ServiceResult<string> UpdateReferDoctorMasterStatus(int referDoctorId, int isActive, AllGlobalValues globalValues);
+        ServiceResult<IEnumerable<ReferDoctorModel>> GetReferDoctorList( int? referDoctorId = null, int? isActive = null);
 
     }
 }

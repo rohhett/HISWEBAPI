@@ -117,4 +117,85 @@ namespace HISWEBAPI.DTO
 
         public int? IsDoctorUnit { get; set; }
     }
+
+    public class GetCategoryListRequest
+    {
+        public string CategoryIds { get; set; } // e.g. "3,4,5,6" — optional, null = return all
+    }
+
+    public class CreateUpdateSubCategoryRequest
+    {
+        public int SubCategoryId { get; set; } = 0;
+
+        [Required(ErrorMessage = "SubCategoryName is required")]
+        [StringLength(256, ErrorMessage = "SubCategoryName cannot exceed 256 characters")]
+        public string SubCategoryName { get; set; }
+
+        [Required(ErrorMessage = "CategoryId is required")]
+        public int CategoryId { get; set; }
+
+        public int LabTypeId { get; set; } = 0;
+        public string LabType { get; set; }
+    }
+
+    public class CreateUpdateSubCategoryResponse
+    {
+        public int SubCategoryId { get; set; }
+    }
+
+    public class CreateUpdateSubSubCategoryRequest
+    {
+        public int SubSubCategoryId { get; set; } = 0;
+
+        [Required(ErrorMessage = "SubSubCategoryName is required")]
+        [StringLength(256, ErrorMessage = "SubSubCategoryName cannot exceed 256 characters")]
+        public string SubSubCategoryName { get; set; }
+
+        [Required(ErrorMessage = "SubCategoryId is required")]
+        public int SubCategoryId { get; set; }
+        public int PrintGroupId { get; set; }
+        public int DepartmentId { get; set; }
+    }
+
+    public class CreateUpdateSubSubCategoryResponse
+    {
+        public int SubSubCategoryId { get; set; }
+    }
+
+    public class CreateUpdateCategoryRequest
+    {
+        public int CategoryId { get; set; } = 0;
+
+        [Required(ErrorMessage = "Category name is required")]
+        [StringLength(256, ErrorMessage = "Category name cannot exceed 256 characters")]
+        public string CategoryName { get; set; }
+
+        [Required(ErrorMessage = "CategoryTypeId is required")]
+        public int CategoryTypeId { get; set; }
+
+        [Required(ErrorMessage = "Category type name is required")]
+        [StringLength(256, ErrorMessage = "Category type name cannot exceed 256 characters")]
+        public string CategoryTypeName { get; set; }
+    }
+
+    public class CreateUpdateCategoryResponse
+    {
+        public int CategoryId { get; set; }
+    }
+
+    public class PatientInvestigationReportRequest
+    {
+        [Required]
+        public string PatientInvestigationIds { get; set; } = string.Empty;
+
+        [Required]
+        public int BranchId { get; set; }
+        public int IsHeaderPng { get; set; }
+        public bool Download { get; set; } = true;
+        public int DummyMode { get; set; }
+        public string Contacts { get; set; } = string.Empty;
+        public string EmailIds { get; set; } = string.Empty;
+    }
+
+   
 }

@@ -1261,5 +1261,434 @@ namespace HISWEBAPI.Repositories.Implementations
                 );
             }
         }
+
+
+        public ServiceResult<CreateUpdateProMasterResponse> CreateUpdateProMaster(
+      CreateUpdateProMasterRequest request,
+      AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CreateUpdateProMaster called. ProId={request.ProId}, ProName={request.ProName}");
+
+                var result = _sqlHelper.DML(
+                    "IU_ProMaster",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        hospId = globalValues.hospId,
+                        proId = request.ProId,
+                        proName = request.ProName,
+                        contactNo = request.ContactNo,
+                        isActive = request.IsActive,
+                        userId = globalValues.userId,
+                        IpAddress = globalValues.ipAddress
+                    },
+                    new
+                    {
+                        result = 0
+                    }
+                );
+
+                int resultValue = Convert.ToInt32(result);
+
+                // Clear cache after successful operation
+                string cacheKey = "_ProMaster_All";
+                _distributedCache.Remove(cacheKey);
+                _log.Info($"Cleared ProMaster cache. Key={cacheKey}");
+
+                if (resultValue == -1)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Duplicate PRO name: {request.ProName}");
+                    return ServiceResult<CreateUpdateProMasterResponse>.Failure(
+                        alert.Type,
+                        "PRO Name Already Exists",
+                        409
+                    );
+                }
+
+                if (resultValue > 0)
+                {
+                    var responseData = new CreateUpdateProMasterResponse { ProId = resultValue };
+                    var alert = _messageService.GetMessageAndTypeByAlertCode(
+                        request.ProId == 0 ? "DATA_SAVED_SUCCESSFULLY" : "DATA_UPDATED_SUCCESSFULLY"
+                    );
+
+                    _log.Info($"PRO Master {(request.ProId == 0 ? "created" : "updated")} successfully. ProId={resultValue}");
+
+                    return ServiceResult<CreateUpdateProMasterResponse>.Success(
+                        responseData,
+                        alert.Type,
+                        request.ProId == 0 ? "PRO Saved Successfully" : "PRO Updated Successfully",
+                        request.ProId == 0 ? 201 : 200
+                    );
+                }
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_FAILED");
+                _log.Error($"PRO Master operation failed with result: {resultValue}");
+                return ServiceResult<CreateUpdateProMasterResponse>.Failure(
+                    alert1.Type,
+                    alert1.Message,
+                    500
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<CreateUpdateProMasterResponse>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<IEnumerable<ProMasterModel>> GetProList(
+            int? proId = null,
+            int? isActive = null)
+        {
+            try
+            {
+                _log.Info($"GetProList called. ProId={proId?.ToString() ?? "All"}, IsActive={isActive?.ToString() ?? "All"}");
+
+                // Cache key for ALL PRO records
+                string cacheKey = "_ProMaster_All";
+
+                // Try to get all PRO records from cache
+                var cachedData = _distributedCache.GetString(cacheKey);
+                List<ProMasterModel> allProRecords;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"ProMaster data retrieved from cache. Key={cacheKey}");
+                    allProRecords = JsonSerializer.Deserialize<List<ProMasterModel>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"ProMaster cache miss. Fetching all data from database. Key={cacheKey}");
+
+                    // Fetch ALL PRO records from database (no parameters)
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_GetProList",
+                        CommandType.StoredProcedure
+                    );
+
+                    allProRecords = dataTable?.AsEnumerable().Select(row => new ProMasterModel
+                    {
+                        ProId = row.Field<int>("ProId"),
+                        Name = row.Field<string>("Name") ?? string.Empty,
+                        ContactNo = row.Field<string>("ContactNo") ?? string.Empty,
+                        IsActive = row.Field<int>("IsActive")
+                    }).ToList() ?? new List<ProMasterModel>();
+
+                    // Store ALL PRO records in cache (permanent until manually cleared)
+                    if (allProRecords.Any())
+                    {
+                        var serialized = JsonSerializer.Serialize(allProRecords);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                        _log.Info($"All ProMaster data cached permanently. Key={cacheKey}, Count={allProRecords.Count}");
+                    }
+                }
+
+                // Filter in memory based on parameters (always from cache)
+                List<ProMasterModel> filteredProRecords = allProRecords;
+
+                if (proId.HasValue)
+                {
+                    _log.Info($"Filtering cached data by ProId: {proId.Value}");
+                    filteredProRecords = filteredProRecords.Where(p => p.ProId == proId.Value).ToList();
+                }
+
+                if (isActive.HasValue)
+                {
+                    _log.Info($"Filtering cached data by IsActive: {isActive.Value}");
+                    filteredProRecords = filteredProRecords.Where(p => p.IsActive == isActive.Value).ToList();
+                }
+
+                if (!filteredProRecords.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No PRO records found for ProId={proId?.ToString() ?? "All"}, IsActive={isActive?.ToString() ?? "All"}");
+                    return ServiceResult<IEnumerable<ProMasterModel>>.Failure(
+                        alert.Type,
+                        "No PRO records found",
+                        404
+                    );
+                }
+
+                _log.Info($"Retrieved {filteredProRecords.Count} PRO record(s) from cache");
+
+                return ServiceResult<IEnumerable<ProMasterModel>>.Success(
+                    filteredProRecords,
+                    "Info",
+                    $"{filteredProRecords.Count} PRO record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<IEnumerable<ProMasterModel>>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+
+        public ServiceResult<CreateUpdateReferDoctorResponse> CreateUpdateReferDoctor(
+            CreateUpdateReferDoctorRequest request,
+            AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CreateUpdateReferDoctor called. ReferDoctorId={request.ReferDoctorId}, Name={request.Name}");
+
+                var result = _sqlHelper.DML(
+                    "IU_ReferDoctorMaster",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        hospId = globalValues.hospId,
+                        referDoctorId = request.ReferDoctorId,
+                        title = request.Title,
+                        name = request.Name,
+                        doctorContacNo = request.DoctorContacNo,
+                        clinicName = request.ClinicName,
+                        address = request.Address,
+                        proId = request.ProId,
+                        active = request.Active,
+                        userId = globalValues.userId,
+                        IpAddress = globalValues.ipAddress
+                    },
+                    new
+                    {
+                        result = 0
+                    }
+                );
+
+                int resultValue = Convert.ToInt32(result);
+
+                // Clear cache after successful operation
+                string cacheKey = "_ReferDoctorMaster_All";
+                _distributedCache.Remove(cacheKey);
+                _log.Info($"Cleared ReferDoctorMaster cache. Key={cacheKey}");
+
+                if (resultValue == -1)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Duplicate Refer Doctor name: {request.Name}");
+                    return ServiceResult<CreateUpdateReferDoctorResponse>.Failure(
+                        alert.Type,
+                        "Refer Doctor Name Already Exists",
+                        409
+                    );
+                }
+
+                if (resultValue > 0)
+                {
+                    var responseData = new CreateUpdateReferDoctorResponse { ReferDoctorId = resultValue };
+                    var alert = _messageService.GetMessageAndTypeByAlertCode(
+                        request.ReferDoctorId == 0 ? "DATA_SAVED_SUCCESSFULLY" : "DATA_UPDATED_SUCCESSFULLY"
+                    );
+
+                    _log.Info($"Refer Doctor {(request.ReferDoctorId == 0 ? "created" : "updated")} successfully. ReferDoctorId={resultValue}");
+
+                    return ServiceResult<CreateUpdateReferDoctorResponse>.Success(
+                        responseData,
+                        alert.Type,
+                        request.ReferDoctorId == 0 ? "Refer Doctor Saved Successfully" : "Refer Doctor Updated Successfully",
+                        request.ReferDoctorId == 0 ? 201 : 200
+                    );
+                }
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_FAILED");
+                _log.Error($"Refer Doctor operation failed with result: {resultValue}");
+                return ServiceResult<CreateUpdateReferDoctorResponse>.Failure(
+                    alert1.Type,
+                    alert1.Message,
+                    500
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<CreateUpdateReferDoctorResponse>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<IEnumerable<ReferDoctorModel>> GetReferDoctorList(
+            int? referDoctorId = null,
+            int? isActive = null)
+        {
+            try
+            {
+                _log.Info($"GetReferDoctorList called. ReferDoctorId={referDoctorId?.ToString() ?? "All"}, IsActive={isActive?.ToString() ?? "All"}");
+
+                // Cache key for ALL Refer Doctor records
+                string cacheKey = "_ReferDoctorMaster_All";
+
+                // Try to get all Refer Doctor records from cache
+                var cachedData = _distributedCache.GetString(cacheKey);
+                List<ReferDoctorModel> allReferDoctors;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"ReferDoctorMaster data retrieved from cache. Key={cacheKey}");
+                    allReferDoctors = JsonSerializer.Deserialize<List<ReferDoctorModel>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"ReferDoctorMaster cache miss. Fetching all data from database. Key={cacheKey}");
+
+                    // Fetch ALL Refer Doctor records from database (no parameters)
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_GetReferDoctorList",
+                        CommandType.StoredProcedure
+                    );
+
+                    allReferDoctors = dataTable?.AsEnumerable().Select(row => new ReferDoctorModel
+                    {
+                        ReferDoctorId = row.Field<int>("ReferDoctorId"),
+                        Title = row.Field<string>("Title") ?? string.Empty,
+                        Name = row.Field<string>("Name") ?? string.Empty,
+                        DoctorName = row.Field<string>("DoctorName") ?? string.Empty,
+                        ContactNo = row.Field<string>("ContactNo") ?? string.Empty,
+                        ClinicName = row.Field<string>("ClinicName") ?? string.Empty,
+                        Address = row.Field<string>("Address") ?? string.Empty,
+                        PROName = row.Field<string>("PROName") ?? string.Empty,
+                        ProId = row.Field<int>("ProId"),
+                        IsActive = row.Field<int>("IsActive"),
+                          CreatedBy = row.Field<string>("CreatedBy"),
+                        CreatedOn = row.Field<string>("CreatedOn"),
+                        LastModifiedBy = row.Field<string>("LastModifiedBy"),
+                        LastModifiedOn = row.Field<string>("LastModifiedOn"),
+                    }).ToList() ?? new List<ReferDoctorModel>();
+
+                    // Store ALL Refer Doctor records in cache (permanent until manually cleared)
+                    if (allReferDoctors.Any())
+                    {
+                        var serialized = JsonSerializer.Serialize(allReferDoctors);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                        _log.Info($"All ReferDoctorMaster data cached permanently. Key={cacheKey}, Count={allReferDoctors.Count}");
+                    }
+                }
+
+                // Filter in memory based on parameters (always from cache)
+                List<ReferDoctorModel> filteredReferDoctors = allReferDoctors;
+
+                if (referDoctorId.HasValue)
+                {
+                    _log.Info($"Filtering cached data by ReferDoctorId: {referDoctorId.Value}");
+                    filteredReferDoctors = filteredReferDoctors.Where(r => r.ReferDoctorId == referDoctorId.Value).ToList();
+                }
+
+                if (isActive.HasValue)
+                {
+                    _log.Info($"Filtering cached data by IsActive: {isActive.Value}");
+                    filteredReferDoctors = filteredReferDoctors.Where(r => r.IsActive == isActive.Value).ToList();
+                }
+
+                if (!filteredReferDoctors.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No Refer Doctor records found for ReferDoctorId={referDoctorId?.ToString() ?? "All"}, IsActive={isActive?.ToString() ?? "All"}");
+                    return ServiceResult<IEnumerable<ReferDoctorModel>>.Failure(
+                        alert.Type,
+                        "No Refer Doctor records found",
+                        404
+                    );
+                }
+
+                _log.Info($"Retrieved {filteredReferDoctors.Count} Refer Doctor record(s) from cache");
+
+                return ServiceResult<IEnumerable<ReferDoctorModel>>.Success(
+                    filteredReferDoctors,
+                    "Info",
+                    $"{filteredReferDoctors.Count} Refer Doctor record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<IEnumerable<ReferDoctorModel>>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<string> UpdateReferDoctorMasterStatus(int referDoctorId, int isActive, AllGlobalValues globalValues)
+        {
+            try
+            {
+                var result = _sqlHelper.DML("U_UpdateReferDoctorMasterStatus", CommandType.StoredProcedure, new
+                {
+                    @ReferDoctorId = referDoctorId,
+                    @UserId = globalValues.userId,
+                    @IsActive = isActive,
+                    @IpAddress = globalValues.ipAddress
+                });
+
+                // Clear Refer doctor master cache after successful update
+                _distributedCache.Remove("_ReferDoctorMaster_All");
+                _log.Info($"Cleared ReferDoctorMaster cache after status update");
+
+                if (result > 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                    _log.Info($"ReferDoctor status updated successfully. ReferDoctorId={referDoctorId}, IsActive={isActive}");
+                    return ServiceResult<string>.Success(
+                        "Refer Doctor status updated successfully",
+                        alert.Type,
+                        alert.Message,
+                        200
+                    );
+                }
+                else
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Warn($"Refer Doctor not found for ReferDoctorId={referDoctorId}");
+                    return ServiceResult<string>.Failure(
+                        alert.Type,
+                        "Doctor not found",
+                        404
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
     }
 }

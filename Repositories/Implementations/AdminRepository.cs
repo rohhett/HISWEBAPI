@@ -22,6 +22,7 @@ using static System.Net.Mime.MediaTypeNames;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 using System.Runtime.ConstrainedExecution;
 using System.Text.RegularExpressions;
+using System.Text.Json;
 
 namespace HISWEBAPI.Repositories.Implementations
 {
@@ -33,6 +34,7 @@ namespace HISWEBAPI.Repositories.Implementations
         private static readonly ILog _log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
         private readonly IConfiguration _configuration;
 
+        private const string CACHE_KEY_DOCTOR_HEADER_ALL = "_DoctorHeaderMaster_All";
 
         public AdminRepository(
             ICustomSqlHelper sqlHelper,
@@ -5473,6 +5475,8 @@ namespace HISWEBAPI.Repositories.Implementations
 
                 // Clear the single cache key after successful operation
                 _distributedCache.Remove("_PatientDocumentMaster_All");
+                GlobalFunctions.ClearCacheByPattern(_configuration, "_PatientDocumentMapping_*");
+
                 _log.Info("Cleared PatientDocumentMaster cache after create/update operation");
 
                 if (result < 0)
@@ -5623,6 +5627,2507 @@ namespace HISWEBAPI.Repositories.Implementations
                     alert.Message,
                     500
                 );
+            }
+        }
+
+        private const string OutSourceLabMasterCacheKey = "_OutSourceLabMaster_All";
+
+        public ServiceResult<IEnumerable<OutSourceLabMasterModel>>
+            GetOutSourceLabMasterList(int? isActive = null)
+        {
+            try
+            {
+                _log.Info($"GetOutSourceLabMasterList called. isActive={isActive?.ToString() ?? "null (all)"}");
+
+                List<OutSourceLabMasterModel> allRecords;
+                var cachedData = _distributedCache.GetString(OutSourceLabMasterCacheKey);
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"Cache hit. Key={OutSourceLabMasterCacheKey}");
+                    allRecords = JsonSerializer.Deserialize<List<OutSourceLabMasterModel>>(cachedData)
+                                 ?? new List<OutSourceLabMasterModel>();
+                }
+                else
+                {
+                    _log.Info($"Cache miss. Fetching from DB. Key={OutSourceLabMasterCacheKey}");
+
+                    var dt = _sqlHelper.GetDataTable(
+                        "S_getOutSourceLabMasterList",
+                        CommandType.StoredProcedure);
+
+                    allRecords = dt?.AsEnumerable().Select(row =>
+                        new OutSourceLabMasterModel
+                        {
+                            OutSourceLabId = row.Field<int>("OutSourceLabId"),
+                            OutSourceLab = row.Field<string>("OutSourceLab") ?? string.Empty,
+                            BranchId = row.Field<int>("BranchId"),
+                            BranchName = row.Field<string>("BranchName") ?? string.Empty,
+                            ContactPerson = row.Field<string>("ContactPerson") ?? string.Empty,
+                            ContactNumber = row.Field<string>("ContactNumber") ?? string.Empty,
+                            Address = row.Field<string>("Address") ?? string.Empty,
+                            IsActive = row.Field<int>("IsActive")
+                        }).ToList()
+                    ?? new List<OutSourceLabMasterModel>();
+
+                    if (allRecords.Any())
+                    {
+                        var serialized = JsonSerializer.Serialize(allRecords);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(OutSourceLabMasterCacheKey, serialized, cacheOptions);
+                        _log.Info($"Cached {allRecords.Count} record(s). Key={OutSourceLabMasterCacheKey}");
+                    }
+                }
+
+                // Filter in-memory — null means return all
+                var filtered = isActive.HasValue
+                    ? allRecords.Where(x => x.IsActive == isActive.Value).ToList()
+                    : allRecords;
+
+                if (!filtered.Any())
+                {
+                    var notFound = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info("No OutSourceLab records matched the filter.");
+                    return ServiceResult<IEnumerable<OutSourceLabMasterModel>>.Failure(
+                        notFound.Type, notFound.Message, 404);
+                }
+
+                _log.Info($"Returning {filtered.Count()} record(s).");
+                return ServiceResult<IEnumerable<OutSourceLabMasterModel>>.Success(
+                    filtered, "Info", $"{filtered.Count()} record(s) retrieved successfully.", 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<IEnumerable<OutSourceLabMasterModel>>.Failure(
+                    alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<SaveOutSourceLabMasterResponse> SaveOutSourceLabMaster(
+     SaveOutSourceLabMasterRequest request,
+     AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"SaveOutSourceLabMaster called. OutSourceLabId={request.OutSourceLabId}, " +
+                          $"OutSourceLab={request.OutSourceLab}");
+
+                var result = _sqlHelper.DML(
+                    "IU_OutSourceLabMaster",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @hospId = globalValues.hospId,
+                        @branchId = request.branchId,
+                        @outsourcelabId = request.OutSourceLabId,
+                        @outsourcelab = request.OutSourceLab,
+                        @contactperson = request.ContactPerson,
+                        @contactnumber = request.ContactNumber,
+                        @address = request.Address,
+                        @IsActive = request.IsActive,
+                        @userId = globalValues.userId,
+                        @IpAddress = globalValues.ipAddress
+                    },
+                    new { result = 0 }  // output param seed
+                );
+
+                // SP returns -1 when OutSourceLab name already exists for this branch
+                if (result == -1)
+                {
+                    _log.Warn($"Duplicate OutSourceLab name='{request.OutSourceLab}' " +
+                              $"for BranchId={request.branchId}");
+                    var dupAlert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    return ServiceResult<SaveOutSourceLabMasterResponse>.Failure(
+                        dupAlert.Type, dupAlert.Message, 409);
+                }
+
+                if (result <= 0)
+                {
+                    _log.Warn($"SaveOutSourceLabMaster unexpected result={result}");
+                    var failAlert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_FAILED");
+                    return ServiceResult<SaveOutSourceLabMasterResponse>.Failure(
+                        failAlert.Type, failAlert.Message, 400);
+                }
+
+                // Invalidate cache so next GET fetches fresh data
+                _distributedCache.Remove(OutSourceLabMasterCacheKey);
+                _log.Info($"Cache invalidated. Key={OutSourceLabMasterCacheKey}");
+
+                bool isUpdate = request.OutSourceLabId > 0;
+                var alertCode = isUpdate ? "DATA_UPDATED_SUCCESSFULLY" : "DATA_SAVED_SUCCESSFULLY";
+                var okAlert = _messageService.GetMessageAndTypeByAlertCode(alertCode);
+
+                _log.Info($"OutSourceLab {(isUpdate ? "updated" : "added")} successfully. Id={result}");
+
+                return ServiceResult<SaveOutSourceLabMasterResponse>.Success(
+                    new SaveOutSourceLabMasterResponse { OutSourceLabId = result },
+                    okAlert.Type, okAlert.Message, 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<SaveOutSourceLabMasterResponse>.Failure(
+                    alert.Type, alert.Message, 500);
+            }
+        }
+
+        private const string RateListMasterCacheKey = "_RateListMaster_All";
+        public ServiceResult<IEnumerable<RateListMasterModel>> GetRateListMaster(string? rateListName, int? isActive)
+        {
+            try
+            {
+                _log.Info($"GetRateListMaster called. RateListName={rateListName ?? "All"}, IsActive={isActive?.ToString() ?? "All"}");
+
+                // ── 1. Try cache ──────────────────────────────────────────────
+                var cachedData = _distributedCache.GetString(RateListMasterCacheKey);
+                List<RateListMasterModel> allRateLists;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"RateListMaster data retrieved from cache. Key={RateListMasterCacheKey}");
+                    allRateLists = JsonSerializer.Deserialize<List<RateListMasterModel>>(cachedData)
+                                   ?? new List<RateListMasterModel>();
+                }
+                else
+                {
+                    // ── 2. Cache miss — fetch ALL records from DB ─────────────
+                    _log.Info($"RateListMaster cache miss. Fetching ALL records from database. Key={RateListMasterCacheKey}");
+
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_GetRateListMaster",
+                        CommandType.StoredProcedure
+                    );
+
+                    allRateLists = dataTable?.AsEnumerable().Select(row => new RateListMasterModel
+                    {
+                        RateListId = row.Field<int>("RateListId"),
+                        RateListName = row.Field<string>("RateListName") ?? string.Empty,
+                        ApplicableDate = row.Field<string>("ApplicableDate") ?? string.Empty,
+                        ExpiryDate = row.Field<string>("ExpiryDate") ?? string.Empty,
+                        IsActive = row.Field<int>("IsActive")
+                    }).ToList() ?? new List<RateListMasterModel>();
+
+                    // Store ALL records under single key (no expiration — cleared on save/update)
+                    if (allRateLists.Any())
+                    {
+                        var serialized = JsonSerializer.Serialize(allRateLists);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(RateListMasterCacheKey, serialized, cacheOptions);
+                        _log.Info($"RateListMaster ALL data cached permanently. Key={RateListMasterCacheKey}, Count={allRateLists.Count}");
+                    }
+                }
+
+                // ── 3. Filter in memory (always from the single cached list) ──
+                List<RateListMasterModel> filteredList = allRateLists;
+
+                if (isActive.HasValue)
+                {
+                    _log.Info($"Filtering cached data by IsActive: {isActive.Value}");
+                    filteredList = filteredList.Where(r => r.IsActive == isActive.Value).ToList();
+                }
+
+                if (!string.IsNullOrWhiteSpace(rateListName))
+                {
+                    _log.Info($"Filtering cached data by RateListName: {rateListName}");
+                    filteredList = filteredList
+                        .Where(r => r.RateListName.Contains(rateListName, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                }
+
+                if (!filteredList.Any())
+                {
+                    var notFound = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info("No RateListMaster records found for the given filters.");
+                    return ServiceResult<IEnumerable<RateListMasterModel>>.Failure(
+                        notFound.Type,
+                        notFound.Message,
+                        404
+                    );
+                }
+
+                _log.Info($"Retrieved {filteredList.Count} RateListMaster record(s).");
+                return ServiceResult<IEnumerable<RateListMasterModel>>.Success(
+                    filteredList,
+                    "Info",
+                    $"{filteredList.Count} record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<IEnumerable<RateListMasterModel>>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+      
+        public ServiceResult<string> CreateUpdateRateListMaster(
+            CreateUpdateRateListMasterRequest request,
+            AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CreateUpdateRateListMaster called. RateListId={request.RateListId}, RateListName={request.RateListName}");
+
+                // Parse expiry date: client sends dd-MM-yyyy, SP expects datetime
+                if (!DateTime.TryParseExact(
+                        request.ExpiryDate, "dd-MM-yyyy",
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.None,
+                        out DateTime expiryDate))
+                {
+                    var validationAlert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                    return ServiceResult<string>.Failure(
+                        validationAlert.Type,
+                        "Invalid ExpiryDate format. Expected dd-MM-yyyy.",
+                        400
+                    );
+                }
+
+                if (!DateTime.TryParseExact(
+                      request.ApplicableDate, "dd-MM-yyyy",
+                      System.Globalization.CultureInfo.InvariantCulture,
+                      System.Globalization.DateTimeStyles.None,
+                      out DateTime ApplicableDate))
+                {
+                    var validationAlert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                    return ServiceResult<string>.Failure(
+                        validationAlert.Type,
+                        "Invalid ApplicableDate format. Expected dd-MM-yyyy.",
+                        400
+                    );
+                }
+
+                var result = _sqlHelper.DML(
+                    "IU_RateListMaster",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @hospId = globalValues.hospId,
+                        @rateListId = request.RateListId,
+                        @rateListName = request.RateListName,
+                        @applicableDate = ApplicableDate.ToString("yyyy-MM-dd"),
+                        @expiryDate = expiryDate.ToString("yyyy-MM-dd"),
+                        @isActive = request.IsActive,
+                        @userId = globalValues.userId,
+                        @IpAddress = globalValues.ipAddress
+                    },
+                    new { result = 0 }
+                );
+
+                // SP returns -1 when name already exists
+                if (result < 0)
+                {
+                    _log.Warn($"Duplicate RateListName detected: {request.RateListName}");
+                    var dupAlert = _messageService.GetMessageAndTypeByAlertCode("DUPLICATE_ENTRY");
+                    return ServiceResult<string>.Failure(
+                        dupAlert.Type,
+                        "Rate List Name Already Exists.",
+                        409
+                    );
+                }
+
+                // Invalidate the single cache key so next GET re-fetches fresh data from DB
+                _distributedCache.Remove(RateListMasterCacheKey);
+                _log.Info($"RateListMaster cache cleared. Key={RateListMasterCacheKey}");
+
+                bool isInsert = request.RateListId == 0;
+                string successMsg = isInsert ? "Rate List Saved Successfully" : "Rate List Updated Successfully";
+                _log.Info($"{successMsg}. RateListId={result}");
+
+                var successAlert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    result.ToString(),
+                    successAlert.Type,
+                    successMsg,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+
+        public ServiceResult<IEnumerable<object>> GetTariffMaster(
+    string rateListId, string patientType, string bedTypeId,
+    string doctorId, string categoryId, string subCategoryId,
+    string subSubCategoryId, string serviceItemId, string serviceName)
+        {
+            try
+            {
+                var dt = _sqlHelper.GetDataTable("S_GetTariffMaster", CommandType.StoredProcedure, new
+                {
+                    @rateListId = rateListId,
+                    @patientType = patientType,
+                    @bedTypeId = bedTypeId,
+                    @doctorId = doctorId,
+                    @categoryId = categoryId,
+                    @subCategoryId = subCategoryId,
+                    @subSubCategoryId = subSubCategoryId,
+                    @serviceItemId = serviceItemId,
+                    @serviceName = serviceName
+                });
+
+                if (dt == null || dt.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("NO_RECORD_FOUND");
+                    return ServiceResult<IEnumerable<object>>.Failure(alert.Type, "No tariff records found.", 404);
+                }
+
+                var sorted = dt.AsEnumerable()
+                    .OrderBy(r => r.Field<string>("SubCategory"))
+                    .ThenBy(r => r.Field<string>("SubSubCategory"))
+                    .ThenBy(r => r.Field<string>("ServiceItemName"))
+                    .Select(r => dt.Columns.Cast<DataColumn>()
+                        .ToDictionary(c => c.ColumnName, c => r[c] == DBNull.Value ? null : r[c]))
+                    .ToList<object>();
+
+                return ServiceResult<IEnumerable<object>>.Success(
+                    sorted, "Info", $"{sorted.Count} tariff record(s) fetched successfully.", 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.GetTariffMaster");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR");
+                return ServiceResult<IEnumerable<object>>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<string> CreateUpdateTariffMaster(
+            CreateUpdateTariffMasterRequest request, AllGlobalValues globalValues)
+        {
+            var connectionString = _configuration.GetConnectionString("ConnectionString");
+            SqlConnection con = new SqlConnection(connectionString);
+            con.Open();
+            SqlTransaction tnx = CustomSqlHelper.getSqlTransaction(con);
+            try
+            {
+                foreach (var item in request.TariffMasterData)
+                {
+                    _sqlHelper.DML(tnx, "IU_TariffMaster", CommandType.StoredProcedure, new
+                    {
+                        @isCopyRateforIPD = request.IsCopyRateForIPD,
+                        @hospId = globalValues.hospId,
+                        @tariffId = item.TariffId,
+                        @rateListId = item.RateListId,
+                        @serviceItemId = item.ServiceItemId,
+                        @bedTypeId = item.BedTypeId,
+                        @alias = item.Alias ?? string.Empty,
+                        @serviceCode = item.ServiceCode ?? string.Empty,
+                        @doctorId = item.DoctorId,
+                        @validityDays = item.ValidityDays,
+                        @emergencyCharges = item.EmergencyCharges,
+                        @rate = item.Rate,
+                        @isRateEditable = item.IsRateEditable,
+                        @isActive = item.IsActive,
+                        @userId = globalValues.userId,
+                        @IpAddress = globalValues.ipAddress
+                    });
+                }
+
+                tnx.Commit();
+                return ServiceResult<string>.Success(
+                    null, "Info", "Tariff Master Saved Successfully.", 200);
+            }
+            catch (Exception ex)
+            {
+                tnx.Rollback();
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.CreateUpdateTariffMaster");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR");
+                return ServiceResult<string>.Failure(alert.Type, alert.Message, 500);
+            }
+            finally
+            {
+                tnx.Dispose();
+                con.Close();
+                con.Dispose();
+            }
+        }
+
+        public ServiceResult<InsuranceCompanyMasterResponse> CreateUpdateInsuranceCompanyMaster(
+    InsuranceCompanyMasterRequest request,
+    AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CreateUpdateInsuranceCompanyMaster called. InsuranceCompanyId={request.InsuranceCompanyId}, InsuranceCompanyName={request.InsuranceCompanyName}");
+
+                var result = _sqlHelper.DML("IU_InsuranceCompanyMaster", CommandType.StoredProcedure, new
+                {
+                    @hospId = globalValues.hospId,
+                    @insuranceCompanyId = request.InsuranceCompanyId,
+                    @insuranceCompanyName = request.InsuranceCompanyName,
+                    @userId = globalValues.userId,
+                    @IpAddress = globalValues.ipAddress
+                },
+                new { result = 0 });
+
+                // Clear cache after successful operation
+                _distributedCache.Remove("_InsuranceCompanyMaster_All");
+                _log.Info("Cleared InsuranceCompanyMaster cache");
+
+                if (result < 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Duplicate insurance company name: {request.InsuranceCompanyName}");
+                    return ServiceResult<InsuranceCompanyMasterResponse>.Failure(
+                        alert.Type,
+                        "Insurance Company Name Already Exists",
+                        409
+                    );
+                }
+
+                var responseData = new InsuranceCompanyMasterResponse { InsuranceCompanyId = result };
+
+                if (request.InsuranceCompanyId == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                    _log.Info($"Insurance Company created successfully. InsuranceCompanyId={result}");
+                    return ServiceResult<InsuranceCompanyMasterResponse>.Success(
+                        responseData,
+                        alert.Type,
+                        alert.Message,
+                        201
+                    );
+                }
+                else
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                    _log.Info($"Insurance Company updated successfully. InsuranceCompanyId={result}");
+                    return ServiceResult<InsuranceCompanyMasterResponse>.Success(
+                        responseData,
+                        alert.Type,
+                        alert.Message,
+                        200
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<InsuranceCompanyMasterResponse>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<IEnumerable<InsuranceCompanyMasterModel>> GetInsuranceCompanyMasterList()
+        {
+            try
+            {
+                _log.Info("GetInsuranceCompanyMasterList called.");
+
+                string cacheKey = "_InsuranceCompanyMaster_All";
+
+                var cachedData = _distributedCache.GetString(cacheKey);
+                List<InsuranceCompanyMasterModel> allInsuranceCompanies;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"InsuranceCompanyMaster data retrieved from cache. Key={cacheKey}");
+                    allInsuranceCompanies = System.Text.Json.JsonSerializer.Deserialize<List<InsuranceCompanyMasterModel>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"InsuranceCompanyMaster cache miss. Fetching all data from database. Key={cacheKey}");
+
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_GetInsuranceCompanyMaster",
+                        CommandType.StoredProcedure
+                    );
+
+                    allInsuranceCompanies = dataTable?.AsEnumerable().Select(row => new InsuranceCompanyMasterModel
+                    {
+                        InsuranceCompanyId = row.Field<int>("InsuranceCompanyId"),
+                        InsuranceCompanyName = row.Field<string>("InsuranceCompanyName") ?? string.Empty
+                    }).ToList() ?? new List<InsuranceCompanyMasterModel>();
+
+                    if (allInsuranceCompanies.Any())
+                    {
+                        var serialized = System.Text.Json.JsonSerializer.Serialize(allInsuranceCompanies);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                        _log.Info($"All InsuranceCompanyMaster data cached permanently. Key={cacheKey}, Count={allInsuranceCompanies.Count}");
+                    }
+                }
+
+                if (!allInsuranceCompanies.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info("No insurance companies found");
+                    return ServiceResult<IEnumerable<InsuranceCompanyMasterModel>>.Failure(
+                        alert.Type,
+                        "No insurance companies found",
+                        404
+                    );
+                }
+
+                _log.Info($"Retrieved {allInsuranceCompanies.Count} insurance company/companies from cache");
+
+                return ServiceResult<IEnumerable<InsuranceCompanyMasterModel>>.Success(
+                    allInsuranceCompanies,
+                    "Info",
+                    $"{allInsuranceCompanies.Count} insurance company/companies retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<IEnumerable<InsuranceCompanyMasterModel>>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<CorporateTypeMasterResponse> CreateUpdateCorporateTypeMaster(
+    CorporateTypeMasterRequest request,
+    AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CreateUpdateCorporateTypeMaster called. CorporateTypeId={request.CorporateTypeId}, CorporateTypeName={request.CorporateTypeName}");
+
+                var result = _sqlHelper.DML("IU_CorporateTypeMaster", CommandType.StoredProcedure, new
+                {
+                    @hospId = globalValues.hospId,
+                    @corporateTypeId = request.CorporateTypeId,
+                    @corporateTypeName = request.CorporateTypeName,
+                    @userId = globalValues.userId,
+                    @IpAddress = globalValues.ipAddress
+                },
+                new { result = 0 });
+
+                // Clear cache after successful operation
+                _distributedCache.Remove("_CorporateTypeMaster_All");
+                _log.Info("Cleared CorporateTypeMaster cache");
+
+                if (result < 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Duplicate corporate type name: {request.CorporateTypeName}");
+                    return ServiceResult<CorporateTypeMasterResponse>.Failure(
+                        alert.Type,
+                        "Corporate Type Name Already Exists",
+                        409
+                    );
+                }
+
+                var responseData = new CorporateTypeMasterResponse { CorporateTypeId = result };
+
+                if (request.CorporateTypeId == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                    _log.Info($"Corporate Type created successfully. CorporateTypeId={result}");
+                    return ServiceResult<CorporateTypeMasterResponse>.Success(
+                        responseData,
+                        alert.Type,
+                        alert.Message,
+                        201
+                    );
+                }
+                else
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                    _log.Info($"Corporate Type updated successfully. CorporateTypeId={result}");
+                    return ServiceResult<CorporateTypeMasterResponse>.Success(
+                        responseData,
+                        alert.Type,
+                        alert.Message,
+                        200
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<CorporateTypeMasterResponse>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<IEnumerable<CorporateTypeMasterModel>> GetCorporateTypeMasterList()
+        {
+            try
+            {
+                _log.Info("GetCorporateTypeMasterList called.");
+
+                string cacheKey = "_CorporateTypeMaster_All";
+
+                var cachedData = _distributedCache.GetString(cacheKey);
+                List<CorporateTypeMasterModel> allCorporateTypes;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"CorporateTypeMaster data retrieved from cache. Key={cacheKey}");
+                    allCorporateTypes = System.Text.Json.JsonSerializer.Deserialize<List<CorporateTypeMasterModel>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"CorporateTypeMaster cache miss. Fetching all data from database. Key={cacheKey}");
+
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_GetCorporateTypeMaster",
+                        CommandType.StoredProcedure
+                    );
+
+                    allCorporateTypes = dataTable?.AsEnumerable().Select(row => new CorporateTypeMasterModel
+                    {
+                        CorporateTypeId = row.Field<int>("CorporateTypeId"),
+                        CorporateTypeName = row.Field<string>("CorporateTypeName") ?? string.Empty
+                    }).ToList() ?? new List<CorporateTypeMasterModel>();
+
+                    if (allCorporateTypes.Any())
+                    {
+                        var serialized = System.Text.Json.JsonSerializer.Serialize(allCorporateTypes);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                        _log.Info($"All CorporateTypeMaster data cached permanently. Key={cacheKey}, Count={allCorporateTypes.Count}");
+                    }
+                }
+
+                if (!allCorporateTypes.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info("No corporate types found");
+                    return ServiceResult<IEnumerable<CorporateTypeMasterModel>>.Failure(
+                        alert.Type,
+                        "No corporate types found",
+                        404
+                    );
+                }
+
+                _log.Info($"Retrieved {allCorporateTypes.Count} corporate type(s) from cache");
+
+                return ServiceResult<IEnumerable<CorporateTypeMasterModel>>.Success(
+                    allCorporateTypes,
+                    "Info",
+                    $"{allCorporateTypes.Count} corporate type(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<IEnumerable<CorporateTypeMasterModel>>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<CorporateMasterResponse> CreateUpdateCorporateMaster(
+        CorporateMasterRequest request,
+        AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CreateUpdateCorporateMaster called. CorporateId={request.CorporateId}, CorporateName={request.CorporateName}");
+
+                // Parse dates - input format is dd-MM-yyyy
+                if (!DateTime.TryParseExact(request.ContractStartFrom,
+                    new[] { "dd-MM-yyyy", "yyyy-MM-dd", "MM/dd/yyyy", "dd/MM/yyyy" },
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None,
+                    out DateTime contractStartFrom))
+                {
+                    var alertDate = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    _log.Warn($"Invalid ContractStartFrom date format: {request.ContractStartFrom}");
+                    return ServiceResult<CorporateMasterResponse>.Failure(
+                        alertDate.Type,
+                        "Invalid ContractStartFrom date format. Use dd-MM-yyyy (e.g. 20-04-2026)",
+                        400
+                    );
+                }
+
+                if (!DateTime.TryParseExact(request.ContractExpiresOn,
+                    new[] { "dd-MM-yyyy", "yyyy-MM-dd", "MM/dd/yyyy", "dd/MM/yyyy" },
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None,
+                    out DateTime contractExpiresOn))
+                {
+                    var alertDate = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    _log.Warn($"Invalid ContractExpiresOn date format: {request.ContractExpiresOn}");
+                    return ServiceResult<CorporateMasterResponse>.Failure(
+                        alertDate.Type,
+                        "Invalid ContractExpiresOn date format. Use dd-MM-yyyy (e.g. 31-12-2028)",
+                        400
+                    );
+                }
+
+                var result = _sqlHelper.DML("IU_CorporateMaster", CommandType.StoredProcedure, new
+                {
+                    @hospId = globalValues.hospId,
+                    @corporateId = request.CorporateId,
+                    @corporateName = request.CorporateName,
+                    @insuranceCompanyName = request.InsuranceCompanyName ?? string.Empty,
+                    @insuranceCompanyId = request.InsuranceCompanyId,
+                    @corporateTypeName = request.CorporateTypeName ?? string.Empty,
+                    @corporateTypeId = request.CorporateTypeId,
+                    @paymentTypeId = request.PaymentTypeId,
+                    @corporateCode = request.CorporateCode ?? string.Empty,
+                    @corporateContact1 = request.CorporateContact1 ?? string.Empty,
+                    @corporateContact2 = request.CorporateContact2 ?? string.Empty,
+                    @corporateEmail = request.CorporateEmail ?? string.Empty,
+                    @corporateAddress1 = request.CorporateAddress1 ?? string.Empty,
+                    @corporateAddress2 = request.CorporateAddress2 ?? string.Empty,
+                    @isActive = request.IsActive,
+                    @contractStartFrom = contractStartFrom,
+                    @contractExpiresOn = contractExpiresOn,
+                    @copaymentPer = request.CopaymentPer,
+                    @discountPerOut = request.DiscountPerOut,
+                    @discountPerIn = request.DiscountPerIn,
+                    @hikePerOut = request.HikePerOut,
+                    @hikePerIn = request.HikePerIn,
+                    @activePaymentModes = request.ActivePaymentModes ?? string.Empty,
+                    @activeBranches = request.ActiveBranches ?? string.Empty,
+                    @rateListIdOPD = request.RateListIdOPD ?? string.Empty,
+                    @rateListIdIPD = request.RateListIdIPD ?? string.Empty,
+                    @userId = globalValues.userId,
+                    @IpAddress = globalValues.ipAddress
+                },
+                new
+                {
+                    result = 0
+                });
+
+                // Clear cache after successful operation
+                _distributedCache.Remove("_CorporateMaster_All");
+                _distributedCache.Remove("_Corporate_All");
+                _log.Info("Cleared CorporateMaster and Corporate cache");
+
+                if (result < 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Duplicate corporate name: {request.CorporateName} for InsuranceCompanyId={request.InsuranceCompanyId}");
+                    return ServiceResult<CorporateMasterResponse>.Failure(
+                        alert.Type,
+                        "Corporate name already exists for this insurance company",
+                        409
+                    );
+                }
+
+                var responseData = new CorporateMasterResponse { CorporateId = result };
+
+                if (request.CorporateId == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                    _log.Info($"Corporate created successfully. CorporateId={result}");
+                    return ServiceResult<CorporateMasterResponse>.Success(
+                        responseData,
+                        alert.Type,
+                        alert.Message,
+                        201
+                    );
+                }
+                else
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                    _log.Info($"Corporate updated successfully. CorporateId={result}");
+                    return ServiceResult<CorporateMasterResponse>.Success(
+                        responseData,
+                        alert.Type,
+                        alert.Message,
+                        200
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<CorporateMasterResponse>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+        public ServiceResult<IEnumerable<CorporateMasterDetailModel>> GetCorporateMasterList(
+            int? corporateId = null,
+            string corporateName = null,
+            int? insuranceCompanyId = null,
+            string insuranceCompanyName = null,
+            int? isActive = null)
+        {
+            try
+            {
+                _log.Info($"GetCorporateMasterList called. CorporateId={corporateId?.ToString() ?? "All"}, CorporateName={corporateName ?? "All"}, InsuranceCompanyId={insuranceCompanyId?.ToString() ?? "All"}, InsuranceCompanyName={insuranceCompanyName ?? "All"}, IsActive={isActive?.ToString() ?? "All"}");
+
+                string cacheKey = "_CorporateMaster_All";
+
+                var cachedData = _distributedCache.GetString(cacheKey);
+                List<CorporateMasterDetailModel> allCorporates;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"CorporateMaster data retrieved from cache. Key={cacheKey}");
+                    allCorporates = System.Text.Json.JsonSerializer.Deserialize<List<CorporateMasterDetailModel>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"CorporateMaster cache miss. Fetching all data from database. Key={cacheKey}");
+
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_GetCoporateDetails",
+                        CommandType.StoredProcedure
+                    );
+
+                    allCorporates = dataTable?.AsEnumerable().Select(row => new CorporateMasterDetailModel
+                    {
+                        CorporateId = row.Field<int>("CorporateId"),
+                        CorporateName = row.Field<string>("CorporateName") ?? string.Empty,
+                        InsuranceCompanyName = row.Field<string>("InsuranceCompanyName") ?? string.Empty,
+                        InsuranceCompanyId = row.Field<int?>("InsuranceCompanyId") ?? 0,
+                        CorporateTypeId = row.Field<int?>("CorporateTypeId") ?? 0,
+                        PaymentTypeId = row.Field<int?>("PaymentTypeId") ?? 0,
+                        CorporateCode = row.Field<string>("CorporateCode") ?? string.Empty,
+                        CorporateContact1 = row.Field<string>("CorporateContact1") ?? string.Empty,
+                        CorporateContact2 = row.Field<string>("CorporateContact2") ?? string.Empty,
+                        CorporateEmail = row.Field<string>("CorporateEmail") ?? string.Empty,
+                        CorporateAddress1 = row.Field<string>("CorporateAddress1") ?? string.Empty,
+                        CorporateAddress2 = row.Field<string>("CorporateAddress2") ?? string.Empty,
+                        IsActive = row.Field<int?>("IsActive") ?? 0,
+                        ContractStartFrom = row.Field<string>("ContractStartFrom") ?? string.Empty,
+                        ContractExpiresOn = row.Field<string>("ContractExpiresOn") ?? string.Empty,
+                        CopaymentPer = row.Field<decimal?>("CopaymentPer") ?? 0,
+                        DiscountPerOut = row.Field<decimal?>("DiscountPerOut") ?? 0,
+                        DiscountPerIn = row.Field<decimal?>("DiscountPerIn") ?? 0,
+                        HikePerOut = row.Field<decimal?>("HikePerOut") ?? 0,
+                        HikePerIn = row.Field<decimal?>("HikePerIn") ?? 0,
+                        ActivePaymentModes = row.Field<string>("ActivePaymentModes") ?? string.Empty,
+                        ActiveBranches = row.Field<string>("ActiveBranches") ?? string.Empty,
+                        RateListIdOPD = row.Field<string>("RateListIdOPD") ?? string.Empty,
+                        RateListIdIPD = row.Field<string>("RateListIdIPD") ?? string.Empty
+                    }).ToList() ?? new List<CorporateMasterDetailModel>();
+
+                    if (allCorporates.Any())
+                    {
+                        var serialized = System.Text.Json.JsonSerializer.Serialize(allCorporates);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                        _log.Info($"All CorporateMaster data cached permanently. Key={cacheKey}, Count={allCorporates.Count}");
+                    }
+                }
+
+                // Filter in memory from cache — null/blank = return all
+                List<CorporateMasterDetailModel> filteredCorporates = allCorporates;
+
+                if (corporateId.HasValue && corporateId.Value > 0)
+                {
+                    _log.Info($"Filtering by CorporateId: {corporateId.Value}");
+                    filteredCorporates = filteredCorporates
+                        .Where(c => c.CorporateId == corporateId.Value)
+                        .ToList();
+                }
+
+                if (!string.IsNullOrWhiteSpace(corporateName))
+                {
+                    _log.Info($"Filtering by CorporateName containing: {corporateName}");
+                    filteredCorporates = filteredCorporates
+                        .Where(c => c.CorporateName.Contains(corporateName, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                }
+
+                if (insuranceCompanyId.HasValue && insuranceCompanyId.Value > 0)
+                {
+                    _log.Info($"Filtering by InsuranceCompanyId: {insuranceCompanyId.Value}");
+                    filteredCorporates = filteredCorporates
+                        .Where(c => c.InsuranceCompanyId == insuranceCompanyId.Value)
+                        .ToList();
+                }
+
+                if (!string.IsNullOrWhiteSpace(insuranceCompanyName))
+                {
+                    _log.Info($"Filtering by InsuranceCompanyName containing: {insuranceCompanyName}");
+                    filteredCorporates = filteredCorporates
+                        .Where(c => c.InsuranceCompanyName.Contains(insuranceCompanyName, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                }
+
+                if (isActive.HasValue)
+                {
+                    _log.Info($"Filtering by IsActive: {isActive.Value}");
+                    filteredCorporates = filteredCorporates
+                        .Where(c => c.IsActive == isActive.Value)
+                        .ToList();
+                }
+
+                if (!filteredCorporates.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info("No corporates found for the given filters");
+                    return ServiceResult<IEnumerable<CorporateMasterDetailModel>>.Failure(
+                        alert.Type,
+                        "No corporates found",
+                        404
+                    );
+                }
+
+                _log.Info($"Retrieved {filteredCorporates.Count} corporate(s) from cache");
+
+                return ServiceResult<IEnumerable<CorporateMasterDetailModel>>.Success(
+                    filteredCorporates,
+                    "Info",
+                    $"{filteredCorporates.Count} corporate(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<IEnumerable<CorporateMasterDetailModel>>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+        public ServiceResult<string> UpdateCorporateMasterStatus(int corporateId, int isActive, AllGlobalValues globalValues)
+        {
+            try
+            {
+                var result = _sqlHelper.DML("U_UpdateCorporateMasterStatus", CommandType.StoredProcedure, new
+                {
+                    @CorporateId = corporateId,
+                    @userId = globalValues.userId,
+                    @isActive = isActive
+                });
+
+                _distributedCache.Remove("_CorporateMaster_All");
+                _distributedCache.Remove("_Corporate_All");
+
+                if (result > 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                    _log.Info($"Corporate status updated successfully. CorporateId={corporateId}, IsActive={isActive}");
+                    return ServiceResult<string>.Success(
+                        "Corporate status updated successfully",
+                        alert.Type,
+                        alert.Message,
+                        200
+                    );
+                }
+                else
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Warn($"Corporate not found for CorporateId={corporateId}");
+                    return ServiceResult<string>.Failure(
+                        alert.Type,
+                        "Corporate not found",
+                        404
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+
+        public ServiceResult<DiscountApprovalMasterResponse> CreateUpdateDiscountApprovalMaster(
+    DiscountApprovalMasterRequest request,
+    AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CreateUpdateDiscountApprovalMaster called. DiscountApprovalId={request.DiscountApprovalId}, Name={request.DiscountApprovalName}");
+
+                var result = _sqlHelper.DML("IU_DiscountApprovalMaster", CommandType.StoredProcedure, new
+                {
+                    @hospId = globalValues.hospId,
+                    @discountApprovalId = request.DiscountApprovalId,
+                    @discountApprovalName = request.DiscountApprovalName,
+                    @hmsUserId = request.HmsUserId,
+                    @isActive = request.IsActive,
+                    @mappingBranch = request.MappingBranch,
+                    @mappingDiscountType = request.MappingDiscountType,
+                    @userId = globalValues.userId,
+                    @IpAddress = globalValues.ipAddress
+                },
+                new { result = 0 });
+
+                // Clear cache after successful operation
+                _distributedCache.Remove("_DiscountApprovalMaster_All");
+                _log.Info("Cleared DiscountApprovalMaster cache");
+
+                if (result < 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Duplicate discount approval name: {request.DiscountApprovalName}");
+                    return ServiceResult<DiscountApprovalMasterResponse>.Failure(
+                        alert.Type,
+                        "Approval Name Already Exists",
+                        409
+                    );
+                }
+
+                var responseData = new DiscountApprovalMasterResponse { Id = result };
+
+                if (request.DiscountApprovalId == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                    _log.Info($"Discount approval created successfully. Id={result}");
+                    return ServiceResult<DiscountApprovalMasterResponse>.Success(
+                        responseData,
+                        alert.Type,
+                        alert.Message,
+                        201
+                    );
+                }
+                else
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                    _log.Info($"Discount approval updated successfully. Id={result}");
+                    return ServiceResult<DiscountApprovalMasterResponse>.Success(
+                        responseData,
+                        alert.Type,
+                        alert.Message,
+                        200
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<DiscountApprovalMasterResponse>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<IEnumerable<DiscountApprovalMasterModel>> GetDiscountApprovalMasterList(
+            string name = null,
+            int? isActive = null)
+        {
+            try
+            {
+                _log.Info($"GetDiscountApprovalMasterList called. Name={name ?? "All"}, IsActive={isActive?.ToString() ?? "All"}");
+
+                string cacheKey = "_DiscountApprovalMaster_All";
+
+                var cachedData = _distributedCache.GetString(cacheKey);
+                List<DiscountApprovalMasterModel> allRecords;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"DiscountApprovalMaster data retrieved from cache. Key={cacheKey}");
+                    allRecords = System.Text.Json.JsonSerializer.Deserialize<List<DiscountApprovalMasterModel>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"DiscountApprovalMaster cache miss. Fetching all data from database. Key={cacheKey}");
+
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_getDiscountMasterList",
+                        CommandType.StoredProcedure
+                    );
+
+                    allRecords = dataTable?.AsEnumerable().Select(row => new DiscountApprovalMasterModel
+                    {
+                        Id = row.Field<int>("Id"),
+                        Name = row.Field<string>("Name") ?? string.Empty,
+                        IsActive = row.Field<int>("IsActive"),
+                        DiscountType = row.Field<string>("DiscountType") ?? string.Empty,
+                        BranchName = row.Field<string>("BranchName") ?? string.Empty,
+                        FirstName = row.Field<string>("FirstName") ?? string.Empty
+                    }).ToList() ?? new List<DiscountApprovalMasterModel>();
+
+                    if (allRecords.Any())
+                    {
+                        var serialized = System.Text.Json.JsonSerializer.Serialize(allRecords);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                        _log.Info($"All DiscountApprovalMaster data cached permanently. Key={cacheKey}, Count={allRecords.Count}");
+                    }
+                }
+
+                // Filter in memory
+                List<DiscountApprovalMasterModel> filtered = allRecords;
+
+                if (!string.IsNullOrWhiteSpace(name))
+                {
+                    _log.Info($"Filtering by Name: {name}");
+                    filtered = filtered
+                        .Where(x => x.Name.Contains(name, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                }
+
+                if (isActive.HasValue)
+                {
+                    _log.Info($"Filtering by IsActive: {isActive.Value}");
+                    filtered = filtered.Where(x => x.IsActive == isActive.Value).ToList();
+                }
+
+                if (!filtered.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info("No discount approval records found after filtering");
+                    return ServiceResult<IEnumerable<DiscountApprovalMasterModel>>.Failure(
+                        alert.Type,
+                        "No discount approval records found",
+                        404
+                    );
+                }
+
+                _log.Info($"Retrieved {filtered.Count} discount approval record(s) from cache");
+
+                return ServiceResult<IEnumerable<DiscountApprovalMasterModel>>.Success(
+                    filtered,
+                    "Info",
+                    $"{filtered.Count} record(s) fetched successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<IEnumerable<DiscountApprovalMasterModel>>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+
+        public ServiceResult<object> SaveUserwiseDiscountMaster(List<UserwiseDiscountMasterRequest> request, AllGlobalValues globalValues)
+        {
+            SqlConnection con = null;
+            SqlTransaction tnx = null;
+
+            try
+            {
+                _log.Info($"SaveUserwiseDiscountMaster called. Records Count={request?.Count ?? 0}");
+
+                var connectionString = _configuration.GetConnectionString("ConnectionString");
+                if (string.IsNullOrEmpty(connectionString))
+                    throw new InvalidOperationException("Connection string 'ConnectionString' not found.");
+
+                con = new SqlConnection(connectionString);
+                con.Open();
+                tnx = CustomSqlHelper.getSqlTransaction(con);
+
+                // Delete all existing records
+                _sqlHelper.DML(tnx, "D_UserwiseDiscountMaster", CommandType.StoredProcedure);
+                _log.Info("Deleted existing UserwiseDiscountMaster records");
+
+                // Insert new records
+                if (request != null && request.Any())
+                {
+                    foreach (var r in request)
+                    {
+                        _sqlHelper.DML(tnx, "I_UserwiseDiscountMaster", CommandType.StoredProcedure, new
+                        {
+                            @userId = r.userId,
+                            @discPerOPD = r.discPerOPD,
+                            @discPerIPD = r.discPerIPD,
+                            @discPerPharmacy = r.discPerPharmacy,
+                            @discPerDayCare = r.discPerDayCare,
+                            @discPerDialysis = r.discPerDialysis,
+                            @discPerEmergency = r.discPerEmergency,
+                            @createdBy = globalValues.userId,
+                            @ipAddress = globalValues.ipAddress
+                        });
+                    }
+                    _log.Info($"Inserted {request.Count} UserwiseDiscountMaster records");
+                }
+
+                tnx.Commit();
+                _log.Info("Transaction committed successfully");
+
+                // Clear cache after save
+                _distributedCache.Remove("_UserwiseDiscountMaster_All");
+                GlobalFunctions.ClearCacheByPattern(_configuration, "_UserDiscountRights_User*");
+                _log.Info("Cleared UserwiseDiscountMaster cache");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    null,
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                if (tnx != null)
+                {
+                    try
+                    {
+                        tnx.Rollback();
+                        _log.Error("Transaction rolled back due to error");
+                    }
+                    catch (Exception rollbackEx)
+                    {
+                        _log.Error($"Error during rollback: {rollbackEx.Message}");
+                    }
+                }
+
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+            finally
+            {
+                if (tnx != null) tnx.Dispose();
+                if (con != null)
+                {
+                    if (con.State == ConnectionState.Open) con.Close();
+                    con.Dispose();
+                }
+            }
+        }
+
+        public ServiceResult<object> GetUserwiseDiscountMaster()
+        {
+            try
+            {
+                _log.Info("GetUserwiseDiscountMaster called");
+
+                string cacheKey = "_UserwiseDiscountMaster_All";
+
+                var cachedData = _distributedCache.GetString(cacheKey);
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"UserwiseDiscountMaster data retrieved from cache. Key={cacheKey}");
+                    return ServiceResult<object>.Success(
+                        System.Text.Json.JsonSerializer.Deserialize<object>(cachedData),
+                        "Info",
+                        "Data retrieved successfully",
+                        200
+                    );
+                }
+
+                _log.Info($"UserwiseDiscountMaster cache miss. Fetching from database. Key={cacheKey}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_UserwiseDiscountMaster",
+                    CommandType.StoredProcedure
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info("No UserwiseDiscountMaster records found");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        alert.Message,
+                        404
+                    );
+                }
+
+                // Convert DataTable to raw list of dictionaries
+                var rawData = dataTable.Rows
+                    .Cast<DataRow>()
+                    .Select(row => dataTable.Columns
+                        .Cast<DataColumn>()
+                        .ToDictionary(col => col.ColumnName, col => row[col] == DBNull.Value ? null : row[col])
+                    ).ToList();
+
+                // Cache the raw data
+                var serialized = System.Text.Json.JsonSerializer.Serialize(rawData);
+                var cacheOptions = new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpiration = null,
+                    SlidingExpiration = null
+                };
+                _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                _log.Info($"UserwiseDiscountMaster data cached permanently. Key={cacheKey}, Count={rawData.Count}");
+
+                return ServiceResult<object>.Success(
+                    rawData,
+                    "Info",
+                    $"{rawData.Count} record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<CreateUpdateDoctorHeaderResponse> CreateUpdateDoctorHeader(
+           CreateUpdateDoctorHeaderRequest request,
+           AllGlobalValues globalValues)
+        {
+            SqlConnection con = null;
+            SqlTransaction tnx = null;
+
+            try
+            {
+                _log.Info($"CreateUpdateDoctorHeader called. HeaderId={request.HeaderId}, HeaderName={request.HeaderName}");
+
+                var connectionString = _configuration.GetConnectionString("ConnectionString");
+                if (string.IsNullOrEmpty(connectionString))
+                    throw new InvalidOperationException("Connection string 'ConnectionString' not found.");
+
+                con = new SqlConnection(connectionString);
+                con.Open();
+                tnx = CustomSqlHelper.getSqlTransaction(con);
+
+                // Step 1 – Upsert header master
+                var headerResult = _sqlHelper.DML(tnx, "IU_DoctorHeaderMaster", CommandType.StoredProcedure, new
+                {
+                    @hospId = globalValues.hospId,
+                    @headerId = request.HeaderId,
+                    @headerName = request.HeaderName,
+                    @displayName = request.DisplayName ?? string.Empty,
+                    @controlType = request.ControlType ?? string.Empty,
+                    @controlTypeId = request.ControlTypeId,
+                    @isPrint = request.IsPrint,
+                    @isShowInTempRoom = request.IsShowInTempRoom,
+                    @usedForPatientType = request.UsedForPatientType,
+                    @isActive = request.IsActive,
+                    @userId = globalValues.userId,
+                    @IpAddress = globalValues.ipAddress
+                },
+                new { result = 0 });
+
+                int headerId = Convert.ToInt32(headerResult);
+
+                if (headerId < 0)
+                {
+                    tnx.Rollback();
+                    var alertDup = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Duplicate header name: {request.HeaderName}");
+                    return ServiceResult<CreateUpdateDoctorHeaderResponse>.Failure(
+                        alertDup.Type,
+                        "Header Name Already Exists",
+                        409);
+                }
+
+                // Step 2 – Check duplicate for controlTypeId 7 or 8 (Investigations / Medicine)
+                if (request.ControlTypeId == 7 || request.ControlTypeId == 8)
+                {
+                    int isExist = Convert.ToInt32(_sqlHelper.ExecuteScalar(tnx,
+                        "S_CheckDuplicateInvestMedicineHeaderMaster",
+                        CommandType.StoredProcedure,
+                        new
+                        {
+                            @controlTypeId = request.ControlTypeId,
+                            @headerId = request.HeaderId
+                        }));
+
+                    if (isExist > 0)
+                    {
+                        tnx.Rollback();
+                        var alertType = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                        _log.Warn($"ControlType {request.ControlType} already exists in master");
+                        return ServiceResult<CreateUpdateDoctorHeaderResponse>.Failure(
+                            alertType.Type,
+                            $"{request.ControlType} Type Already Exists in Master",
+                            409);
+                    }
+                }
+
+                // Step 3 – Delete existing LOV rows then re-insert
+                _sqlHelper.DML(tnx, "D_DoctorHeaderLOVMapping", CommandType.StoredProcedure,
+                    new { @headerId = headerId });
+
+                if (request.ListOfValues != null && request.ListOfValues.Any())
+                {
+                    foreach (var lov in request.ListOfValues)
+                    {
+                        _sqlHelper.DML(tnx, "I_DoctorHeaderLOVMapping", CommandType.StoredProcedure, new
+                        {
+                            @headerId = headerId,
+                            @value = lov.Value,
+                            @dataTypeId = lov.DataTypeId
+                        });
+                    }
+                }
+
+                tnx.Commit();
+
+                // Invalidate cache
+                _distributedCache.Remove(CACHE_KEY_DOCTOR_HEADER_ALL);
+                _log.Info($"Cleared DoctorHeaderMaster cache after create/update. HeaderId={headerId}");
+
+                var responseData = new CreateUpdateDoctorHeaderResponse { HeaderId = headerId };
+                var alert = _messageService.GetMessageAndTypeByAlertCode(
+                    request.HeaderId == 0 ? "DATA_SAVED_SUCCESSFULLY" : "DATA_UPDATED_SUCCESSFULLY");
+
+                return ServiceResult<CreateUpdateDoctorHeaderResponse>.Success(
+                    responseData,
+                    alert.Type,
+                    alert.Message,
+                    request.HeaderId == 0 ? 201 : 200);
+            }
+            catch (Exception ex)
+            {
+                try { tnx?.Rollback(); } catch { /* swallow rollback errors */ }
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<CreateUpdateDoctorHeaderResponse>.Failure(alert.Type, alert.Message, 500);
+            }
+            finally
+            {
+                tnx?.Dispose();
+                if (con != null)
+                {
+                    if (con.State == System.Data.ConnectionState.Open) con.Close();
+                    con.Dispose();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Returns all DoctorHeaderMaster rows (cached permanently).
+        /// Optional in-memory filter by headerId.
+        /// Mirrors: getAllDoctorHeaderMaster
+        /// </summary>
+        public ServiceResult<IEnumerable<DoctorHeaderMasterModel>> GetAllDoctorHeaderMaster(int? headerId = null)
+        {
+            try
+            {
+                _log.Info($"GetAllDoctorHeaderMaster called. HeaderId={headerId?.ToString() ?? "All"}");
+
+                var cachedData = _distributedCache.GetString(CACHE_KEY_DOCTOR_HEADER_ALL);
+                List<DoctorHeaderMasterModel> allHeaders;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"DoctorHeaderMaster data retrieved from cache. Key={CACHE_KEY_DOCTOR_HEADER_ALL}");
+                    allHeaders = JsonSerializer.Deserialize<List<DoctorHeaderMasterModel>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"DoctorHeaderMaster cache miss. Fetching all data from database.");
+
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_GetAllDoctorHeaderMaster",
+                        CommandType.StoredProcedure);
+
+                    allHeaders = dataTable?.AsEnumerable().Select(row => new DoctorHeaderMasterModel
+                    {
+                        HeaderId = row.Field<int>("HeaderId"),
+                        HeaderName = row.Field<string>("HeaderName") ?? string.Empty,
+                        DisplayName = row.Field<string>("DisplayName") ?? string.Empty,
+                        ControlType = row.Field<string>("ControlType") ?? string.Empty,
+                        ControlTypeId = row.Field<int?>("ControlTypeId"),
+                        IsPrint = row.Field<int>("IsPrint"),
+                        IsShowInTempRoom = row.Field<int>("IsShowInTempRoom"),
+                        UsedForPatientType = row.Field<int>("UsedForPatientType"),
+                        UsedForPatientTypeName = row.Field<string>("UsedForPatientTypeName"),
+                        IsActive = row.Field<int>("IsActive")
+                    }).ToList() ?? new List<DoctorHeaderMasterModel>();
+
+                    if (allHeaders.Any())
+                    {
+                        var serialized = JsonSerializer.Serialize(allHeaders);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(CACHE_KEY_DOCTOR_HEADER_ALL, serialized, cacheOptions);
+                        _log.Info($"DoctorHeaderMaster cached permanently. Count={allHeaders.Count}");
+                    }
+                }
+
+                // In-memory filter
+                var filtered = headerId.HasValue
+                    ? allHeaders.Where(h => h.HeaderId == headerId.Value).ToList()
+                    : allHeaders;
+
+                if (!filtered.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    return ServiceResult<IEnumerable<DoctorHeaderMasterModel>>.Failure(
+                        alert.Type,
+                        headerId.HasValue ? $"Header not found for HeaderId: {headerId.Value}" : "No headers found",
+                        404);
+                }
+
+                _log.Info($"Retrieved {filtered.Count} header(s) from cache");
+
+                return ServiceResult<IEnumerable<DoctorHeaderMasterModel>>.Success(
+                    filtered,
+                    "Info",
+                    $"{filtered.Count} header(s) retrieved successfully",
+                    200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<IEnumerable<DoctorHeaderMasterModel>>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        /// <summary>
+        /// Returns LOV rows for a given header (raw data from SP, no cache – small & volatile).
+        /// Mirrors: getDoctorHeaderLOVs
+        /// </summary>
+        public ServiceResult<IEnumerable<DoctorHeaderLOVModel>> GetDoctorHeaderLOVs(int headerId)
+        {
+            try
+            {
+                _log.Info($"GetDoctorHeaderLOVs called. HeaderId={headerId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetDoctorHeaderLOVMapping",
+                    CommandType.StoredProcedure,
+                    new { @headerId = headerId });
+
+                var lovs = dataTable?.AsEnumerable().Select(row => new DoctorHeaderLOVModel
+                {
+                    Value = row.Field<string>("Value") ?? string.Empty,
+                    DataTypeId = row.Field<int?>("DataTypeId") ?? 0
+                }).ToList() ?? new List<DoctorHeaderLOVModel>();
+
+                if (!lovs.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    return ServiceResult<IEnumerable<DoctorHeaderLOVModel>>.Failure(
+                        alert.Type,
+                        $"No LOV values found for HeaderId: {headerId}",
+                        404);
+                }
+
+                return ServiceResult<IEnumerable<DoctorHeaderLOVModel>>.Success(
+                    lovs,
+                    "Info",
+                    $"{lovs.Count} LOV value(s) retrieved successfully",
+                    200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<IEnumerable<DoctorHeaderLOVModel>>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        /// <summary>
+        /// Returns all active header masters with their mapping status for a given type/relatedTo.
+        /// Raw data from SP – no cache (mapping changes frequently).
+        /// Mirrors: getDoctorHeaderMappingForMaster
+        /// </summary>
+        public ServiceResult<IEnumerable<DoctorHeaderMappingModel>> GetDoctorHeaderMappingForMaster(
+            int typeId,
+            int relatedToId)
+        {
+            try
+            {
+                _log.Info($"GetDoctorHeaderMappingForMaster called. TypeId={typeId}, RelatedToId={relatedToId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetDoctorHeaderMapping",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @typeId = typeId,
+                        @relatedToId = relatedToId
+                    });
+
+                var mappings = dataTable?.AsEnumerable().Select(row => new DoctorHeaderMappingModel
+                {
+                    HeaderId = row.Field<int>("HeaderId"),
+                    HeaderName = row.Field<string>("HeaderName") ?? string.Empty,
+                    DisplayName = row.Field<string>("DisplayName") ?? string.Empty,
+                    ControlType = row.Field<string>("ControlType") ?? string.Empty,
+                    MappingId = row.Field<long?>("MappingId") ?? 0,
+                    SequenceNo = row.Field<int?>("SequenceNo") ?? 9999
+                }).ToList() ?? new List<DoctorHeaderMappingModel>();
+
+                if (!mappings.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    return ServiceResult<IEnumerable<DoctorHeaderMappingModel>>.Failure(
+                        alert.Type,
+                        "No header mapping data found",
+                        404);
+                }
+
+                return ServiceResult<IEnumerable<DoctorHeaderMappingModel>>.Success(
+                    mappings,
+                    "Info",
+                    $"{mappings.Count} header mapping record(s) retrieved successfully",
+                    200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<IEnumerable<DoctorHeaderMappingModel>>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        /// <summary>
+        /// Delete existing mapping for typeId/relatedToId, then bulk-insert the new set (transactional).
+        /// Mirrors: saveDoctorHeaderDepartmentMapping
+        /// </summary>
+        public ServiceResult<string> SaveDoctorHeaderDepartmentMapping(
+            SaveDoctorHeaderMappingRequest request,
+            AllGlobalValues globalValues)
+        {
+            SqlConnection con = null;
+            SqlTransaction tnx = null;
+
+            try
+            {
+                _log.Info($"SaveDoctorHeaderDepartmentMapping called. TypeId={request.TypeId}, RelatedToId={request.RelatedToId}");
+
+                var connectionString = _configuration.GetConnectionString("ConnectionString");
+                if (string.IsNullOrEmpty(connectionString))
+                    throw new InvalidOperationException("Connection string 'ConnectionString' not found.");
+
+                con = new SqlConnection(connectionString);
+                con.Open();
+                tnx = CustomSqlHelper.getSqlTransaction(con);
+
+                // Step 1 – Delete existing mappings
+                _sqlHelper.DML(tnx, "D_DeleteDoctorHeaderMapping", CommandType.StoredProcedure, new
+                {
+                    @typeId = request.TypeId,
+                    @relatedToId = request.RelatedToId
+                });
+
+                _log.Info($"Deleted existing mappings for TypeId={request.TypeId}, RelatedToId={request.RelatedToId}");
+
+                // Step 2 – Insert new mappings
+                int insertedCount = 0;
+                if (request.HeaderMappingData != null && request.HeaderMappingData.Any())
+                {
+                    foreach (var item in request.HeaderMappingData)
+                    {
+                        _sqlHelper.DML(tnx, "I_DoctorHeaderMapping", CommandType.StoredProcedure, new
+                        {
+                            @hospId = globalValues.hospId,
+                            @typeId = item.TypeId,
+                            @typeName = item.TypeName ?? string.Empty,
+                            @headerId = item.HeaderId,
+                            @retatedToId = item.RelatedToId,
+                            @sequenceNo = item.SequenceNo,
+                            @userId = globalValues.userId,
+                            @ipAddress = globalValues.ipAddress
+                        });
+                        insertedCount++;
+                    }
+                }
+
+                tnx.Commit();
+
+                _log.Info($"SaveDoctorHeaderDepartmentMapping committed. Inserted={insertedCount}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    $"{insertedCount} mapping(s) saved successfully",
+                    alert.Type,
+                    "Mapping Updated Successfully",
+                    200);
+            }
+            catch (Exception ex)
+            {
+                try { tnx?.Rollback(); } catch { /* swallow */ }
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(alert.Type, alert.Message, 500);
+            }
+            finally
+            {
+                tnx?.Dispose();
+                if (con != null)
+                {
+                    if (con.State == System.Data.ConnectionState.Open) con.Close();
+                    con.Dispose();
+                }
+            }
+        }
+
+        public ServiceResult<object> CreateUpdateServiceItemMaster(
+    CreateUpdateServiceItemMasterRequest request,
+    AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CreateUpdateServiceItemMaster called. ServiceItemId={request.ServiceItemId}, Name={request.Name}");
+
+                SqlParameter[] parameters = new SqlParameter[]
+                {
+            new SqlParameter("@hospId", globalValues.hospId),
+            new SqlParameter("@serviceItemId", request.ServiceItemId),
+            new SqlParameter("@categoryId", request.CategoryId),
+            new SqlParameter("@subCategoryId", request.SubCategoryId),
+            new SqlParameter("@subSubCategoryId", request.SubSubCategoryId),
+            new SqlParameter("@name", request.Name),
+            new SqlParameter("@code", (object?)request.Code ?? DBNull.Value),
+           
+            new SqlParameter("@roomTypeId", (object?)request.RoomTypeId ?? DBNull.Value),
+            new SqlParameter("@roomType", (object?)request.RoomType ?? DBNull.Value),
+            new SqlParameter("@isICU", (object?)request.IsICU ?? DBNull.Value),
+            new SqlParameter("@gstPer", request.GstPer),
+
+              new SqlParameter("@OPDConsultationTypeId", (object?)request.OPDConsultationTypeId ?? DBNull.Value),
+            new SqlParameter("@OPDConsultationType", (object?)request.OPDConsultationType ?? DBNull.Value),
+            new SqlParameter("@SNOMEDCode", (object?)request.SNOMEDCode ?? DBNull.Value),
+            new SqlParameter("@isOnlineConsultationAllow", (object?)request.IsOnlineConsultationAllow ?? DBNull.Value),
+            new SqlParameter("@isTeleConsultationService", (object?)request.IsTeleConsultationService ?? DBNull.Value),
+
+            new SqlParameter("@isActive", request.IsActive),
+            new SqlParameter("@userId", globalValues.userId),
+            new SqlParameter("@IpAddress", globalValues.ipAddress),
+            new SqlParameter("@Result", SqlDbType.Int) { Direction = ParameterDirection.Output }
+                };
+
+                long result = _sqlHelper.RunProcedureInsert("IU_ServiceItemMaster", parameters);
+
+               
+                // Clear Redis cache so next GET re-fetches fresh data
+                _distributedCache.Remove("_ServiceItemMaster_All");
+                _distributedCache.Remove("_ServiceInvestigationItemMaster_All");
+                _distributedCache.Remove("_BedMaster_All");
+
+
+                if (result == -1)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Duplicate service item name or code: Name={request.Name}, Code={request.Code}");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        "Service/Item Name (in same Sub Sub Category) or Code already exists",
+                        409
+                    );
+                }
+
+                var responseData = new CreateUpdateServiceItemMasterResponse { ServiceItemId = (int)result };
+
+                if (request.ServiceItemId == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                    _log.Info($"Service item created successfully. ServiceItemId={result}");
+                    return ServiceResult<object>.Success(
+                        responseData,
+                        alert.Type,
+                        alert.Message,
+                        201
+                    );
+                }
+                else
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                    _log.Info($"Service item updated successfully. ServiceItemId={result}");
+                    return ServiceResult<object>.Success(
+                        responseData,
+                        alert.Type,
+                        alert.Message,
+                        200
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<object> CreateUpdatePrintGroupMaster(
+    CreateUpdatePrintGroupMasterRequest request,
+    AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CreateUpdatePrintGroupMaster called. PrintGroupId={request.PrintGroupId}, PrintGroupName={request.PrintGroupName}");
+
+                SqlParameter[] parameters = new SqlParameter[]
+                {
+            new SqlParameter("@PrintGroupId", request.PrintGroupId),
+            new SqlParameter("@PrintGroupName", request.PrintGroupName),
+            new SqlParameter("@PrintOrder",(object?)request.PrintOrder ?? DBNull.Value),
+            new SqlParameter("@UserId", globalValues.userId),
+            new SqlParameter("@IpAddress", globalValues.ipAddress),
+            new SqlParameter("@Result", SqlDbType.Int) { Direction = ParameterDirection.Output }
+                };
+
+                long result = _sqlHelper.RunProcedureInsert("IU_PrintGroupMaster", parameters);
+
+                _distributedCache.Remove("_PrintGroupMaster_All");
+                _log.Info("Cleared PrintGroupMaster cache.");
+
+                if (result == -1)
+                {
+                    var dupAlert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Duplicate PrintGroupName: {request.PrintGroupName}");
+                    return ServiceResult<object>.Failure(dupAlert.Type, "Print group name already exists", 409);
+                }
+
+                if (result > 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode(
+                        request.PrintGroupId == 0 ? "DATA_SAVED_SUCCESSFULLY" : "DATA_UPDATED_SUCCESSFULLY");
+                    _log.Info($"PrintGroupMaster {(request.PrintGroupId == 0 ? "created" : "updated")} successfully. PrintGroupId={result}");
+                    return ServiceResult<object>.Success(
+                        new { printGroupId = result },
+                        alert.Type,
+                        alert.Message,
+                        request.PrintGroupId == 0 ? 201 : 200
+                    );
+                }
+
+                var failAlert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                _log.Error($"PrintGroupMaster operation failed with result: {result}");
+                return ServiceResult<object>.Failure(failAlert.Type, failAlert.Message, 500);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetPrintGroupMaster(int? printGroupId)
+        {
+            try
+            {
+                _log.Info($"GetPrintGroupMaster called. PrintGroupId={printGroupId?.ToString() ?? "All"}");
+
+                const string cacheKey = "_PrintGroupMaster_All";
+
+                var cachedData = _distributedCache.GetString(cacheKey);
+                List<Dictionary<string, object>> allGroups;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info("PrintGroupMaster data retrieved from Redis cache.");
+                    allGroups = System.Text.Json.JsonSerializer
+                        .Deserialize<List<Dictionary<string, object>>>(cachedData)
+                        ?? new List<Dictionary<string, object>>();
+                }
+                else
+                {
+                    _log.Info("PrintGroupMaster cache miss. Fetching from DB.");
+
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_GetPrintGroupMaster",
+                        CommandType.StoredProcedure
+                    );
+
+                    allGroups = dataTable?.AsEnumerable().Select(row =>
+                        row.Table.Columns.Cast<DataColumn>()
+                           .ToDictionary(
+                               col => col.ColumnName,
+                               col => row[col] == DBNull.Value ? null : row[col]
+                           )
+                    ).ToList() ?? new List<Dictionary<string, object>>();
+
+                    if (allGroups.Any())
+                    {
+                        var serialized = System.Text.Json.JsonSerializer.Serialize(allGroups);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                        _log.Info($"PrintGroupMaster cached permanently. Count={allGroups.Count}");
+                    }
+                }
+
+                // Filter by PrintGroupId in memory
+                if (printGroupId.HasValue && printGroupId.Value > 0)
+                {
+                    allGroups = allGroups.Where(row =>
+                        row.TryGetValue("PrintGroupId", out var val) &&
+                        val != null &&
+                        Convert.ToInt32(((System.Text.Json.JsonElement)val).GetRawText()) == printGroupId.Value
+                    ).ToList();
+
+                    _log.Info($"Filtered to {allGroups.Count} group(s) for PrintGroupId={printGroupId.Value}");
+                }
+
+                if (!allGroups.Any())
+                {
+                    var notFoundAlert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    return ServiceResult<object>.Failure(notFoundAlert.Type, "No print groups found", 404);
+                }
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    allGroups,
+                    alert.Type,
+                    $"{allGroups.Count} print group(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+
+        public ServiceResult<object> CreateUpdateWardNameMaster(
+    CreateUpdateWardNameMasterRequest request,
+    AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CreateUpdateWardNameMaster called. WardNameId={request.WardNameId}, WardName={request.WardName}");
+
+                SqlParameter[] parameters = new SqlParameter[]
+                {
+            new SqlParameter("@WardNameId", request.WardNameId),
+            new SqlParameter("@WardName", request.WardName),
+            new SqlParameter("@UserId", globalValues.userId),
+            new SqlParameter("@IpAddress", globalValues.ipAddress),
+            new SqlParameter("@Result", SqlDbType.Int) { Direction = ParameterDirection.Output }
+                };
+
+                long result = _sqlHelper.RunProcedureInsert("IU_WardNameMaster", parameters);
+
+                _distributedCache.Remove("_WardNameMaster_All");
+                _distributedCache.Remove("_BedMaster_All");
+
+                _log.Info("Cleared WardNameMaster cache.");
+
+                if (result == -1)
+                {
+                    var dupAlert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Duplicate WardName: {request.WardName}");
+                    return ServiceResult<object>.Failure(dupAlert.Type, "Ward name already exists", 409);
+                }
+
+                if (result > 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode(
+                        request.WardNameId == 0 ? "DATA_SAVED_SUCCESSFULLY" : "DATA_UPDATED_SUCCESSFULLY");
+                    _log.Info($"WardNameMaster {(request.WardNameId == 0 ? "created" : "updated")} successfully. WardNameId={result}");
+                    return ServiceResult<object>.Success(
+                        new { wardNameId = result },
+                        alert.Type,
+                        alert.Message,
+                        request.WardNameId == 0 ? 201 : 200
+                    );
+                }
+
+                var failAlert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                _log.Error($"WardNameMaster operation failed with result: {result}");
+                return ServiceResult<object>.Failure(failAlert.Type, failAlert.Message, 500);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetWardNameMaster(int? wardNameId)
+        {
+            try
+            {
+                _log.Info($"GetWardNameMaster called. WardNameId={wardNameId?.ToString() ?? "All"}");
+
+                const string cacheKey = "_WardNameMaster_All";
+
+                var cachedData = _distributedCache.GetString(cacheKey);
+                List<Dictionary<string, object>> allWards;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info("WardNameMaster data retrieved from Redis cache.");
+                    allWards = System.Text.Json.JsonSerializer
+                        .Deserialize<List<Dictionary<string, object>>>(cachedData)
+                        ?? new List<Dictionary<string, object>>();
+                }
+                else
+                {
+                    _log.Info("WardNameMaster cache miss. Fetching from DB.");
+
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_GetWardNameMaster",
+                        CommandType.StoredProcedure
+                    );
+
+                    allWards = dataTable?.AsEnumerable().Select(row =>
+                        row.Table.Columns.Cast<DataColumn>()
+                           .ToDictionary(
+                               col => col.ColumnName,
+                               col => row[col] == DBNull.Value ? null : row[col]
+                           )
+                    ).ToList() ?? new List<Dictionary<string, object>>();
+
+                    if (allWards.Any())
+                    {
+                        var serialized = System.Text.Json.JsonSerializer.Serialize(allWards);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                        _log.Info($"WardNameMaster cached permanently. Count={allWards.Count}");
+                    }
+                }
+
+                if (wardNameId.HasValue && wardNameId.Value > 0)
+                {
+                    allWards = allWards.Where(row =>
+                        row.TryGetValue("WardNameId", out var val) &&
+                        val != null &&
+                        Convert.ToInt32(((System.Text.Json.JsonElement)val).GetRawText()) == wardNameId.Value
+                    ).ToList();
+
+                    _log.Info($"Filtered to {allWards.Count} ward(s) for WardNameId={wardNameId.Value}");
+                }
+
+                if (!allWards.Any())
+                {
+                    var notFoundAlert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    return ServiceResult<object>.Failure(notFoundAlert.Type, "No ward names found", 404);
+                }
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    allWards,
+                    alert.Type,
+                    $"{allWards.Count} ward name(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<CreateUpdateFloorMasterResponse> CreateUpdateFloorMaster(
+    CreateUpdateFloorMasterRequest request,
+    AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CreateUpdateFloorMaster called. FloorId={request.FloorId}, FloorName={request.FloorName}");
+
+                var result = _sqlHelper.DML("IU_FloorMaster", CommandType.StoredProcedure, new
+                {
+                    @hospId = globalValues.hospId,
+                    @floorId = request.FloorId,
+                    @floorName = request.FloorName,
+                    @userId = globalValues.userId,
+                    @IpAddress = globalValues.ipAddress
+                },
+                new
+                {
+                    result = 0
+                });
+
+                int resultValue = Convert.ToInt32(result);
+
+                // Clear cache after any write operation
+                _distributedCache.Remove("_FloorMaster_All");
+                _distributedCache.Remove("_BedMaster_All");
+
+                _log.Info("Cleared FloorMaster cache");
+
+                if (resultValue == -1)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Duplicate floor name: {request.FloorName}");
+                    return ServiceResult<CreateUpdateFloorMasterResponse>.Failure(
+                        alert.Type,
+                        "Floor Name Already Exists",
+                        409
+                    );
+                }
+
+                var responseData = new CreateUpdateFloorMasterResponse { FloorId = resultValue };
+
+                if (request.FloorId == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                    _log.Info($"Floor created successfully. FloorId={resultValue}");
+                    return ServiceResult<CreateUpdateFloorMasterResponse>.Success(
+                        responseData,
+                        alert.Type,
+                        alert.Message,
+                        201
+                    );
+                }
+                else
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                    _log.Info($"Floor updated successfully. FloorId={resultValue}");
+                    return ServiceResult<CreateUpdateFloorMasterResponse>.Success(
+                        responseData,
+                        alert.Type,
+                        alert.Message,
+                        200
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<CreateUpdateFloorMasterResponse>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<IEnumerable<FloorMasterModel>> GetFloorList(int? floorId = null)
+        {
+            try
+            {
+                _log.Info($"GetFloorList called. FloorId={floorId?.ToString() ?? "All"}");
+
+                // Always use the same cache key for all floors
+                string cacheKey = "_FloorMaster_All";
+
+                // Try to get all floors from cache
+                var cachedData = _distributedCache.GetString(cacheKey);
+                List<FloorMasterModel> allFloors;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"FloorMaster data retrieved from cache. Key={cacheKey}");
+                    allFloors = System.Text.Json.JsonSerializer.Deserialize<List<FloorMasterModel>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"FloorMaster cache miss. Fetching all data from database. Key={cacheKey}");
+
+                    // Fetch ALL floors from database — SP returns everything, no parameters
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_GetFloorList",
+                        CommandType.StoredProcedure
+                    );
+
+                    // Bind raw from SP — no mapping
+                    allFloors = dataTable?.AsEnumerable().Select(row => new FloorMasterModel
+                    {
+                        FloorId = row.Field<int>("FloorId"),
+                        FloorName = row.Field<string>("FloorName") ?? string.Empty
+                    }).ToList() ?? new List<FloorMasterModel>();
+
+                    // Store ALL floors in cache (no expiration — cleared on write)
+                    if (allFloors.Any())
+                    {
+                        var serialized = System.Text.Json.JsonSerializer.Serialize(allFloors);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                        _log.Info($"All FloorMaster data cached permanently. Key={cacheKey}, Count={allFloors.Count}");
+                    }
+                }
+
+                // Filter in memory (always from cache)
+                List<FloorMasterModel> filteredFloors;
+                if (floorId.HasValue)
+                {
+                    _log.Info($"Filtering cached data by FloorId: {floorId.Value}");
+                    filteredFloors = allFloors.Where(f => f.FloorId == floorId.Value).ToList();
+                }
+                else
+                {
+                    _log.Info("Returning all cached floors");
+                    filteredFloors = allFloors;
+                }
+
+                if (!filteredFloors.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No floors found for FloorId: {floorId?.ToString() ?? "All"}");
+                    return ServiceResult<IEnumerable<FloorMasterModel>>.Failure(
+                        alert.Type,
+                        floorId.HasValue ? $"Floor not found for FloorId: {floorId.Value}" : "No floors found",
+                        404
+                    );
+                }
+
+                _log.Info($"Retrieved {filteredFloors.Count} floor(s) from cache");
+
+                return ServiceResult<IEnumerable<FloorMasterModel>>.Success(
+                    filteredFloors,
+                    "Info",
+                    $"{filteredFloors.Count} floor(s) fetched successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<IEnumerable<FloorMasterModel>>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        // -----------------------------------------------------------------------
+        // BED MASTER
+        // -----------------------------------------------------------------------
+
+        public ServiceResult<CreateUpdateBedMasterResponse> CreateUpdateBedMaster(
+            CreateUpdateBedMasterRequest request,
+            AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CreateUpdateBedMaster called. BedId={request.BedId}, BranchId={request.BranchId}, WardNameId={request.WardNameId}, BedNo={request.BedNo}");
+
+                var result = _sqlHelper.DML("IU_BedMaster", CommandType.StoredProcedure, new
+                {
+                    @hospId = globalValues.hospId,
+                    @bedId = request.BedId,
+                    @branchId = request.BranchId,
+                    @typeId = request.TypeId,
+                    @floorId = request.FloorId,
+                    @wardNameId = request.WardNameId,
+                    @wardName = request.WardName,
+                    @roomName = request.RoomName ?? string.Empty,
+                    @bedNo = request.BedNo,
+                    @isActive = request.IsActive,
+                    @userId = globalValues.userId,
+                    @IpAddress = globalValues.ipAddress
+                },
+                new
+                {
+                    result = 0
+                });
+
+                int resultValue = Convert.ToInt32(result);
+
+                // Clear cache after any write operation
+                _distributedCache.Remove("_BedMaster_All");
+                _log.Info("Cleared BedMaster cache");
+
+                if (resultValue == -1)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Bed No already exists in same Ward Name. WardNameId={request.WardNameId}, BedNo={request.BedNo}");
+                    return ServiceResult<CreateUpdateBedMasterResponse>.Failure(
+                        alert.Type,
+                        "Bed No Already Exists in same Ward Name",
+                        409
+                    );
+                }
+
+                var responseData = new CreateUpdateBedMasterResponse { BedId = resultValue };
+
+                if (request.BedId == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                    _log.Info($"Bed(s) created successfully. LastBedId={resultValue}");
+                    return ServiceResult<CreateUpdateBedMasterResponse>.Success(
+                        responseData,
+                        alert.Type,
+                        alert.Message,
+                        201
+                    );
+                }
+                else
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                    _log.Info($"Bed updated successfully. BedId={resultValue}");
+                    return ServiceResult<CreateUpdateBedMasterResponse>.Success(
+                        responseData,
+                        alert.Type,
+                        alert.Message,
+                        200
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<CreateUpdateBedMasterResponse>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<object> GetAllBedList(int? bedId = null, int? isActive = null)
+        {
+            try
+            {
+                _log.Info($"GetAllBedList called. BedId={bedId?.ToString() ?? "All"}, IsActive={isActive?.ToString() ?? "All"}");
+
+                const string cacheKey = "_BedMaster_All";
+
+                var cachedData = _distributedCache.GetString(cacheKey);
+                List<Dictionary<string, object>> allBeds;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info("BedMaster data retrieved from Redis cache.");
+                    allBeds = System.Text.Json.JsonSerializer
+                        .Deserialize<List<Dictionary<string, object>>>(cachedData)
+                        ?? new List<Dictionary<string, object>>();
+                }
+                else
+                {
+                    _log.Info("BedMaster cache miss. Fetching from DB.");
+
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_GetAllBedList",
+                        CommandType.StoredProcedure
+                    );
+
+                    allBeds = dataTable?.AsEnumerable().Select(row =>
+                        row.Table.Columns.Cast<DataColumn>()
+                           .ToDictionary(
+                               col => col.ColumnName,
+                               col => row[col] == DBNull.Value ? null : row[col]
+                           )
+                    ).ToList() ?? new List<Dictionary<string, object>>();
+
+                    if (allBeds.Any())
+                    {
+                        var serialized = System.Text.Json.JsonSerializer.Serialize(allBeds);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                        _log.Info($"BedMaster cached permanently. Count={allBeds.Count}");
+                    }
+                }
+
+                // Filter by BedId in memory
+                if (bedId.HasValue && bedId.Value > 0)
+                {
+                    allBeds = allBeds.Where(row =>
+                        row.TryGetValue("BedId", out var val) &&
+                        val != null &&
+                        Convert.ToInt32(((System.Text.Json.JsonElement)val).GetRawText()) == bedId.Value
+                    ).ToList();
+
+                    _log.Info($"Filtered to {allBeds.Count} bed(s) for BedId={bedId.Value}");
+                }
+
+                // Filter by IsActive in memory
+                if (isActive.HasValue)
+                {
+                    allBeds = allBeds.Where(row =>
+                        row.TryGetValue("IsActive", out var val) &&
+                        val != null &&
+                        Convert.ToInt32(((System.Text.Json.JsonElement)val).GetRawText()) == isActive.Value
+                    ).ToList();
+
+                    _log.Info($"Filtered to {allBeds.Count} bed(s) for IsActive={isActive.Value}");
+                }
+
+                if (!allBeds.Any())
+                {
+                    var notFoundAlert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    return ServiceResult<object>.Failure(notFoundAlert.Type, "No beds found", 404);
+                }
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    allBeds,
+                    alert.Type,
+                    $"{allBeds.Count} bed(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
             }
         }
     }

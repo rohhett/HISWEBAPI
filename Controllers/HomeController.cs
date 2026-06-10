@@ -1,17 +1,21 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using HISWEBAPI.Configuration;
+using HISWEBAPI.DTO;
+using HISWEBAPI.Exceptions;
+using HISWEBAPI.Models;
+using HISWEBAPI.Repositories.Implementations;
+using HISWEBAPI.Repositories.Interfaces;
+using HISWEBAPI.Services;
+using HISWEBAPI.Services.Implementations;
+using HISWEBAPI.Services.Interfaces;
+using log4net;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using log4net;
-using HISWEBAPI.Repositories.Interfaces;
-using HISWEBAPI.Exceptions;
-using HISWEBAPI.DTO;
-using HISWEBAPI.Services;
-using HISWEBAPI.Models;
-using Microsoft.AspNetCore.Authorization;
-using HISWEBAPI.Configuration;
-using HISWEBAPI.Repositories.Implementations;
 using System.Text.RegularExpressions;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace HISWEBAPI.Controllers
 {
@@ -21,14 +25,18 @@ namespace HISWEBAPI.Controllers
     {
         private readonly IHomeRepository _homeRepository;
         private readonly IResponseMessageService _messageService;
+        private readonly IPatientInvestigationReportPdfService _patientInvestigationReportPdfService;
         private static readonly ILog _log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
         public HomeController(
             IHomeRepository repository,
-            IResponseMessageService messageService)
+        IResponseMessageService messageService,
+        IPatientInvestigationReportPdfService patientInvestigationReportPdfService)
         {
             _homeRepository = repository;
             _messageService = messageService;
+            _patientInvestigationReportPdfService = patientInvestigationReportPdfService;
+
         }
 
 
@@ -581,6 +589,7 @@ namespace HISWEBAPI.Controllers
       [FromQuery] int branchId,
       [FromQuery] int? departmentId = null,
       [FromQuery] int? specializationId = null,
+      [FromQuery] int? canApproveLabReport = null,
       [FromQuery] byte? isDoctorUnit = null)
         {
             _log.Info($"GetDoctorMasterListByBranchId called. BranchId={branchId}, DepartmentId={departmentId?.ToString() ?? "All"}, SpecializationId={specializationId?.ToString() ?? "All"}, IsDoctorUnit={isDoctorUnit?.ToString() ?? "All"}");
@@ -602,6 +611,7 @@ namespace HISWEBAPI.Controllers
                 branchId,
                 departmentId,
                 specializationId,
+                canApproveLabReport,
                 isDoctorUnit);
 
             if (serviceResult.Result)
@@ -617,5 +627,536 @@ namespace HISWEBAPI.Controllers
                 data = serviceResult.Data
             });
         }
+
+        [HttpGet("getCategoryTypeList")]
+        [Authorize]
+        public IActionResult GetCategoryTypeList([FromQuery] string categoryTypeIds = null)
+        {
+            _log.Info($"GetCategoryTypeList called. categoryTypeIds={categoryTypeIds}");
+
+            var serviceResult = _homeRepository.GetCategoryTypeList(categoryTypeIds);
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getCategoryList")]
+        [Authorize]
+        public IActionResult GetCategoryList(
+     [FromQuery] string categoryIds = null,
+     [FromQuery] string categoryTypeIds = null)
+        {
+            _log.Info($"GetCategoryList called. CategoryIds={categoryIds}, CategoryTypeIds={categoryTypeIds}");
+            var serviceResult = _homeRepository.GetCategoryList(categoryIds, categoryTypeIds);
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPost("createUpdateCategory")]
+        [Authorize]
+        public IActionResult CreateUpdateCategory([FromBody] CreateUpdateCategoryRequest request)
+        {
+            _log.Info($"CreateUpdateCategory called. CategoryId={request.CategoryId}, CategoryName={request.CategoryName}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for category insert/update.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _homeRepository.CreateUpdateCategory(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"Category operation completed: {serviceResult.Message}");
+            else
+                _log.Warn($"Category operation failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getSubCategoryList")]
+        [Authorize]
+        public IActionResult GetSubCategoryList([FromQuery] string categoryIds = null)
+        {
+            _log.Info($"GetSubCategoryList called. CategoryIds={categoryIds}");
+
+            var serviceResult = _homeRepository.GetSubCategoryList(categoryIds);
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+
+        [HttpPost("createUpdateSubCategory")]
+        [Authorize]
+        public IActionResult CreateUpdateSubCategory([FromBody] CreateUpdateSubCategoryRequest request)
+        {
+            _log.Info($"CreateUpdateSubCategory called. SubCategoryId={request.SubCategoryId}, Name={request.SubCategoryName}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SubCategory insert/update.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _homeRepository.CreateUpdateSubCategory(request, globalValues);
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+
+        [HttpGet("getSubSubCategoryList")]
+        [AllowAnonymous]
+        public IActionResult GetSubSubCategoryList([FromQuery] string subCategoryIds = null)
+        {
+            _log.Info($"GetSubSubCategoryList called. SubCategoryIds={subCategoryIds}");
+
+            var serviceResult = _homeRepository.GetSubSubCategoryList(subCategoryIds);
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+      
+      
+        [HttpPost("createUpdateSubSubCategory")]
+        [Authorize]
+        public IActionResult CreateUpdateSubSubCategory([FromBody] CreateUpdateSubSubCategoryRequest request)
+        {
+            _log.Info($"CreateUpdateSubSubCategory called. SubSubCategoryId={request.SubSubCategoryId}, Name={request.SubSubCategoryName}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SubSubCategory insert/update.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _homeRepository.CreateUpdateSubSubCategory(request, globalValues);
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("GetServiceItemList")]
+        [Authorize]
+        public IActionResult GetServiceItemList(
+
+[FromQuery] string categoryTypeId = null,
+[FromQuery] string categoryId = null,
+   [FromQuery] int? subCategoryId = null,
+   [FromQuery] int? subSubCategoryId = null,
+   [FromQuery] int? labTypeId = null,
+   [FromQuery] int? reportTypeId = null,
+   [FromQuery] int? serviceItemId = null,
+   [FromQuery] string serviceName = null,
+   [FromQuery] int? isActive = null)
+        {
+            _log.Info($"GetServiceItemList called. Id={serviceItemId}, IsActive={isActive}, CategoryId={categoryId}, SubCategoryId={subCategoryId}, SubSubCategoryId={subSubCategoryId}, ServiceName={serviceName}");
+
+            //if (!categoryId.HasValue || categoryId <= 0)
+            //{
+            //    var v = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+            //    return BadRequest(new
+            //    {
+            //        result = false,
+            //        messageType = v.Type,
+            //        message = "categoryId is required and must be greater than 0"
+            //    });
+            //}
+
+            var serviceResult = _homeRepository.GetServiceItemList(
+                serviceItemId,
+                isActive,
+                categoryTypeId,
+                categoryId,
+                subCategoryId,
+                subSubCategoryId,
+                labTypeId,
+                reportTypeId,
+                serviceName
+            );
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+        [HttpGet("getPaymentModeMasterList")]
+        [Authorize]
+        public IActionResult GetPaymentModeMasterList(
+    [FromQuery] string paymentModeName = null,
+    [FromQuery] int? isActive = null)
+        {
+            _log.Info($"GetPaymentModeMasterList called. PaymentModeName={paymentModeName ?? "All"}, IsActive={isActive?.ToString() ?? "All"}");
+
+            // Validate IsActive parameter if provided
+            if (isActive.HasValue && isActive.Value != 0 && isActive.Value != 1)
+            {
+                _log.Warn($"Invalid IsActive parameter: {isActive.Value}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "IsActive must be 0 (Inactive), 1 (Active), or null (All)",
+                    errors = new { isActive }
+                });
+            }
+
+            var serviceResult = _homeRepository.GetPaymentModeMasterList(paymentModeName, isActive);
+
+            if (serviceResult.Result)
+                _log.Info($"Payment modes fetched successfully from cache: {serviceResult.Message}");
+            else
+                _log.Warn($"No payment modes found: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("updateServiceItemMasterStatus")]
+        [Authorize]
+        public IActionResult UpdateServiceItemMasterStatus([FromQuery] int serviceItemId, [FromQuery] int isActive)
+        {
+
+            if (serviceItemId <= 0)
+            {
+                _log.Warn("Invalid serviceItemId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "serviceItemId must be greater than 0",
+                    errors = new { serviceItemId }
+                });
+            }
+
+            if (isActive != 0 && isActive != 1)
+            {
+                _log.Warn("Invalid IsActive value provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "IsActive must be 0 or 1",
+                    errors = new { isActive }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _homeRepository.UpdateServiceItemMasterStatus(serviceItemId, isActive, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"service status updated successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"service status update failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getCorporatePaymentModes")]
+        [Authorize]
+        public IActionResult GetCorporatePaymentModes(
+            [FromQuery] int corporateId,
+            [FromQuery] int isRefundPaymentModes = 0)
+        {
+            _log.Info($"GetCorporatePaymentModes called. CorporateId={corporateId}, IsRefundPaymentModes={isRefundPaymentModes}");
+
+            // corporateId must be >= 0 (0 = general, > 0 = specific corporate)
+            if (corporateId < 0)
+            {
+                _log.Warn("Invalid CorporateId provided.");
+                var alertVal = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alertVal.Type,
+                    message = "CorporateId must be 0 or greater",
+                    errors = new { corporateId }
+                });
+            }
+
+            if (isRefundPaymentModes != 0 && isRefundPaymentModes != 1)
+            {
+                _log.Warn("Invalid IsRefundPaymentModes value.");
+                var alertVal = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alertVal.Type,
+                    message = "IsRefundPaymentModes must be 0 or 1",
+                    errors = new { isRefundPaymentModes }
+                });
+            }
+
+            var serviceResult = _homeRepository.GetCorporatePaymentModes(corporateId, isRefundPaymentModes);
+
+            if (serviceResult.Result)
+                _log.Info($"Payment modes fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"Payment modes fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getDiscountApprovalForBilling")]
+        [Authorize]
+        public IActionResult GetDiscountApprovalForBilling(
+           [FromQuery] int branchId,
+           [FromQuery] string discountType ="OPD")
+        {
+
+            if (branchId <= 0)
+            {
+                _log.Warn("Invalid branchId provided.");
+                var alertVal = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alertVal.Type,
+                    message = "branchId must be greater than 0",
+                    errors = new { branchId }
+                });
+            }
+
+            if (discountType != "OPD" && discountType != "IPD" && discountType != "Store")
+            {
+                _log.Warn("Invalid discountType provided.");
+                var alertVal = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alertVal.Type,
+                    message = "Discount Type must be OPD or IPD or Store",
+                    errors = new { branchId }
+                });
+            }
+
+
+
+            var serviceResult = _homeRepository.GetDiscountApprovalForBilling(discountType, branchId);
+
+          
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+
+        [HttpGet("printPatientInvestigationReport")]
+        [AllowAnonymous]
+        public IActionResult printPatientInvestigationReport([FromQuery] PatientInvestigationReportRequest request)
+        {
+            _log.Info($"printPatientInvestigationReport called. PatientInvestigationIds={request?.PatientInvestigationIds}");
+
+            if (string.IsNullOrWhiteSpace(request?.PatientInvestigationIds))
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "PatientInvestigationIds is required" });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+
+
+            var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+            var pdfResult = _patientInvestigationReportPdfService.GenerateReport(request, globalValues, baseUrl);
+
+            Response.Headers["Content-Disposition"] = $"{(request.Download ? "attachment" : "inline")}; filename=\"{pdfResult.FileName}\"";
+            return File(pdfResult.Content, "application/pdf");
+        }
+
+        [HttpGet("checkBedStatus")]
+        [Authorize]
+        public IActionResult CheckBedStatus([FromQuery] int bedId)
+        {
+            _log.Info($"CheckBedStatus called. BedId={bedId}");
+
+            if (bedId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "BedId must be greater than 0" });
+            }
+
+            var serviceResult = _homeRepository.CheckBedStatus(bedId);
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("checkPatientAdmitted")]
+        [Authorize]
+        public IActionResult CheckPatientAdmitted([FromQuery] int patientId)
+        {
+            _log.Info($"CheckPatientAdmitted called. PatientId={patientId}");
+
+            if (patientId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "PatientId must be greater than 0" });
+            }
+
+            var serviceResult = _homeRepository.CheckPatientAdmitted(patientId);
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getBedTypes")]
+        [Authorize]
+        public IActionResult GetBedTypes([FromQuery] int branchId, [FromQuery] int roomTypeId)
+        {
+            _log.Info($"GetBedTypes called. BranchId={branchId}, RoomTypeId={roomTypeId}");
+
+            if (branchId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "BranchId must be greater than 0" });
+            }
+
+            if (roomTypeId < 1 || roomTypeId > 4)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "RoomTypeId must be 1 (Normal), 2 (Day Care), 3 (Dialysis), or 4 (Emergency)"
+                });
+            }
+
+            var serviceResult = _homeRepository.GetBedTypes(branchId, roomTypeId);
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getAvailableBeds")]
+        [Authorize]
+        public IActionResult GetAvailableBeds([FromQuery] int branchId, [FromQuery] int typeId)
+        {
+            _log.Info($"GetAvailableBeds called. BranchId={branchId}, TypeId={typeId}");
+
+            if (branchId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "BranchId must be greater than 0" });
+            }
+
+            if (typeId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "TypeId must be greater than 0" });
+            }
+
+            var serviceResult = _homeRepository.GetAvailableBeds(branchId, typeId);
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
     }
 }

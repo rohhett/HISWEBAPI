@@ -1,16 +1,17 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using HISWEBAPI.Configuration;
+using HISWEBAPI.DTO;
+using HISWEBAPI.Exceptions;
+using HISWEBAPI.Models;
+using HISWEBAPI.Repositories.Implementations;
+using HISWEBAPI.Repositories.Interfaces;
+using HISWEBAPI.Services;
+using log4net;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using StackExchange.Redis;
 using System;
 using System.Linq;
 using System.Reflection;
-using log4net;
-using HISWEBAPI.Repositories.Interfaces;
-using HISWEBAPI.Exceptions;
-using HISWEBAPI.DTO;
-using HISWEBAPI.Services;
-using Microsoft.AspNetCore.Authorization;
-using HISWEBAPI.Models;
-using HISWEBAPI.Configuration;
-using StackExchange.Redis;
 
 namespace HISWEBAPI.Controllers
 {
@@ -618,6 +619,136 @@ namespace HISWEBAPI.Controllers
                 _log.Info($"Favorite submenu saved successfully: {serviceResult.Message}");
             else
                 _log.Warn($"Favorite submenu save failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getUserAccessRights")]
+        [Authorize]
+        public IActionResult GetUserAccessRights(
+    [FromQuery] int branchId,
+    [FromQuery] int roleId)
+        {
+            _log.Info($"GetUserAccessRights called. BranchId={branchId}, RoleId={roleId}");
+
+            if (branchId <= 0)
+            {
+                _log.Warn("Invalid BranchId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BranchId must be greater than 0",
+                    errors = new { branchId }
+                });
+            }
+
+            if (roleId <= 0)
+            {
+                _log.Warn("Invalid RoleId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "RoleId must be greater than 0",
+                    errors = new { roleId }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+
+            if (globalValues.userId <= 0)
+            {
+                _log.Warn($"Invalid user session. UserId={globalValues.userId}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_TOKEN");
+                return Unauthorized(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "Invalid user session. Please login again.",
+                    errors = new { userId = globalValues.userId }
+                });
+            }
+
+            var serviceResult = _userRepository.GetUserAccessRights(branchId, roleId, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"User access rights fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"User access rights fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getDashboardUserAccessRights")]
+        [Authorize]
+        public IActionResult GetDashboardUserAccessRights(
+    [FromQuery] int branchId,
+    [FromQuery] int roleId)
+        {
+            _log.Info($"GetDashboardUserAccessRights called. BranchId={branchId}, RoleId={roleId}");
+
+            if (branchId <= 0)
+            {
+                _log.Warn("Invalid BranchId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BranchId must be greater than 0",
+                    errors = new { branchId }
+                });
+            }
+
+            if (roleId <= 0)
+            {
+                _log.Warn("Invalid RoleId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "RoleId must be greater than 0",
+                    errors = new { roleId }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+
+            if (globalValues.userId <= 0)
+            {
+                _log.Warn($"Invalid user session. UserId={globalValues.userId}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_TOKEN");
+                return Unauthorized(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "Invalid user session. Please login again.",
+                    errors = new { userId = globalValues.userId }
+                });
+            }
+
+            var serviceResult = _userRepository.GetDashboardUserAccessRights(branchId, roleId, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"Dashboard user access rights fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"Dashboard user access rights fetch failed: {serviceResult.Message}");
 
             return StatusCode(serviceResult.StatusCode, new
             {

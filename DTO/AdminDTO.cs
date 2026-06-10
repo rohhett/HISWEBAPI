@@ -940,4 +940,448 @@ namespace HISWEBAPI.DTO
     {
         public int DocumentId { get; set; }
     }
+
+    public class SaveOutSourceLabMasterRequest
+    {
+        public int OutSourceLabId { get; set; } = 0;
+
+        [Required(ErrorMessage = "OutSourceLab is required")]
+        [StringLength(256, ErrorMessage = "OutSourceLab cannot exceed 256 characters")]
+        public string OutSourceLab { get; set; }
+
+        [StringLength(256)]
+        public string ContactPerson { get; set; }
+
+        [StringLength(50)]
+        public string ContactNumber { get; set; }
+
+        public string Address { get; set; }
+
+        public int IsActive { get; set; } = 1;
+        public int branchId { get; set; }
+
+       
+    }
+
+ 
+
+    public class SaveOutSourceLabMasterResponse
+    {
+        public int OutSourceLabId { get; set; }
+    }
+
+    public class GetRateListMasterRequest
+    {
+        /// <summary>Filter by name (partial match). Null / empty = return all.</summary>
+        public string? RateListName { get; set; }
+
+        /// <summary>Filter by active status. Null = return all, 0 = inactive, 1 = active.</summary>
+        public int? IsActive { get; set; }
+    }
+
+    public class CreateUpdateRateListMasterRequest
+    {
+        public int RateListId { get; set; } = 0;
+
+        [Required(ErrorMessage = "RateListName is required")]
+        [StringLength(256, ErrorMessage = "RateListName cannot exceed 256 characters")]
+        public string RateListName { get; set; }
+
+        [Required(ErrorMessage = "ApplicableDate is required")]
+        public string ApplicableDate { get; set; }
+
+        [Required(ErrorMessage = "ExpiryDate is required")]
+        public string ExpiryDate { get; set; }   // expected format: dd-MM-yyyy from client
+
+        [Required(ErrorMessage = "IsActive is required")]
+        [Range(0, 1, ErrorMessage = "IsActive must be 0 or 1")]
+        public int IsActive { get; set; }
+    }
+
+    public class TariffMasterRequest
+    {
+        public int TariffId { get; set; }
+        public int RateListId { get; set; }
+        public int ServiceItemId { get; set; }
+        public int BedTypeId { get; set; }
+        public string? Alias { get; set; }
+        public string? ServiceCode { get; set; }
+        public int DoctorId { get; set; }
+        public int ValidityDays { get; set; }
+        public decimal EmergencyCharges { get; set; }
+        public decimal Rate { get; set; }
+        public int IsRateEditable { get; set; }
+        public int IsActive { get; set; }
+    }
+
+    public class CreateUpdateTariffMasterRequest
+    {
+        public int IsCopyRateForIPD { get; set; } = 0;
+        public List<TariffMasterRequest> TariffMasterData { get; set; } = new();
+    }
+
+    public class InsuranceCompanyMasterRequest
+    {
+        public int InsuranceCompanyId { get; set; } = 0;
+
+        [Required(ErrorMessage = "Insurance company name is required")]
+        [StringLength(256, ErrorMessage = "Insurance company name cannot exceed 256 characters")]
+        public string InsuranceCompanyName { get; set; }
+    }
+
+    public class InsuranceCompanyMasterResponse
+    {
+        public int InsuranceCompanyId { get; set; }
+    }
+
+
+    public class CorporateTypeMasterRequest
+    {
+        public int CorporateTypeId { get; set; } = 0;
+
+        [Required(ErrorMessage = "Corporate type name is required")]
+        [StringLength(256, ErrorMessage = "Corporate type name cannot exceed 256 characters")]
+        public string CorporateTypeName { get; set; }
+    }
+
+    public class CorporateTypeMasterResponse
+    {
+        public int CorporateTypeId { get; set; }
+    }
+
+    public class CorporateMasterRequest
+    {
+        public int CorporateId { get; set; } = 0;
+
+        [Required(ErrorMessage = "Corporate name is required")]
+        [StringLength(256, ErrorMessage = "Corporate name cannot exceed 256 characters")]
+        public string CorporateName { get; set; }
+
+        [Required(ErrorMessage = "InsuranceCompanyName name is required")]
+        [StringLength(256, ErrorMessage = "Insurance company name cannot exceed 256 characters")]
+        public string InsuranceCompanyName { get; set; }
+
+        public int InsuranceCompanyId { get; set; }
+
+        [Required(ErrorMessage = "CorporateTypeName is required")]
+        [StringLength(256, ErrorMessage = "Corporate type name cannot exceed 256 characters")]
+        public string CorporateTypeName { get; set; }
+
+        [Required(ErrorMessage = "CorporateTypeId is required")]
+        public int CorporateTypeId { get; set; }
+
+        public int PaymentTypeId { get; set; }
+
+        [StringLength(50, ErrorMessage = "Corporate code cannot exceed 50 characters")]
+        public string CorporateCode { get; set; }
+
+        [Required(ErrorMessage = "Corporate Contact 1 is required")]
+        [StringLength(20, ErrorMessage = "Corporate contact 1 cannot exceed 20 characters")]
+        public string CorporateContact1 { get; set; }
+
+        [StringLength(20, ErrorMessage = "Corporate contact 2 cannot exceed 20 characters")]
+        public string CorporateContact2 { get; set; }
+
+        [Required(ErrorMessage = "Corporate Email is required")]
+        [EmailAddress(ErrorMessage = "Invalid email format")]
+        [StringLength(100, ErrorMessage = "Corporate email cannot exceed 100 characters")]
+        public string CorporateEmail { get; set; }
+
+        [StringLength(500, ErrorMessage = "Corporate address 1 cannot exceed 500 characters")]
+        public string CorporateAddress1 { get; set; }
+
+        [StringLength(500, ErrorMessage = "Corporate address 2 cannot exceed 500 characters")]
+        public string CorporateAddress2 { get; set; }
+
+        [Required(ErrorMessage = "IsActive is required")]
+        public int IsActive { get; set; }
+
+        [Required(ErrorMessage = "Contract start date is required")]
+        [RegularExpression(@"^\d{2}-\d{2}-\d{4}$",
+            ErrorMessage = "ContractStartFrom must be in dd-MM-yyyy format (e.g. 20-04-2026)")]
+        public string ContractStartFrom { get; set; }
+
+        [Required(ErrorMessage = "Contract expiry date is required")]
+        [RegularExpression(@"^\d{2}-\d{2}-\d{4}$",
+            ErrorMessage = "ContractExpiresOn must be in dd-MM-yyyy format (e.g. 31-12-2028)")]
+        public string ContractExpiresOn { get; set; }
+
+        public decimal CopaymentPer { get; set; } = 0;
+        public decimal DiscountPerOut { get; set; } = 0;
+        public decimal DiscountPerIn { get; set; } = 0;
+        public decimal HikePerOut { get; set; } = 0;
+        public decimal HikePerIn { get; set; } = 0;
+
+        [Required(ErrorMessage = "Active Payment Modes is required")]
+        [StringLength(100, ErrorMessage = "Active payment modes cannot exceed 100 characters")]
+        public string ActivePaymentModes { get; set; }
+
+        [Required(ErrorMessage = "Active Branches is required")]
+        [StringLength(100, ErrorMessage = "Active branches cannot exceed 100 characters")]
+        public string ActiveBranches { get; set; }
+
+        [Required(ErrorMessage = "Rate List Id OPD is required")]
+        public string RateListIdOPD { get; set; }
+
+        [Required(ErrorMessage = "Rate List Id IPD is required")]
+        public string RateListIdIPD { get; set; }
+    }
+
+    public class CorporateMasterResponse
+    {
+        public int CorporateId { get; set; }
+    }
+
+    public class DiscountApprovalMasterRequest
+    {
+        public int DiscountApprovalId { get; set; } = 0;
+
+        [Required(ErrorMessage = "Discount approval name is required")]
+        [StringLength(256, ErrorMessage = "Name cannot exceed 256 characters")]
+        public string DiscountApprovalName { get; set; }
+
+        [Required(ErrorMessage = "HmsUserId is required")]
+        public int HmsUserId { get; set; }
+
+        [Required(ErrorMessage = "IsActive is required")]
+        public int IsActive { get; set; }
+
+        [Required(ErrorMessage = "MappingBranch is required")]
+        [StringLength(100, ErrorMessage = "MappingBranch cannot exceed 100 characters")]
+        public string MappingBranch { get; set; }
+
+        [Required(ErrorMessage = "MappingDiscountType is required")]
+        [StringLength(100, ErrorMessage = "MappingDiscountType cannot exceed 100 characters")]
+        public string MappingDiscountType { get; set; }
+    }
+
+    public class DiscountApprovalMasterResponse
+    {
+        public int Id { get; set; }
+    }
+
+    public class UserwiseDiscountMasterRequest
+    {
+        [Required(ErrorMessage = "UserId is required")]
+        public int userId { get; set; }
+
+        public decimal discPerOPD { get; set; } = 0;
+        public decimal discPerIPD { get; set; } = 0;
+        public decimal discPerPharmacy { get; set; } = 0;
+        public decimal discPerDayCare { get; set; } = 0;
+        public decimal discPerDialysis { get; set; } = 0;
+        public decimal discPerEmergency { get; set; } = 0;
+    }
+
+    public class CreateUpdateDoctorHeaderRequest
+    {
+        public int HeaderId { get; set; } = 0;
+
+        [Required(ErrorMessage = "HeaderName is required")]
+        [StringLength(256, ErrorMessage = "HeaderName cannot exceed 256 characters")]
+        public string HeaderName { get; set; }
+
+        [StringLength(256, ErrorMessage = "DisplayName cannot exceed 256 characters")]
+        public string DisplayName { get; set; }
+
+        [StringLength(256, ErrorMessage = "ControlType cannot exceed 256 characters")]
+        public string ControlType { get; set; }
+
+        [Required(ErrorMessage = "ControlTypeId is required")]
+        public int ControlTypeId { get; set; }
+
+        public int IsPrint { get; set; } = 1;
+
+        public int IsShowInTempRoom { get; set; } = 0;
+
+        public int UsedForPatientType { get; set; } = 1;
+
+        [Required(ErrorMessage = "IsActive is required")]
+        public int IsActive { get; set; }
+
+        public List<DoctorHeaderLOVRequest> ListOfValues { get; set; }
+    }
+
+    public class DoctorHeaderLOVRequest
+    {
+        [Required(ErrorMessage = "Value is required")]
+        [StringLength(256, ErrorMessage = "Value cannot exceed 256 characters")]
+        public string Value { get; set; }
+
+        public int DataTypeId { get; set; } = 0;
+    }
+
+    public class CreateUpdateDoctorHeaderResponse
+    {
+        public int HeaderId { get; set; }
+    }
+
+    // ─── Save Doctor Header Department Mapping ────────────────────────────────────
+
+    public class SaveDoctorHeaderMappingRequest
+    {
+        [Required(ErrorMessage = "TypeId is required")]
+        public int TypeId { get; set; }
+
+        [Required(ErrorMessage = "RelatedToId is required")]
+        public int RelatedToId { get; set; }
+
+        public List<DoctorHeaderMappingItemRequest> HeaderMappingData { get; set; }
+    }
+
+    public class DoctorHeaderMappingItemRequest
+    {
+        [Required(ErrorMessage = "TypeId is required")]
+        public int TypeId { get; set; }
+
+        [StringLength(100)]
+        public string TypeName { get; set; }
+
+        [Required(ErrorMessage = "HeaderId is required")]
+        public int HeaderId { get; set; }
+
+        [Required(ErrorMessage = "RelatedToId is required")]
+        public int RelatedToId { get; set; }
+
+        public int SequenceNo { get; set; } = 0;
+    }
+
+    // ─── Get Doctor Header LOVs ───────────────────────────────────────────────────
+
+    public class GetDoctorHeaderLOVsRequest
+    {
+        [Required(ErrorMessage = "HeaderId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "HeaderId must be greater than 0")]
+        public int HeaderId { get; set; }
+    }
+
+    // ─── Get Doctor Header Mapping For Master ────────────────────────────────────
+
+    public class GetDoctorHeaderMappingRequest
+    {
+        [Required(ErrorMessage = "TypeId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "TypeId must be greater than 0")]
+        public int TypeId { get; set; }
+
+        [Required(ErrorMessage = "RelatedToId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "RelatedToId must be greater than 0")]
+        public int RelatedToId { get; set; }
+    }
+
+    public class CreateUpdateServiceItemMasterRequest
+    {
+        public int ServiceItemId { get; set; } = 0;
+
+        [Required(ErrorMessage = "CategoryId is required")]
+        public int CategoryId { get; set; }
+
+        [Required(ErrorMessage = "SubCategoryId is required")]
+        public int SubCategoryId { get; set; }
+
+        [Required(ErrorMessage = "SubSubCategoryId is required")]
+        public int SubSubCategoryId { get; set; }
+
+        [Required(ErrorMessage = "Name is required")]
+        [StringLength(256, ErrorMessage = "Name cannot exceed 256 characters")]
+        public string Name { get; set; }
+
+        [StringLength(50, ErrorMessage = "Code cannot exceed 50 characters")]
+        public string? Code { get; set; }
+
+        public int? RoomTypeId { get; set; }
+        public string? RoomType { get; set; }
+        public int? IsICU { get; set; }
+        public decimal GstPer { get; set; } = 0;
+
+        [StringLength(50, ErrorMessage = "SNOMED Code cannot exceed 50 characters")]
+        public string? SNOMEDCode { get; set; }
+        public int? OPDConsultationTypeId  { get; set; }
+        public string? OPDConsultationType { get; set; }
+        public int? IsOnlineConsultationAllow  { get; set; }
+        public int? IsTeleConsultationService  { get; set; }
+
+        [Required(ErrorMessage = "IsActive is required")]
+        public int IsActive { get; set; }
+    }
+
+    public class CreateUpdateServiceItemMasterResponse
+    {
+        public int ServiceItemId { get; set; }
+    }
+
+    public class CreateUpdatePrintGroupMasterRequest
+    {
+        public int PrintGroupId { get; set; } = 0;
+
+        [Required(ErrorMessage = "PrintGroupName is required")]
+        [StringLength(100, ErrorMessage = "PrintGroupName cannot exceed 100 characters")]
+        public string PrintGroupName { get; set; }
+
+        public int? PrintOrder { get; set; }
+    }
+
+    public class CreateUpdateWardNameMasterRequest
+    {
+        public int WardNameId { get; set; } = 0;
+
+        [Required(ErrorMessage = "WardName is required")]
+        [StringLength(100, ErrorMessage = "WardName cannot exceed 100 characters")]
+        public string WardName { get; set; }
+    }
+
+    public class CreateUpdateFloorMasterRequest
+    {
+        public int FloorId { get; set; } = 0;
+
+        [Required(ErrorMessage = "Floor name is required")]
+        [StringLength(256, ErrorMessage = "Floor name cannot exceed 256 characters")]
+        public string FloorName { get; set; }
+    }
+
+    public class CreateUpdateFloorMasterResponse
+    {
+        public int FloorId { get; set; }
+    }
+
+    public class CreateUpdateBedMasterRequest
+    {
+        public int BedId { get; set; } = 0;
+
+       
+
+        [Required(ErrorMessage = "BranchId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "BranchId must be greater than 0")]
+        public int BranchId { get; set; }
+
+        [Required(ErrorMessage = "TypeId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "TypeId must be greater than 0")]
+        public int TypeId { get; set; }
+
+        [Required(ErrorMessage = "FloorId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "FloorId must be greater than 0")]
+        public int FloorId { get; set; }
+
+        [Required(ErrorMessage = "WardNameId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "WardNameId must be greater than 0")]
+        public int WardNameId { get; set; }
+
+        [Required(ErrorMessage = "WardName is required")]
+        [StringLength(256, ErrorMessage = "WardName cannot exceed 256 characters")]
+        public string WardName { get; set; }
+
+        [StringLength(256, ErrorMessage = "RoomName cannot exceed 256 characters")]
+        public string RoomName { get; set; }
+
+        [Required(ErrorMessage = "BedNo is required")]
+        [Range(1, 100, ErrorMessage = "Enter BedNo between 1 to 100")]
+        public int BedNo { get; set; }
+
+        [Required(ErrorMessage = "IsActive is required")]
+        public int IsActive { get; set; }
+    }
+
+    public class CreateUpdateBedMasterResponse
+    {
+        public int BedId { get; set; }
+    }
 }

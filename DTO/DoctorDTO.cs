@@ -221,5 +221,64 @@ namespace HISWEBAPI.DTO
         public int UnitId { get; set; }
     }
 
+    public class CreateUpdateProMasterRequest
+    {
+        public int ProId { get; set; } = 0;
+
+        [Required(ErrorMessage = "PRO Name is required")]
+        [StringLength(256, ErrorMessage = "PRO Name cannot exceed 256 characters")]
+        public string ProName { get; set; }
+
+        [Required(ErrorMessage = "Contact No is required")]
+        [StringLength(15, ErrorMessage = "Contact No cannot exceed 15 characters")]
+        public string ContactNo { get; set; }
+
+        [Required(ErrorMessage = "IsActive is required")]
+        [Range(0, 1, ErrorMessage = "IsActive must be 0 or 1")]
+        public int IsActive { get; set; }
+    }
+
   
+    public class CreateUpdateProMasterResponse
+    {
+        public int ProId { get; set; }
+    }
+
+
+    public class CreateUpdateReferDoctorRequest
+    {
+        public int ReferDoctorId { get; set; } = 0;
+
+        [Required(ErrorMessage = "Title is required")]
+        [StringLength(20, ErrorMessage = "Title cannot exceed 20 characters")]
+        public string Title { get; set; }
+
+        [Required(ErrorMessage = "Name is required")]
+        [StringLength(100, ErrorMessage = "Name cannot exceed 100 characters")]
+        public string Name { get; set; }
+
+        [Required(ErrorMessage = "Doctor Contact No is required")]
+        [StringLength(15, ErrorMessage = "Contact No cannot exceed 15 characters")]
+        public string DoctorContacNo { get; set; }
+
+        [StringLength(256, ErrorMessage = "Clinic Name cannot exceed 256 characters")]
+        public string ClinicName { get; set; }
+
+        [StringLength(2048, ErrorMessage = "Address cannot exceed 2048 characters")]
+        public string Address { get; set; }
+
+        [Required(ErrorMessage = "ProId is required")]
+        [Range(0, int.MaxValue, ErrorMessage = "ProId must be greater than or equal to 0")]
+        public int ProId { get; set; }
+
+        [Required(ErrorMessage = "Active status is required")]
+        [Range(0, 1, ErrorMessage = "Active must be 0 or 1")]
+        public int Active { get; set; }
+    }
+
+  
+    public class CreateUpdateReferDoctorResponse
+    {
+        public int ReferDoctorId { get; set; }
+    }
 }

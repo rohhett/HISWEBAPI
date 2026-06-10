@@ -24,6 +24,21 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Reference Include="BarcodeStandard">
+      <HintPath>Libs\BarcodeStandard.dll</HintPath>
+    </Reference>
+    <Reference Include="HiQPdf">
+      <HintPath>Libs\HiQPdf.dll</HintPath>
+    </Reference>
+    <Reference Include="itextsharp">
+      <HintPath>Libs\itextsharp.dll</HintPath>
+    </Reference>
+    <Reference Include="MessagingToolkit.QRCode">
+      <HintPath>Libs\MessagingToolkit.QRCode.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="Data\Configurations\" />
     <Folder Include="Filters\" />
     <Folder Include="Middleware\" />

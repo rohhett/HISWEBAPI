@@ -50,6 +50,7 @@
         public string Name { get; set; }
         public int SpecializationId { get; set; }
         public int DepartmentId { get; set; }
+        public int CanApproveLabReport { get; set; }
         public byte IsDoctorUnit { get; set; }
     }
 
@@ -64,5 +65,71 @@
         public int CityId { get; set; }
         public string CityName { get; set; }
         public int Pincode { get; set; }
+    }
+
+    public class CategoryTypeModel
+    {
+        public int CategoryTypeId { get; set; }
+        public string CategoryTypeName { get; set; }
+    }
+
+    public class CategoryModel
+    {
+        public int CategoryId { get; set; }
+        public string CategoryName { get; set; }
+        public int CategoryTypeId { get; set; }
+        public string CategoryTypeName { get; set; }
+        public string? CreatedBy { get; set; }
+        public string? CreatedOn { get; set; }
+        public string? LastModifiedBy { get; set; }
+        public string? LastModifiedOn { get; set; }
+    }
+
+    public class SubCategoryModel
+    {
+        public int CategoryId { get; set; }
+        public int SubCategoryId { get; set; }
+        public string SubCategoryName { get; set; }
+        public int LabTypeId { get; set; }
+    }
+
+    public class SubSubCategoryModel
+    {
+        public int SubCategoryId { get; set; }
+        public int SubSubCategoryId { get; set; }
+        public string SubSubCategoryName { get; set; }
+        public int? PrintGroupId { get; set; }
+        public int? DepartmentId { get; set; }
+    }
+
+    public class PaymentModeMasterModel
+    {
+        public int PaymentModeId { get; set; }
+        public string PaymentModeName { get; set; }
+        public string PayModeType { get; set; }
+        public int PayModeTypeId { get; set; }
+        public int IsRefundAllowed { get; set; }
+        public int IsActive { get; set; }
+    }
+
+    public class CorporatePaymentModeModel
+    {
+        public int PaymentModeId { get; set; }
+        public string PaymentModeName { get; set; }
+        public string PayModeType { get; set; }
+        public int PayModeTypeId { get; set; }
+    }
+
+    public class DiscountApprovalModel
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+       
+    }
+
+    public class PatientInvestigationReportPdfResult
+    {
+        public byte[] Content { get; set; } = [];
+        public string FileName { get; set; } = "PatientReport.pdf";
     }
 }

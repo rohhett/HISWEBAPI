@@ -1272,6 +1272,130 @@ namespace HISWEBAPI.Repositories.Implementations
 
 
 
+        public ServiceResult<Dictionary<string, object>> GetUserAccessRights(
+    int branchId,
+    int roleId,
+    AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"GetUserAccessRights called. BranchId={branchId}, RoleId={roleId}, UserId={globalValues.userId}");
 
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetUSerAccessRights",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @branchId = branchId,
+                        @userId = globalValues.userId,
+                        @roleId = roleId
+                    }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No access rights found for UserId={globalValues.userId}, BranchId={branchId}, RoleId={roleId}");
+                    return ServiceResult<Dictionary<string, object>>.Failure(
+                        alert.Type,
+                        "No access rights found for the specified user",
+                        404
+                    );
+                }
+
+                // Map the single pivot row to a Dictionary<string, object>
+                // Each column = one user right, value = 0 or 1
+                var row = dataTable.Rows[0];
+                var accessRights = new Dictionary<string, object>();
+
+                foreach (DataColumn col in dataTable.Columns)
+                {
+                    accessRights[col.ColumnName] = row[col] == DBNull.Value ? 0 : row[col];
+                }
+
+                _log.Info($"Retrieved {accessRights.Count} access right(s) for UserId={globalValues.userId}, BranchId={branchId}, RoleId={roleId}");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<Dictionary<string, object>>.Success(
+                    accessRights,
+                    alert1.Type,
+                    $"{accessRights.Count} access right(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<Dictionary<string, object>>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<Dictionary<string, object>> GetDashboardUserAccessRights(
+    int branchId,
+    int roleId,
+    AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"GetDashboardUserAccessRights called. BranchId={branchId}, RoleId={roleId}, UserId={globalValues.userId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetDashBoardUSerAccessRights",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @branchId = branchId,
+                        @userId = globalValues.userId,
+                        @roleId = roleId
+                    }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No dashboard access rights found for UserId={globalValues.userId}, BranchId={branchId}, RoleId={roleId}");
+                    return ServiceResult<Dictionary<string, object>>.Failure(
+                        alert.Type,
+                        "No dashboard access rights found for the specified user",
+                        404
+                    );
+                }
+
+                // Map the single pivot row to Dictionary<string, object>
+                // Each column = one dashboard right, value = 0 or 1
+                var row = dataTable.Rows[0];
+                var dashboardRights = new Dictionary<string, object>();
+
+                foreach (DataColumn col in dataTable.Columns)
+                {
+                    dashboardRights[col.ColumnName] = row[col] == DBNull.Value ? 0 : row[col];
+                }
+
+                _log.Info($"Retrieved {dashboardRights.Count} dashboard access right(s) for UserId={globalValues.userId}, BranchId={branchId}, RoleId={roleId}");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<Dictionary<string, object>>.Success(
+                    dashboardRights,
+                    alert1.Type,
+                    $"{dashboardRights.Count} dashboard access right(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<Dictionary<string, object>>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
     }
 }

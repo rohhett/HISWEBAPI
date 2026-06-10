@@ -245,4 +245,15 @@ namespace HISWEBAPI.DTO
         public int SubMenuId { get; set; }
     }
 
+    public class UserAccessRightsRequest
+    {
+        [Required(ErrorMessage = "BranchId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "BranchId must be greater than 0")]
+        public int BranchId { get; set; }
+
+        [Required(ErrorMessage = "RoleId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "RoleId must be greater than 0")]
+        public int RoleId { get; set; }
+    }
+
 }

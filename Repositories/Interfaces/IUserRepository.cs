@@ -19,8 +19,8 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<UserTabMenuMappingResponse> GetUserTabAndSubMenuMapping(int roleId, int branchId, int userId);
         ServiceResult<string> SaveUserFavoriteRoles(SaveUserFavoriteRolesRequest request, AllGlobalValues globalValues);
         ServiceResult<string> SaveRoleWiseUserFavoriteSubMenu(SaveRoleWiseUserFavoriteSubMenuRequest request, AllGlobalValues globalValues);
-
-
+        ServiceResult<Dictionary<string, object>> GetUserAccessRights(int branchId, int roleId, AllGlobalValues globalValues);
+        ServiceResult<Dictionary<string, object>> GetDashboardUserAccessRights(int branchId, int roleId, AllGlobalValues globalValues);
 
     }
 }

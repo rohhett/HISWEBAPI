@@ -60,6 +60,9 @@ public static class DependencyInjection
         services.AddScoped<IPageConfigRepository, PageConfigRepository>();
         services.AddScoped<IStoreRepository, StoreRepository>();
         services.AddScoped<IDoctorRepository, DoctorRepository>();
+        services.AddScoped<ILabRepository, LabRepository>();
+        services.AddScoped<IPatientRepository, PatientRepository>();
+        services.AddScoped<IPatientLabReport, PatientLabReport>();
 
     }
 
@@ -68,10 +71,12 @@ public static class DependencyInjection
         services.AddScoped<ISmsService, SmsService>();
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IResponseMessageService, ResponseMessageService>();
+        services.AddScoped<IPatientInvestigationReportPdfService, PatientInvestigationReportPdfService>();
     }
 
     private static void RegisterUtilities(IServiceCollection services)
     {
+        services.AddHttpContextAccessor();
         services.AddScoped<FileUploadHelper>();
     }
 

@@ -76,4 +76,5 @@
         public List<UserSubMenuModel> SubMenus { get; set; }
         public List<UserSubMenuModel> favoriteSubMenus { get; set; }
     }
+
 }

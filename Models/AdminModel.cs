@@ -350,4 +350,120 @@
         public string LastModifiedBy { get; set; }
         public string LastModifiedOn { get; set; }
     }
+
+    public class OutSourceLabMasterModel
+    {
+        public int OutSourceLabId { get; set; }
+        public string OutSourceLab { get; set; }
+        public int BranchId { get; set; }
+        public string BranchName { get; set; }
+        public string ContactPerson { get; set; }
+        public string ContactNumber { get; set; }
+        public string Address { get; set; }
+        public int IsActive { get; set; }
+    }
+
+    public class RateListMasterModel
+    {
+        public int RateListId { get; set; }
+        public string RateListName { get; set; }
+        public string ApplicableDate { get; set; }
+        public string ExpiryDate { get; set; }
+        public int IsActive { get; set; }
+    }
+    public class InsuranceCompanyMasterModel
+    {
+        public int InsuranceCompanyId { get; set; }
+        public string InsuranceCompanyName { get; set; }
+    }
+
+    public class CorporateTypeMasterModel
+    {
+        public int CorporateTypeId { get; set; }
+        public string CorporateTypeName { get; set; }
+    }
+
+    public class CorporateMasterDetailModel
+    {
+        public int CorporateId { get; set; }
+        public string CorporateName { get; set; }
+        public string InsuranceCompanyName { get; set; }
+        public int InsuranceCompanyId { get; set; }
+        public int CorporateTypeId { get; set; }
+        public int PaymentTypeId { get; set; }
+        public string CorporateCode { get; set; }
+        public string CorporateContact1 { get; set; }
+        public string CorporateContact2 { get; set; }
+        public string CorporateEmail { get; set; }
+        public string CorporateAddress1 { get; set; }
+        public string CorporateAddress2 { get; set; }
+        public int IsActive { get; set; }
+        public string ContractStartFrom { get; set; }
+        public string ContractExpiresOn { get; set; }
+        public decimal CopaymentPer { get; set; }
+        public decimal DiscountPerOut { get; set; }
+        public decimal DiscountPerIn { get; set; }
+        public decimal HikePerOut { get; set; }
+        public decimal HikePerIn { get; set; }
+        public string ActivePaymentModes { get; set; }
+        public string ActiveBranches { get; set; }
+        public string RateListIdOPD { get; set; }
+        public string RateListIdIPD { get; set; }
+    }
+
+    public class DiscountApprovalMasterModel
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public int IsActive { get; set; }
+        public string DiscountType { get; set; }
+        public string BranchName { get; set; }
+        public string FirstName { get; set; }
+    }
+
+
+    // ─── Doctor Header Master ─────────────────────────────────────────────────────
+
+    public class DoctorHeaderMasterModel
+    {
+        public int HeaderId { get; set; }
+        public string HeaderName { get; set; }
+        public string DisplayName { get; set; }
+        public string ControlType { get; set; }
+        public int? ControlTypeId { get; set; }
+        public int IsPrint { get; set; }
+        public int IsShowInTempRoom { get; set; }
+        public int UsedForPatientType { get; set; }
+        public string UsedForPatientTypeName { get; set; }
+        public int IsActive { get; set; }
+    }
+
+    // ─── Doctor Header LOV ────────────────────────────────────────────────────────
+
+    public class DoctorHeaderLOVModel
+    {
+        public string Value { get; set; }
+        public int DataTypeId { get; set; }
+    }
+
+    // ─── Doctor Header Mapping (for master screen) ────────────────────────────────
+
+    public class DoctorHeaderMappingModel
+    {
+        public int HeaderId { get; set; }
+        public string HeaderName { get; set; }
+        public string DisplayName { get; set; }
+        public string ControlType { get; set; }
+        public long MappingId { get; set; }
+        public int SequenceNo { get; set; }
+    }
+
+    public class FloorMasterModel
+    {
+        public int FloorId { get; set; }
+        public string FloorName { get; set; }
+
+    }
+
+  
 }
