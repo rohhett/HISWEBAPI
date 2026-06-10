@@ -58,6 +58,13 @@ namespace HISWEBAPI.Domain
         public string ProName { get; set; }
         public int IsSendMRD { get; set; }
 
+        // IPD-specific fields
+        public string AttendantRelation { get; set; }
+        public string AttendantName { get; set; }
+        public string AttendantContactNumber { get; set; }
+        public int? HandleWithCare { get; set; }
+        public int? NameMasking { get; set; }
+
         public dynamic Create(ICustomSqlHelper sqlHelper, SqlTransaction tnx)
         {
             return sqlHelper.DML(tnx, "I_PatientVisitDetails", CommandType.StoredProcedure, new
@@ -112,7 +119,12 @@ namespace HISWEBAPI.Domain
                 @AppointmentDate = AppointmentDate,
                 @ProId = ProId,
                 @ProName = ProName,
-                @IsSendMRD = IsSendMRD
+                @IsSendMRD = IsSendMRD,
+                @AttendantRelation = AttendantRelation,
+                @AttendantName = AttendantName,
+                @AttendantContactNumber = AttendantContactNumber,
+                @HandleWithCare = HandleWithCare,
+                @NameMasking = NameMasking
             }, new { result = 0 });
         }
     }

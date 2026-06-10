@@ -2173,6 +2173,172 @@ namespace HISWEBAPI.Repositories.Implementations
                     500
                 );
             }
-        } 
+        }
+
+        public ServiceResult<SaveIPDAdmissionResponse> SaveIPDAdmission(
+    SaveIPDAdmissionRequest request,
+    AllGlobalValues globalValues)
+        {
+            var connectionString = _configuration.GetConnectionString("ConnectionString");
+            SqlConnection con = new SqlConnection(connectionString);
+            con.Open();
+            var tnx = CustomSqlHelper.getSqlTransaction(con);
+
+            try
+            {
+                _log.Info($"SaveIPDAdmission called. PatientId={request.PatientId}, BranchId={request.BranchId}");
+
+                // ── 1. PatientVisitDetails ───────────────────────────────────────────
+                var pvd = new PatientVisitDetails
+                {
+                    HospId = globalValues.hospId,
+                    BranchId = request.BranchId,
+                    PatientId = request.PatientId,
+                    Uhid = request.Uhid,
+                    Type = "IPD",
+                    TypeId = 2,
+                    CurrentAge = request.CurrentAge,
+                    DoctorId = request.PrimaryDoctorId,
+                    CorporateId = request.CorporateId,
+                    InsuranceCompanyId = request.InsuranceCompanyId,
+                    ReferDoctorId = request.ReferDoctorId > 0 ? request.ReferDoctorId : (int?)null,
+                    ProId = request.ProId,
+                    ProName = request.ProName,
+                    AdmissionType = request.AdmissionType,
+                    BillingTypeId = request.BillingTypeId,
+                    RoomTypeId = request.RoomTypeId,
+                    BedId = request.BedId,
+                    AdmissionDate = request.AdmissionDate,
+                    AdmissionTime = request.AdmissionTime,
+                    StatusId = 1,
+                    Status = "IN",
+                    AttendantRelation = request.AttendantRelation,
+                    AttendantName = request.AttendantName,
+                    AttendantContactNumber = request.AttendantContactNumber,
+                    HandleWithCare = request.HandleWithCare,
+                    NameMasking = request.NameMasking,
+                    UserId = globalValues.userId,
+                    IpAddress = globalValues.ipAddress
+                };
+
+                int visitId = Convert.ToInt32(pvd.Create(_sqlHelper, tnx));
+                _log.Info($"PatientVisitDetails created. VisitId={visitId}");
+
+                // ── 2. MLC (only when AdmissionType == "MLC") ───────────────────────
+                if (request.AdmissionType == "MLC")
+                {
+                    _sqlHelper.DML(tnx, "I_MLC", CommandType.StoredProcedure, new
+                    {
+                        @VisitId = visitId,
+                        @MLCNo = request.MlcNo,
+                        @MLCTypeId = request.MlcTypeId,
+                        @MLCType = request.MlcType,
+                        @InjuryTypeId = request.InjuryTypeId,
+                        @InjuryType = request.InjuryType,
+                        @BroughtBy = request.BroughtBy,
+                        @TransportId = request.TransportId,
+                        @Transport = request.Transport,
+                        @PlaceOfAccident = request.PlaceOfAccident,
+                        @PoliceStation = request.PoliceStation,
+                        @OfficerName = request.OfficerName,
+                        @OfficerPhone = request.OfficerPhone,
+                        @ComplaintNo = request.ComplaintNo,
+                        @BuckleNoOfPolice = request.BuckleNoOfPolice,
+                        @DateOfInjury = request.DateOfInjury,
+                        @DateOfInitiation = request.DateOfInitiation,
+                        @CauseOfAccident = request.CauseOfAccident,
+                        @IdentificationMarks = request.IdentificationMarks,
+                        @Remarks = request.Remarks,
+                        @UserId = globalValues.userId,
+                        @IpAddress = globalValues.ipAddress
+                    });
+                    _log.Info($"MLC record created for VisitId={visitId}");
+                }
+
+                // ── 3. Secondary doctor mappings ────────────────────────────────────
+                foreach (var doctorId in request.SecondaryDoctorIds)
+                {
+                    _sqlHelper.DML(tnx, "I_IPDVisitDoctorMapping", CommandType.StoredProcedure, new
+                    {
+                        @visitId = visitId,
+                        @doctorId = doctorId,
+                        @isPrimaryDoctor = 0,
+                        @userId = globalValues.userId,
+                        @ipAddress = globalValues.ipAddress
+                    });
+                }
+
+                // ── 4. Primary doctor mapping ────────────────────────────────────────
+                _sqlHelper.DML(tnx, "I_IPDVisitDoctorMapping", CommandType.StoredProcedure, new
+                {
+                    @visitId = visitId,
+                    @doctorId = request.PrimaryDoctorId,
+                    @isPrimaryDoctor = 1,
+                    @userId = globalValues.userId,
+                    @ipAddress = globalValues.ipAddress
+                });
+                _log.Info($"Doctor mappings created. PrimaryDoctorId={request.PrimaryDoctorId}");
+
+                // ── 5. Bed mapping ───────────────────────────────────────────────────
+                _sqlHelper.DML(tnx, "IU_IPDVisitBedMapping", CommandType.StoredProcedure, new
+                {
+                    @visitId = visitId,
+                    @bedId = request.BedId,
+                    @userId = globalValues.userId,
+                    @ipAddress = globalValues.ipAddress
+                });
+
+                // ── 6. Update bed status to occupied ────────────────────────────────
+                _sqlHelper.DML(tnx, "U_UpdateBedStatus", CommandType.StoredProcedure, new
+                {
+                    @bedId = request.BedId,
+                    @currentStatus = 1   // PatientAdmitted
+                });
+                _log.Info($"Bed {request.BedId} marked as occupied");
+
+                // ── 7. Corporate mapping ─────────────────────────────────────────────
+                _sqlHelper.DML(tnx, "IU_IPDVisitCorporateMapping", CommandType.StoredProcedure, new
+                {
+                    @visitId = visitId,
+                    @insuranceCompanyId = request.InsuranceCompanyId,
+                    @corporateId = request.CorporateId,
+                    @userId = globalValues.userId,
+                    @ipAddress = globalValues.ipAddress
+                });
+
+                // ── 8. Doctor IPD sequence number ────────────────────────────────────
+                _sqlHelper.DML(tnx, "I_IPDVisitDoctorSequence", CommandType.StoredProcedure, new
+                {
+                    @branchId = request.BranchId,
+                    @doctorId = request.PrimaryDoctorId,
+                    @visitId = visitId
+                });
+
+                tnx.Commit();
+                _log.Info($"SaveIPDAdmission committed. VisitId={visitId}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<SaveIPDAdmissionResponse>.Success(
+                    new SaveIPDAdmissionResponse { VisitId = visitId },
+                    alert.Type,
+                    "IPD Admission saved successfully",
+                    201
+                );
+            }
+            catch (Exception ex)
+            {
+                try { tnx.Rollback(); } catch { }
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<SaveIPDAdmissionResponse>.Failure(alert.Type, alert.Message, 500);
+            }
+            finally
+            {
+                tnx.Dispose();
+                if (con.State == ConnectionState.Open)
+                    con.Close();
+            }
+        }
+
     }
 }

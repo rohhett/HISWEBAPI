@@ -365,4 +365,81 @@ namespace HISWEBAPI.DTO
         public string VitalDateTime { get; set; }
         public int Id { get; set; } = 0;
     }
+
+    public class SaveIPDAdmissionRequest
+    {
+        [Required(ErrorMessage = "PatientId is required")]
+        public int PatientId { get; set; }
+
+        [Required(ErrorMessage = "UHID is required")]
+        public string Uhid { get; set; }
+
+        [Required(ErrorMessage = "BranchId is required")]
+        public int BranchId { get; set; }
+
+        [Required(ErrorMessage = "CurrentAge is required")]
+        public string CurrentAge { get; set; }
+
+        [Required(ErrorMessage = "PrimaryDoctorId is required")]
+        public int PrimaryDoctorId { get; set; }
+
+        public List<int> SecondaryDoctorIds { get; set; } = new();
+
+        public int InsuranceCompanyId { get; set; }
+        public int CorporateId { get; set; }
+        public int ReferDoctorId { get; set; }
+        public int ProId { get; set; }
+        public string ProName { get; set; }
+
+        public string AdmissionType { get; set; }  
+
+        [Required(ErrorMessage = "BillingTypeId is required")]
+        public int BillingTypeId { get; set; }
+
+        [Required(ErrorMessage = "RoomTypeId is required")]
+        public int RoomTypeId { get; set; }
+
+        [Required(ErrorMessage = "BedId is required")]
+        public int BedId { get; set; }
+
+        [Required(ErrorMessage = "AdmissionDate is required")]
+        public string AdmissionDate { get; set; }
+
+        [Required(ErrorMessage = "AdmissionTime is required")]
+        public string AdmissionTime { get; set; }
+
+
+        // Attendant details
+        public string AttendantRelation { get; set; }
+        public string AttendantName { get; set; }
+        public string AttendantContactNumber { get; set; }
+        public int? HandleWithCare { get; set; }
+        public int? NameMasking { get; set; }
+
+        // MLC fields (only when AdmissionType == "MLC")
+        public string MlcNo { get; set; }
+        public int? MlcTypeId { get; set; }
+        public string MlcType { get; set; }
+        public int? InjuryTypeId { get; set; }
+        public string InjuryType { get; set; }
+        public string BroughtBy { get; set; }
+        public int? TransportId { get; set; }
+        public string Transport { get; set; }
+        public string PlaceOfAccident { get; set; }
+        public string PoliceStation { get; set; }
+        public string OfficerName { get; set; }
+        public string OfficerPhone { get; set; }
+        public string ComplaintNo { get; set; }
+        public string BuckleNoOfPolice { get; set; }
+        public DateTime? DateOfInjury { get; set; }
+        public DateTime? DateOfInitiation { get; set; }
+        public string CauseOfAccident { get; set; }
+        public string IdentificationMarks { get; set; }
+        public string Remarks { get; set; }
+    }
+
+    public class SaveIPDAdmissionResponse
+    {
+        public int VisitId { get; set; }
+    }
 }

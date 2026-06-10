@@ -1276,5 +1276,65 @@ namespace HISWEBAPI.Controllers
             });
         }
 
+        [HttpPost("saveIPDAdmission")]
+        [Authorize]
+        public IActionResult SaveIPDAdmission([FromBody] SaveIPDAdmissionRequest request)
+        {
+            _log.Info($"SaveIPDAdmission called. PatientId={request?.PatientId}, BranchId={request?.BranchId}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SaveIPDAdmission.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.PatientId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "PatientId must be greater than 0" });
+            }
+
+            if (request.BranchId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "BranchId must be greater than 0" });
+            }
+
+            if (request.PrimaryDoctorId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "PrimaryDoctorId must be greater than 0" });
+            }
+
+            if (request.BedId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "BedId must be greater than 0" });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.SaveIPDAdmission(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"SaveIPDAdmission succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"SaveIPDAdmission failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
     }
 }

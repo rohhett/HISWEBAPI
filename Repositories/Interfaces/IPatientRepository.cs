@@ -46,6 +46,8 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<object> GetPatientVital(int patientId);
         ServiceResult<string> SavePatientVital(SavePatientVitalRequest request, AllGlobalValues globalValues);
         ServiceResult<object> GetPatientObservationResultsTrend(int patientId, int pageNumber, int pageSize);
+        ServiceResult<SaveIPDAdmissionResponse> SaveIPDAdmission(SaveIPDAdmissionRequest request, AllGlobalValues globalValues);
+
 
     }
 }
