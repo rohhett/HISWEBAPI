@@ -4050,6 +4050,67 @@ namespace HISWEBAPI.Controllers
             });
         }
 
+        [HttpPost("createUpdateBlockMaster")]
+        [Authorize]
+        public IActionResult CreateUpdateBlockMaster([FromBody] CreateUpdateBlockMasterRequest request)
+        {
+            _log.Info($"CreateUpdateBlockMaster called. BlockId={request.BlockId}, BlockName={request.BlockName}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for Block insert/update.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _adminRepository.CreateUpdateBlockMaster(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"Block operation completed: {serviceResult.Message}");
+            else
+                _log.Warn($"Block operation failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        /// <summary>
+        /// Get Block List. If BlockId is null, returns all Blocks; otherwise returns the matching Block.
+        /// </summary>
+        [HttpGet("getBlockList")]
+        [Authorize]
+        public IActionResult GetBlockList([FromQuery] int? BlockId = null)
+        {
+            _log.Info($"GetBlockList called. BlockId={BlockId?.ToString() ?? "All"}");
+
+            var serviceResult = _adminRepository.GetBlockList(BlockId);
+
+            if (serviceResult.Result)
+                _log.Info($"Blocks fetched successfully from cache: {serviceResult.Message}");
+            else
+                _log.Warn($"No Blocks found: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
         [HttpPost("createUpdateFloorMaster")]
         [Authorize]
         public IActionResult CreateUpdateFloorMaster([FromBody] CreateUpdateFloorMasterRequest request)
@@ -4111,7 +4172,7 @@ namespace HISWEBAPI.Controllers
             });
         }
 
-       
+
         [HttpPost("createUpdateBedMaster")]
         [Authorize]
         public IActionResult CreateUpdateBedMaster([FromBody] CreateUpdateBedMasterRequest request)
@@ -4165,21 +4226,126 @@ namespace HISWEBAPI.Controllers
         [HttpGet("getAllBedList")]
         [Authorize]
         public IActionResult GetAllBedList(
+     [FromQuery] int? branchId = null,
+          [FromQuery] int? typeId = null,
+     [FromQuery] int? blockId = null,
+     [FromQuery] int? floorId = null,
+     [FromQuery] int? wardNameId = null,
      [FromQuery] int? bedId = null,
-     [FromQuery] int? isActive = null)
+     [FromQuery] int? isActive = null
+    )
         {
-            _log.Info($"GetAllBedList called. BedId={bedId?.ToString() ?? "All"}, IsActive={isActive?.ToString() ?? "All"}");
+            _log.Info($"GetAllBedList called. BedId={bedId?.ToString() ?? "All"}, IsActive={isActive?.ToString() ?? "All"}, FloorId={floorId?.ToString() ?? "All"}, WardNameId={wardNameId?.ToString() ?? "All"}, BranchId={branchId?.ToString() ?? "All"}, TypeId={typeId?.ToString() ?? "All"}");
 
             if (bedId.HasValue && bedId.Value <= 0)
             {
-                _log.Warn("Invalid BedId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "BedId must be greater than 0", errors = new { bedId } });
+            }
+            if (isActive.HasValue && isActive.Value != 0 && isActive.Value != 1)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "IsActive must be 0 (Inactive), 1 (Active), or null (All)", errors = new { isActive } });
+            }
+            if (blockId.HasValue && blockId.Value <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "BlockId must be greater than 0", errors = new { blockId } });
+            }
+            if (floorId.HasValue && floorId.Value <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "FloorId must be greater than 0", errors = new { floorId } });
+            }
+            if (wardNameId.HasValue && wardNameId.Value <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "WardNameId must be greater than 0", errors = new { wardNameId } });
+            }
+            if (branchId.HasValue && branchId.Value <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "BranchId must be greater than 0", errors = new { branchId } });
+            }
+            if (typeId.HasValue && typeId.Value <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "TypeId must be greater than 0", errors = new { typeId } });
+            }
+
+            var serviceResult = _adminRepository.GetAllBedList(bedId, isActive, blockId,floorId, wardNameId, branchId, typeId);
+
+            if (serviceResult.Result)
+                _log.Info($"BedMaster fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"BedMaster fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+
+        [HttpPost("createUpdateTabGroupTypeMaster")]
+        [Authorize]
+        public IActionResult CreateUpdateTabGroupTypeMaster([FromBody] CreateUpdateTabGroupTypeMasterRequest request)
+        {
+            _log.Info($"CreateUpdateTabGroupTypeMaster called. GroupTypeId={request.GroupTypeId}, GroupTypeName={request.GroupTypeName}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for TabGroupTypeMaster insert/update.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+          
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _adminRepository.CreateUpdateTabGroupTypeMaster(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"TabGroupTypeMaster operation completed: {serviceResult.Message}");
+            else
+                _log.Warn($"TabGroupTypeMaster operation failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getTabGroupTypeMaster")]
+        [Authorize]
+        public IActionResult GetTabGroupTypeMaster(
+            [FromQuery] int? groupTypeId = null,
+            [FromQuery] int? isActive = null)
+        {
+            _log.Info($"GetTabGroupTypeMaster called. GroupTypeId={groupTypeId?.ToString() ?? "All"}, IsActive={isActive?.ToString() ?? "All"}");
+
+            if (groupTypeId.HasValue && groupTypeId.Value <= 0)
+            {
+                _log.Warn("Invalid GroupTypeId provided.");
                 var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
                 return BadRequest(new
                 {
                     result = false,
                     messageType = alert.Type,
-                    message = "BedId must be greater than 0",
-                    errors = new { bedId }
+                    message = "GroupTypeId must be greater than 0",
+                    errors = new { groupTypeId }
                 });
             }
 
@@ -4196,12 +4362,358 @@ namespace HISWEBAPI.Controllers
                 });
             }
 
-            var serviceResult = _adminRepository.GetAllBedList(bedId, isActive);
+            var serviceResult = _adminRepository.GetTabGroupTypeMaster(groupTypeId, isActive);
 
             if (serviceResult.Result)
-                _log.Info($"BedMaster fetched successfully: {serviceResult.Message}");
+                _log.Info($"TabGroupTypeMaster fetched successfully: {serviceResult.Message}");
             else
-                _log.Warn($"BedMaster fetch failed: {serviceResult.Message}");
+                _log.Warn($"TabGroupTypeMaster fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPost("createUpdateIPDTabMaster")]
+        [Authorize]
+        public IActionResult CreateUpdateIPDTabMaster([FromBody] CreateUpdateIPDTabMasterRequest request)
+        {
+            _log.Info($"CreateUpdateIPDTabMaster called. TabId={request.TabId}, TabName={request.TabName}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for IPDTabMaster insert/update.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.IsActive != 0 && request.IsActive != 1)
+            {
+                _log.Warn("Invalid IsActive value provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "IsActive must be 0 or 1",
+                    errors = new { isActive = request.IsActive }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _adminRepository.CreateUpdateIPDTabMaster(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"IPDTabMaster operation completed: {serviceResult.Message}");
+            else
+                _log.Warn($"IPDTabMaster operation failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getIPDTabMaster")]
+        [Authorize]
+        public IActionResult GetIPDTabMaster(
+            [FromQuery] int? tabId = null,
+            [FromQuery] int? groupTypeId = null,
+            [FromQuery] int? tabTypeId = null,
+            [FromQuery] int? roomTypeId = null,
+   [FromQuery] string tabName = null,
+            [FromQuery] int? isActive = null)
+        {
+            _log.Info($"GetIPDTabMaster called. TabId={tabId?.ToString() ?? "All"}, GroupTypeId={groupTypeId?.ToString() ?? "All"}, TabTypeId={tabTypeId?.ToString() ?? "All"}, RoomTypeId={roomTypeId?.ToString() ?? "All"}, IsActive={isActive?.ToString() ?? "All"}");
+
+            if (tabId.HasValue && tabId.Value <= 0)
+            {
+                _log.Warn("Invalid TabId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "TabId must be greater than 0",
+                    errors = new { tabId }
+                });
+            }
+
+            if (groupTypeId.HasValue && groupTypeId.Value <= 0)
+            {
+                _log.Warn("Invalid GroupTypeId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "GroupTypeId must be greater than 0",
+                    errors = new { groupTypeId }
+                });
+            }
+
+            if (tabTypeId.HasValue && tabTypeId.Value <= 0)
+            {
+                _log.Warn("Invalid TabTypeId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "TabTypeId must be greater than 0",
+                    errors = new { tabTypeId }
+                });
+            }
+
+            if (isActive.HasValue && isActive.Value != 0 && isActive.Value != 1)
+            {
+                _log.Warn($"Invalid IsActive parameter: {isActive.Value}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "IsActive must be 0 (Inactive), 1 (Active), or null (All)",
+                    errors = new { isActive }
+                });
+            }
+
+            var serviceResult = _adminRepository.GetIPDTabMaster(tabId, groupTypeId, tabTypeId, roomTypeId, tabName, isActive);
+
+            if (serviceResult.Result)
+                _log.Info($"IPDTabMaster fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"IPDTabMaster fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPost("saveUpdateRoleWiseIPDTabMapping")]
+        [Authorize]
+        public IActionResult SaveUpdateRoleWiseIPDTabMapping([FromBody] SaveRoleWiseIPDTabMappingRequest request)
+        {
+            _log.Info($"SaveUpdateRoleWiseIPDTabMapping called. RoleId={request.RoleId}, TabMappings Count={request.TabMappings.Count}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SaveUpdateRoleWiseIPDTabMapping.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            // Validate RoleId
+            if (request.RoleId <= 0)
+            {
+                _log.Warn("Invalid RoleId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "RoleId must be greater than 0",
+                    errors = new { roleId = request.RoleId }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _adminRepository.SaveUpdateRoleWiseIPDTabMapping(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"Role-wise IPD tab mapping saved successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"Role-wise IPD tab mapping save failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getRoleWiseIPDTabListMaster")]
+        [Authorize]
+        public IActionResult GetRoleWiseIPDTabListMaster([FromQuery] int roleId)
+        {
+            _log.Info($"GetRoleWiseIPDTabListMaster called. RoleId={roleId}");
+
+            if (roleId <= 0)
+            {
+                _log.Warn("Invalid RoleId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "RoleId must be greater than 0",
+                    errors = new { roleId }
+                });
+            }
+
+            var serviceResult = _adminRepository.GetRoleWiseIPDTabListMaster(roleId);
+
+            if (serviceResult.Result)
+                _log.Info($"Role-wise IPD tab list fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"Role-wise IPD tab list fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+
+        [HttpPost("saveUpdateUserIPDTabMapping")]
+        [Authorize]
+        public IActionResult SaveUpdateUserIPDTabMapping([FromBody] SaveUserIPDTabMappingRequest request)
+        {
+            _log.Info($"SaveUpdateUserIPDTabMapping called. TypeId={request.TypeId}, UserId={request.UserId}, BranchId={request.BranchId}, RoleId={request.RoleId}, TabMappings Count={request.TabMappings.Count}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SaveUpdateUserIPDTabMapping.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            // Validate BranchId
+            if (request.BranchId <= 0)
+            {
+                _log.Warn("Invalid BranchId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BranchId must be greater than 0",
+                    errors = new { branchId = request.BranchId }
+                });
+            }
+
+            // Validate UserId
+            if (request.UserId <= 0)
+            {
+                _log.Warn("Invalid UserId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "UserId must be greater than 0",
+                    errors = new { userId = request.UserId }
+                });
+            }
+
+            // Validate RoleId
+            if (request.RoleId <= 0)
+            {
+                _log.Warn("Invalid RoleId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "RoleId must be greater than 0",
+                    errors = new { roleId = request.RoleId }
+                });
+            }
+
+            // Validate TypeId
+            if (request.TypeId <= 0)
+            {
+                _log.Warn("Invalid TypeId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "TypeId must be greater than 0",
+                    errors = new { typeId = request.TypeId }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _adminRepository.SaveUpdateUserIPDTabMapping(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"IPD tab mapping saved successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"IPD tab mapping save failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getUserGrantedRemainingTabMaster")]
+        [Authorize]
+        public IActionResult GetUserGrantedRemainingTabMaster(
+            [FromQuery] int branchId,
+            [FromQuery] int typeId,
+            [FromQuery] int userId,
+            [FromQuery] int roleId)
+        {
+            _log.Info($"GetUserGrantedRemainingTabMaster called. BranchId={branchId}, TypeId={typeId}, UserId={userId}, RoleId={roleId}");
+
+            if (branchId <= 0 || typeId <= 0 || userId <= 0 || roleId <= 0)
+            {
+                _log.Warn("Invalid parameters for GetUserGrantedRemainingTabMaster.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "All parameters (branchId, typeId, userId, roleId) must be greater than 0",
+                    errors = new { branchId, typeId, userId, roleId }
+                });
+            }
+
+            var serviceResult = _adminRepository.GetUserGrantedRemainingTabMaster(branchId, typeId, userId, roleId);
+
+            if (serviceResult.Result)
+                _log.Info($"IPD tab mapping fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"IPD tab mapping fetch failed: {serviceResult.Message}");
 
             return StatusCode(serviceResult.StatusCode, new
             {

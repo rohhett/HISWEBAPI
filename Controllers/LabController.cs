@@ -3232,6 +3232,133 @@ namespace HISWEBAPI.Controllers
                 data = serviceResult.Data
             });
         }
+
+
+        [HttpGet("searchPatientInvestigationForSampleProcessingHisto")]
+        [Authorize]
+        public IActionResult searchPatientInvestigationForSampleProcessingHisto(
+[FromQuery] int branchId,
+[FromQuery] int typeId,
+[FromQuery] string uhid = null,
+[FromQuery] string ipdNo = null,
+[FromQuery] string labNo = null,
+[FromQuery] string fromDate = null,
+[FromQuery] string toDate = null,
+[FromQuery] string barCode = null,
+[FromQuery] int subCategoryId = 0,
+[FromQuery] int subSubCategoryId = 0,
+[FromQuery] int investigationId = 0,
+[FromQuery] string patientName = null,
+[FromQuery] int roleId = 0,
+[FromQuery] int corporateId = 0,
+[FromQuery] int statusId = 0,
+[FromQuery] int canSampleCollect = 0
+        )
+        {
+            _log.Info($"searchPatientInvestigationForSampleProcessingHisto called. BranchId={branchId}, TypeId={typeId}");
+
+            if (branchId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "BranchId must be greater than 0" });
+            }
+
+            if (string.IsNullOrWhiteSpace(fromDate))
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "FromDate is required" });
+            }
+
+            if (string.IsNullOrWhiteSpace(toDate))
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "ToDate is required" });
+            }
+
+
+            if (roleId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "RoleId must be greater than 0" });
+            }
+
+
+            var serviceResult = _labRepository.searchPatientInvestigationForSampleProcessingHisto(
+                branchId, typeId, uhid, ipdNo, labNo, fromDate, toDate,
+                barCode, subCategoryId, subSubCategoryId, investigationId, patientName, roleId, corporateId, statusId, canSampleCollect);
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+
+        [HttpGet("searchPatientInvestigationForSampleProcessingMicro")]
+        [Authorize]
+        public IActionResult searchPatientInvestigationForSampleProcessingMicro(
+[FromQuery] int branchId,
+[FromQuery] int typeId,
+[FromQuery] string uhid = null,
+[FromQuery] string ipdNo = null,
+[FromQuery] string labNo = null,
+[FromQuery] string fromDate = null,
+[FromQuery] string toDate = null,
+[FromQuery] string barCode = null,
+[FromQuery] int subCategoryId = 0,
+[FromQuery] int subSubCategoryId = 0,
+[FromQuery] int investigationId = 0,
+[FromQuery] string patientName = null,
+[FromQuery] int roleId = 0,
+[FromQuery] int corporateId = 0,
+[FromQuery] int statusId = 0,
+[FromQuery] int canSampleCollect = 0
+        )
+        {
+            _log.Info($"searchPatientInvestigationForSampleProcessingMicro called. BranchId={branchId}, TypeId={typeId}");
+
+            if (branchId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "BranchId must be greater than 0" });
+            }
+
+            if (string.IsNullOrWhiteSpace(fromDate))
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "FromDate is required" });
+            }
+
+            if (string.IsNullOrWhiteSpace(toDate))
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "ToDate is required" });
+            }
+
+
+            if (roleId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "RoleId must be greater than 0" });
+            }
+
+
+            var serviceResult = _labRepository.searchPatientInvestigationForSampleProcessingMicro(
+                branchId, typeId, uhid, ipdNo, labNo, fromDate, toDate,
+                barCode, subCategoryId, subSubCategoryId, investigationId, patientName, roleId, corporateId, statusId, canSampleCollect);
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
     }
 }
     

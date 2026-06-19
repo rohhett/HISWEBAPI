@@ -5299,5 +5299,155 @@ int subSubCategoryId, int investigationId, string patientName, int roleId, int c
                 return ServiceResult<IEnumerable<MicroMappingModel>>.Failure(alert.Type, alert.Message, 500);
             }
         }
+
+        public ServiceResult<IEnumerable<Dictionary<string, object>>> searchPatientInvestigationForSampleProcessingHisto(
+ int branchId, int typeId, string uhid, string ipdNo, string labNo,
+ string fromDate, string toDate, string barCode, int subCategoryId,
+ int subSubCategoryId, int investigationId, string patientName, int roleId, int corporateId, int statusId, int canSampleCollect)
+        {
+            try
+            {
+                _log.Info($"searchPatientInvestigationForSampleProcessingHisto called. BranchId={branchId}, TypeId={typeId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_SearchPatientInvestigationForSampleProcessingHisto",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @branchId = branchId,
+                        @typeId = typeId,
+                        @uhid = uhid,
+                        @ipdNo = ipdNo,
+                        @labNo = labNo,
+                        @fromDate = Utility.getDateTime(fromDate).ToString("yyyy-MM-dd"),
+                        @toDate = Utility.getDateTime(toDate).ToString("yyyy-MM-dd"),
+                        @barCode = barCode,
+                        @subCategoryId = subCategoryId,
+                        @subSubCategoryId = subSubCategoryId,
+                        @investigationId = investigationId,
+                        @patientName = patientName,
+                        @roleId = roleId,
+                        @corporateId = corporateId,
+                        @statusId = statusId,
+                        @canSampleCollect = canSampleCollect
+                    }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info("No patient investigation records found.");
+                    return ServiceResult<IEnumerable<Dictionary<string, object>>>.Failure(
+                        alert.Type,
+                        alert.Message,
+                        404
+                    );
+                }
+
+                // Convert DataTable rows to raw Dictionary list — no model mapping
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"searchPatientInvestigationForSampleProcessingHisto returned {result.Count} record(s).");
+
+                return ServiceResult<IEnumerable<Dictionary<string, object>>>.Success(
+                    result,
+                    "Info",
+                    $"{result.Count} record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<IEnumerable<Dictionary<string, object>>>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+
+
+        public ServiceResult<IEnumerable<Dictionary<string, object>>> searchPatientInvestigationForSampleProcessingMicro(
+ int branchId, int typeId, string uhid, string ipdNo, string labNo,
+ string fromDate, string toDate, string barCode, int subCategoryId,
+ int subSubCategoryId, int investigationId, string patientName, int roleId, int corporateId, int statusId, int canSampleCollect)
+        {
+            try
+            {
+                _log.Info($"searchPatientInvestigationForSampleProcessingMicro called. BranchId={branchId}, TypeId={typeId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_SearchPatientInvestigationForSampleProcessingMicro",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @branchId = branchId,
+                        @typeId = typeId,
+                        @uhid = uhid,
+                        @ipdNo = ipdNo,
+                        @labNo = labNo,
+                        @fromDate = Utility.getDateTime(fromDate).ToString("yyyy-MM-dd"),
+                        @toDate = Utility.getDateTime(toDate).ToString("yyyy-MM-dd"),
+                        @barCode = barCode,
+                        @subCategoryId = subCategoryId,
+                        @subSubCategoryId = subSubCategoryId,
+                        @investigationId = investigationId,
+                        @patientName = patientName,
+                        @roleId = roleId,
+                        @corporateId = corporateId,
+                        @statusId = statusId,
+                        @canSampleCollect = canSampleCollect
+                    }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info("No patient investigation records found.");
+                    return ServiceResult<IEnumerable<Dictionary<string, object>>>.Failure(
+                        alert.Type,
+                        alert.Message,
+                        404
+                    );
+                }
+
+                // Convert DataTable rows to raw Dictionary list — no model mapping
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"searchPatientInvestigationForSampleProcessingMicro returned {result.Count} record(s).");
+
+                return ServiceResult<IEnumerable<Dictionary<string, object>>>.Success(
+                    result,
+                    "Info",
+                    $"{result.Count} record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<IEnumerable<Dictionary<string, object>>>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+
     }
 }

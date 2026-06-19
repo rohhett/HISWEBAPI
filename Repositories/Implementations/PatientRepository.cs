@@ -357,6 +357,8 @@ namespace HISWEBAPI.Repositories.Implementations
                         DocumentName = row.Field<string>("DocumentName") ?? string.Empty,
                         DocumentCode = row.Field<string>("DocumentCode") ?? string.Empty,
                         DocumentPath = row.Field<string>("DocumentPath") ?? string.Empty,
+                        IsMandatory = row.Field<int>("IsMandatory"),
+
                     }).ToList() ?? new List<PatientDocumentMappingResponse>();
 
                     if (documents.Any())
@@ -499,10 +501,12 @@ namespace HISWEBAPI.Repositories.Implementations
                         ReferenceType = row.Field<string>("ReferenceType"),
                         Remarks = row.Field<string>("Remarks"),
                         DoctorId = row.IsNull("DoctorId") ? 0 : row.Field<int>("DoctorId"),
-                        IPDNo = row.IsNull("IPDNo") ? 0 : row.Field<int>("IPDNo"),
-                        DayCareNo = row.IsNull("DayCareNo") ? 0 : row.Field<int>("DayCareNo"),
-                        DialysisNo = row.IsNull("DialysisNo") ? 0 : row.Field<int>("DialysisNo"),
-                        EmergencyNo = row.IsNull("EmergencyNo") ? 0 : row.Field<int>("EmergencyNo"),
+                        IPDNo = row.Field<string>("IPDNo"),
+                        DayCareNo = row.Field<string>("DayCareNo"),
+                        DialysisNo = row.Field<string>("DialysisNo"),
+                        EmergencyNo = row.Field<string>("EmergencyNo"),
+
+                       
                     }).ToList() ?? new List<PatientMasterModel>();
 
                     // Store ALL patients in cache (no expiration)
@@ -595,7 +599,7 @@ namespace HISWEBAPI.Repositories.Implementations
             string? emergencyContactNumber = null,
             string? address = null,
             string? registrationDate = null,
-            int? ipdNo = null,
+            string? ipdNo = null,
             int? branchId = null)
         {
             try
@@ -642,7 +646,7 @@ namespace HISWEBAPI.Repositories.Implementations
                         Email = row.IsNull("Email") ? null : row.Field<string>("Email"),
                         FullAddress = row.IsNull("FullAddress") ? null : row.Field<string>("FullAddress"),
                         RegistrationDate = row.IsNull("RegistrationDate") ? null : row.Field<string>("RegistrationDate"),
-                        IPDNo = row.Field<int>("IPDNo"),
+                        IPDNo = row.Field<string>("IPDNo"),
                     }).ToList() ?? new List<SearchPatientMasterModel>();
 
                     if (allPatients.Any())
@@ -714,9 +718,12 @@ namespace HISWEBAPI.Repositories.Implementations
                         .Where(p => p.RegistrationDate != null && p.RegistrationDate.Equals(registrationDate, StringComparison.OrdinalIgnoreCase))
                         .ToList();
 
+                if (!string.IsNullOrWhiteSpace(ipdNo))
+                    filtered = filtered
+                        .Where(p => p.IPDNo != null && p.IPDNo.Contains(ipdNo, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
 
-                if (ipdNo.HasValue)
-                    filtered = filtered.Where(p => p.IPDNo == ipdNo.Value).ToList();
+              
 
                 if (branchId.HasValue)
                     filtered = filtered.Where(p => p.BranchId == branchId.Value).ToList();
@@ -1291,7 +1298,7 @@ namespace HISWEBAPI.Repositories.Implementations
             }
         }
 
-        public ServiceResult<object> GetOPDReceiptList(long visitNo)
+        public ServiceResult<object> GetOPDReceiptList(string visitNo)
         {
             try
             {
@@ -1302,7 +1309,7 @@ namespace HISWEBAPI.Repositories.Implementations
                     CommandType.StoredProcedure,
                     new
                     {
-                        @VisitNo = visitNo.ToString()
+                        @VisitNo = visitNo
                     }
                 );
 
@@ -2340,5 +2347,202 @@ namespace HISWEBAPI.Repositories.Implementations
             }
         }
 
+        public ServiceResult<object> SearchIPDPatient(SearchIPDPatientRequest request, AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"SearchIPDPatient called. BranchId={request.BranchId}, SearchBy={request.SearchBy}, StatusId={request.StatusId}");
+
+                string filter = null;
+                if (!string.IsNullOrWhiteSpace(request.SearchBy) && !string.IsNullOrWhiteSpace(request.SearchValue))
+                {
+                    if (request.SearchBy == "PVD.VisitNo")
+                        filter = request.SearchBy + " = '" + request.SearchValue + "'";
+                    else if (request.SearchBy == "AdmissionDate" || request.SearchBy == "DischargeDate")
+                    {
+                        if (!DateTime.TryParse(request.SearchValue, out DateTime parsedDate))
+                        {
+                            var alertDate = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                            return ServiceResult<object>.Failure(alertDate.Type, $"Invalid date format for {request.SearchBy}", 400);
+                        }
+                        filter = request.SearchBy + " = '" + parsedDate.ToString("yyyy-MM-dd") + "'";
+                    }
+                    else
+                        filter = request.SearchBy + " LIKE '%" + request.SearchValue + "%'";
+                }
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_SearchIPDPatient",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @branchId = request.BranchId,
+                        @statusId = request.StatusId == 0 ? "0" : request.StatusId.ToString(),
+                        @UserId = globalValues.userId.ToString(),
+                        @filter = filter
+                    }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info("SearchIPDPatient: no records found");
+                    return ServiceResult<object>.Failure(alert.Type, "No IPD patients found", 404);
+                }
+
+                var rows = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"SearchIPDPatient: returned {rows.Count} record(s)");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(rows, alert1.Type, $"{rows.Count} patient(s) found", 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<string> UploadVisitWisePatientDocument(
+    UploadVisitWisePatientDocumentRequest request,
+    AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"UploadVisitWisePatientDocument called. PatientId={request.PatientId}, VisitId={request.VisitId}, DocumentId={request.DocumentId}, DocumentCategoryId={request.DocumentCategoryId}");
+
+                if (request.DocumentFile == null || request.DocumentFile.Length == 0)
+                {
+                    var alertFile = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return ServiceResult<string>.Failure(alertFile.Type, "Document file is required", 400);
+                }
+
+                var fileUploadHelper = new FileUploadHelper(_configuration);
+                var (uploadSuccess, filePath, uploadError) = fileUploadHelper.UploadFile(
+                    request.DocumentFile,
+                    "PatientDocuments"
+                );
+
+                if (!uploadSuccess)
+                {
+                    _log.Error($"Document file upload failed: {uploadError}");
+                    var alertUpload = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                    return ServiceResult<string>.Failure(alertUpload.Type, $"Document file upload failed: {uploadError}", 500);
+                }
+
+                _log.Info($"Document file uploaded successfully: {filePath}");
+
+                _sqlHelper.DML(
+                    "IU_VisitWisePatientDocumentMapping",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @documentId = request.DocumentId,
+                        @patientId = request.PatientId,
+                        @visitId = request.VisitId,
+                        @documentCategoryId = request.DocumentCategoryId,
+                        @documentPath = filePath,
+                        @userId = globalValues.userId,
+                        @IpAddress = globalValues.ipAddress
+                    }
+                );
+
+                // Invalidate cache for this combination
+                _distributedCache.Remove($"_VisitWisePatientDocumentMapping_{request.DocumentCategoryId}_{request.VisitId}_{request.PatientId}");
+                _log.Info($"Cleared VisitWisePatientDocumentMapping cache. VisitId={request.VisitId}, PatientId={request.PatientId}, DocumentCategoryId={request.DocumentCategoryId}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(filePath, alert.Type, alert.Message, 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetVisitWisePatientDocumentMapping(
+            int documentCategoryId,
+            int visitId,
+            int patientId)
+        {
+            try
+            {
+                _log.Info($"GetVisitWisePatientDocumentMapping called. DocumentCategoryId={documentCategoryId}, VisitId={visitId}, PatientId={patientId}");
+
+                string cacheKey = $"_VisitWisePatientDocumentMapping_{documentCategoryId}_{visitId}_{patientId}";
+
+                var cachedData = _distributedCache.GetString(cacheKey);
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"VisitWisePatientDocumentMapping retrieved from cache. Key={cacheKey}");
+                    return ServiceResult<object>.Success(
+                        JsonSerializer.Deserialize<object>(cachedData),
+                        "Info",
+                        "Documents retrieved successfully",
+                        200
+                    );
+                }
+
+                _log.Info($"VisitWisePatientDocumentMapping cache miss. Fetching from database. Key={cacheKey}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_VisitWisePatientDocumentMapping",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @documentCategoryId = documentCategoryId,
+                        @visitId = visitId,
+                        @patientId = patientId
+                    }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No documents found for DocumentCategoryId={documentCategoryId}, VisitId={visitId}, PatientId={patientId}");
+                    return ServiceResult<object>.Failure(alert.Type, "No documents found", 404);
+                }
+
+                var rawData = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                var serialized = JsonSerializer.Serialize(rawData);
+                var cacheOptions = new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpiration = null,
+                    SlidingExpiration = null
+                };
+                _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                _log.Info($"VisitWisePatientDocumentMapping cached. Key={cacheKey}, Count={rawData.Count}");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    rawData,
+                    alert1.Type,
+                    $"{rawData.Count} document(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
     }
 }

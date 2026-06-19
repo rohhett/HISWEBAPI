@@ -291,6 +291,8 @@ namespace HISWEBAPI.DTO
         public string DocumentName { get; set; } = string.Empty;
         public string DocumentCode { get; set; } = string.Empty;
         public string DocumentPath { get; set; } = string.Empty;
+        public int IsMandatory { get; set; }
+
     }
 
     public class GetReceiptDetailsByFTIDRequest
@@ -441,5 +443,44 @@ namespace HISWEBAPI.DTO
     public class SaveIPDAdmissionResponse
     {
         public int VisitId { get; set; }
+    }
+
+    public class SearchIPDPatientRequest
+    {
+        [Required(ErrorMessage = "BranchId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "BranchId must be greater than 0")]
+        public int BranchId { get; set; }
+
+        [Required(ErrorMessage = "SearchBy is required")]
+        [StringLength(50)]
+        public string SearchBy { get; set; }
+
+        public string SearchValue { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 0=All, 1=Admitted, 2=Discharged, 3=Bill Generated Pending,
+        /// 4=File Closed Pending, 5=Today Admitted, 6=Today Discharged,
+        /// 7=Zero Advance, 8=Cash, 9=Corporate, 10=Discharge Summary Ready
+        /// </summary>
+        public int StatusId { get; set; } = 0;
+    }
+
+
+    public class UploadVisitWisePatientDocumentRequest
+    {
+        [Required(ErrorMessage = "DocumentId is required")]
+        public int DocumentId { get; set; }
+
+        [Required(ErrorMessage = "PatientId is required")]
+        public int PatientId { get; set; }
+
+        [Required(ErrorMessage = "VisitId is required")]
+        public int VisitId { get; set; }
+
+        [Required(ErrorMessage = "DocumentCategoryId is required")]
+        public int DocumentCategoryId { get; set; }
+
+        [Required(ErrorMessage = "Document file is required")]
+        public IFormFile DocumentFile { get; set; }
     }
 }

@@ -35,6 +35,8 @@ namespace HISWEBAPI.Repositories.Implementations
         private readonly IConfiguration _configuration;
 
         private const string CACHE_KEY_DOCTOR_HEADER_ALL = "_DoctorHeaderMaster_All";
+        private const string CACHE_KEY_TabGroupType_All = "_TabGroupTypeMaster_All";
+        private const string CACHE_KEY_IPDTab_All = "_IPDTabMaster_All";
 
         public AdminRepository(
             ICustomSqlHelper sqlHelper,
@@ -5465,6 +5467,9 @@ namespace HISWEBAPI.Repositories.Implementations
                     @documentName = request.DocumentName,
                     @documentCode = request.DocumentCode,
                     @isActive = request.IsActive,
+                    @documentCategory = request.DocumentCategory,
+                    @documentCategoryId = request.DocumentCategoryId,
+                    @isMandatory = request.IsMandatory,
                     @userId = globalValues.userId,
                     @IpAddress = globalValues.ipAddress
                 },
@@ -5476,6 +5481,7 @@ namespace HISWEBAPI.Repositories.Implementations
                 // Clear the single cache key after successful operation
                 _distributedCache.Remove("_PatientDocumentMaster_All");
                 GlobalFunctions.ClearCacheByPattern(_configuration, "_PatientDocumentMapping_*");
+                GlobalFunctions.ClearCacheByPattern(_configuration, "_VisitWisePatientDocumentMapping_*");
 
                 _log.Info("Cleared PatientDocumentMaster cache after create/update operation");
 
@@ -5561,7 +5567,10 @@ namespace HISWEBAPI.Repositories.Implementations
                         DocumentId = row.Field<int>("DocumentId"),
                         DocumentName = row.Field<string>("DocumentName") ?? string.Empty,
                         DocumentCode = row.Field<string>("DocumentCode") ?? string.Empty,
+                        DocumentCategory = row.Field<string>("DocumentCategory") ?? string.Empty,
+                        DocumentCategoryId = row.Field<int>("DocumentCategoryId"),
                         IsActive = row.Field<int>("IsActive"),
+                        IsMandatory = row.Field<int>("IsMandatory"),
                         CreatedBy = row.Field<string>("CreatedBy") ?? string.Empty,
                         CreatedOn = row.Field<string>("CreatedOn") ?? string.Empty,
                         LastModifiedBy = row.Field<string>("LastModifiedBy") ?? string.Empty,
@@ -7780,9 +7789,180 @@ namespace HISWEBAPI.Repositories.Implementations
             }
         }
 
-        public ServiceResult<CreateUpdateFloorMasterResponse> CreateUpdateFloorMaster(
-    CreateUpdateFloorMasterRequest request,
+        public ServiceResult<CreateUpdateBlockMasterResponse> CreateUpdateBlockMaster(
+    CreateUpdateBlockMasterRequest request,
     AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CreateUpdateBlockMaster called. BlockId={request.BlockId}, BlockName={request.BlockName}");
+
+                var result = _sqlHelper.DML("IU_BlockMaster", CommandType.StoredProcedure, new
+                {
+                    @hospId = globalValues.hospId,
+                    @BlockId = request.BlockId,
+                    @BlockName = request.BlockName,
+                    @userId = globalValues.userId,
+                    @IpAddress = globalValues.ipAddress
+                },
+                new
+                {
+                    result = 0
+                });
+
+                int resultValue = Convert.ToInt32(result);
+
+                // Clear cache after any write operation
+                _distributedCache.Remove("_BlockMaster_All");
+                _distributedCache.Remove("_BedMaster_All");
+
+                _log.Info("Cleared BlockMaster cache");
+
+                if (resultValue == -1)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Duplicate Block name: {request.BlockName}");
+                    return ServiceResult<CreateUpdateBlockMasterResponse>.Failure(
+                        alert.Type,
+                        "Block Name Already Exists",
+                        409
+                    );
+                }
+
+                var responseData = new CreateUpdateBlockMasterResponse { BlockId = resultValue };
+
+                if (request.BlockId == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                    _log.Info($"Block created successfully. BlockId={resultValue}");
+                    return ServiceResult<CreateUpdateBlockMasterResponse>.Success(
+                        responseData,
+                        alert.Type,
+                        alert.Message,
+                        201
+                    );
+                }
+                else
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                    _log.Info($"Block updated successfully. BlockId={resultValue}");
+                    return ServiceResult<CreateUpdateBlockMasterResponse>.Success(
+                        responseData,
+                        alert.Type,
+                        alert.Message,
+                        200
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<CreateUpdateBlockMasterResponse>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<IEnumerable<BlockMasterModel>> GetBlockList(int? BlockId = null)
+        {
+            try
+            {
+                _log.Info($"GetBlockList called. BlockId={BlockId?.ToString() ?? "All"}");
+
+                // Always use the same cache key for all Blocks
+                string cacheKey = "_BlockMaster_All";
+
+                // Try to get all Blocks from cache
+                var cachedData = _distributedCache.GetString(cacheKey);
+                List<BlockMasterModel> allBlocks;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"BlockMaster data retrieved from cache. Key={cacheKey}");
+                    allBlocks = System.Text.Json.JsonSerializer.Deserialize<List<BlockMasterModel>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"BlockMaster cache miss. Fetching all data from database. Key={cacheKey}");
+
+                    // Fetch ALL Blocks from database — SP returns everything, no parameters
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_GetBlockList",
+                        CommandType.StoredProcedure
+                    );
+
+                    // Bind raw from SP — no mapping
+                    allBlocks = dataTable?.AsEnumerable().Select(row => new BlockMasterModel
+                    {
+                        BlockId = row.Field<int>("BlockId"),
+                        BlockName = row.Field<string>("BlockName") ?? string.Empty
+                    }).ToList() ?? new List<BlockMasterModel>();
+
+                    // Store ALL Blocks in cache (no expiration — cleared on write)
+                    if (allBlocks.Any())
+                    {
+                        var serialized = System.Text.Json.JsonSerializer.Serialize(allBlocks);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                        _log.Info($"All BlockMaster data cached permanently. Key={cacheKey}, Count={allBlocks.Count}");
+                    }
+                }
+
+                // Filter in memory (always from cache)
+                List<BlockMasterModel> filteredBlocks;
+                if (BlockId.HasValue)
+                {
+                    _log.Info($"Filtering cached data by BlockId: {BlockId.Value}");
+                    filteredBlocks = allBlocks.Where(f => f.BlockId == BlockId.Value).ToList();
+                }
+                else
+                {
+                    _log.Info("Returning all cached Blocks");
+                    filteredBlocks = allBlocks;
+                }
+
+                if (!filteredBlocks.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No Blocks found for BlockId: {BlockId?.ToString() ?? "All"}");
+                    return ServiceResult<IEnumerable<BlockMasterModel>>.Failure(
+                        alert.Type,
+                        BlockId.HasValue ? $"Block not found for BlockId: {BlockId.Value}" : "No Blocks found",
+                        404
+                    );
+                }
+
+                _log.Info($"Retrieved {filteredBlocks.Count} Block(s) from cache");
+
+                return ServiceResult<IEnumerable<BlockMasterModel>>.Success(
+                    filteredBlocks,
+                    "Info",
+                    $"{filteredBlocks.Count} Block(s) fetched successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<IEnumerable<BlockMasterModel>>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<CreateUpdateFloorMasterResponse> CreateUpdateFloorMaster(
+  CreateUpdateFloorMasterRequest request,
+  AllGlobalValues globalValues)
         {
             try
             {
@@ -7969,10 +8149,11 @@ namespace HISWEBAPI.Repositories.Implementations
                     @bedId = request.BedId,
                     @branchId = request.BranchId,
                     @typeId = request.TypeId,
+                    @blockId = request.BlockId,
                     @floorId = request.FloorId,
                     @wardNameId = request.WardNameId,
-                    @wardName = request.WardName,
                     @roomName = request.RoomName ?? string.Empty,
+                    @gender= request.Gender,
                     @bedNo = request.BedNo,
                     @isActive = request.IsActive,
                     @userId = globalValues.userId,
@@ -8036,15 +8217,13 @@ namespace HISWEBAPI.Repositories.Implementations
                 );
             }
         }
-
-        public ServiceResult<object> GetAllBedList(int? bedId = null, int? isActive = null)
+        public ServiceResult<object> GetAllBedList(int? bedId = null, int? isActive = null, int? blockId = null, int? floorId = null, int? wardNameId = null, int? branchId = null, int? typeId = null)
         {
             try
             {
-                _log.Info($"GetAllBedList called. BedId={bedId?.ToString() ?? "All"}, IsActive={isActive?.ToString() ?? "All"}");
+                _log.Info($"GetAllBedList called. BedId={bedId?.ToString() ?? "All"}, IsActive={isActive?.ToString() ?? "All"}, FloorId={floorId?.ToString() ?? "All"}, WardNameId={wardNameId?.ToString() ?? "All"}, BranchId={branchId?.ToString() ?? "All"}, TypeId={typeId?.ToString() ?? "All"}");
 
                 const string cacheKey = "_BedMaster_All";
-
                 var cachedData = _distributedCache.GetString(cacheKey);
                 List<Dictionary<string, object>> allBeds;
 
@@ -8058,11 +8237,7 @@ namespace HISWEBAPI.Repositories.Implementations
                 else
                 {
                     _log.Info("BedMaster cache miss. Fetching from DB.");
-
-                    var dataTable = _sqlHelper.GetDataTable(
-                        "S_GetAllBedList",
-                        CommandType.StoredProcedure
-                    );
+                    var dataTable = _sqlHelper.GetDataTable("S_GetAllBedList", CommandType.StoredProcedure);
 
                     allBeds = dataTable?.AsEnumerable().Select(row =>
                         row.Table.Columns.Cast<DataColumn>()
@@ -8075,39 +8250,49 @@ namespace HISWEBAPI.Repositories.Implementations
                     if (allBeds.Any())
                     {
                         var serialized = System.Text.Json.JsonSerializer.Serialize(allBeds);
-                        var cacheOptions = new DistributedCacheEntryOptions
+                        _distributedCache.SetString(cacheKey, serialized, new DistributedCacheEntryOptions
                         {
                             AbsoluteExpiration = null,
                             SlidingExpiration = null
-                        };
-                        _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                        });
                         _log.Info($"BedMaster cached permanently. Count={allBeds.Count}");
                     }
                 }
 
-                // Filter by BedId in memory
-                if (bedId.HasValue && bedId.Value > 0)
+                // Helper to safely extract int value from JsonElement or raw object
+                static int? GetInt(Dictionary<string, object> row, string key)
                 {
-                    allBeds = allBeds.Where(row =>
-                        row.TryGetValue("BedId", out var val) &&
-                        val != null &&
-                        Convert.ToInt32(((System.Text.Json.JsonElement)val).GetRawText()) == bedId.Value
-                    ).ToList();
-
-                    _log.Info($"Filtered to {allBeds.Count} bed(s) for BedId={bedId.Value}");
+                    if (!row.TryGetValue(key, out var val) || val == null) return null;
+                    if (val is System.Text.Json.JsonElement je)
+                    {
+                        if (je.ValueKind == System.Text.Json.JsonValueKind.Number && je.TryGetInt32(out int n)) return n;
+                        if (je.ValueKind == System.Text.Json.JsonValueKind.Null) return null;
+                    }
+                    return Convert.ToInt32(val);
                 }
 
-                // Filter by IsActive in memory
+                if (bedId.HasValue)
+                    allBeds = allBeds.Where(r => GetInt(r, "BedId") == bedId.Value).ToList();
+
                 if (isActive.HasValue)
-                {
-                    allBeds = allBeds.Where(row =>
-                        row.TryGetValue("IsActive", out var val) &&
-                        val != null &&
-                        Convert.ToInt32(((System.Text.Json.JsonElement)val).GetRawText()) == isActive.Value
-                    ).ToList();
+                    allBeds = allBeds.Where(r => GetInt(r, "IsActive") == isActive.Value).ToList();
 
-                    _log.Info($"Filtered to {allBeds.Count} bed(s) for IsActive={isActive.Value}");
-                }
+                if (blockId.HasValue)
+                    allBeds = allBeds.Where(r => GetInt(r, "BlockId") == blockId.Value).ToList();
+
+                if (floorId.HasValue)
+                    allBeds = allBeds.Where(r => GetInt(r, "FloorId") == floorId.Value).ToList();
+
+                if (wardNameId.HasValue)
+                    allBeds = allBeds.Where(r => GetInt(r, "WardNameId") == wardNameId.Value).ToList();
+
+                if (branchId.HasValue)
+                    allBeds = allBeds.Where(r => GetInt(r, "BranchId") == branchId.Value).ToList();
+
+                if (typeId.HasValue)
+                    allBeds = allBeds.Where(r => GetInt(r, "TypeId") == typeId.Value).ToList();
+
+                _log.Info($"After filtering: {allBeds.Count} bed(s) remaining.");
 
                 if (!allBeds.Any())
                 {
@@ -8116,10 +8301,155 @@ namespace HISWEBAPI.Repositories.Implementations
                 }
 
                 var alert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(allBeds, alert.Type, $"{allBeds.Count} bed(s) retrieved successfully", 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+
+        public ServiceResult<object> CreateUpdateTabGroupTypeMaster(
+           CreateUpdateTabGroupTypeMasterRequest request,
+           AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CreateUpdateTabGroupTypeMaster called. GroupTypeId={request.GroupTypeId}, GroupTypeName={request.GroupTypeName}");
+
+                var result = _sqlHelper.DML(
+                    "IU_TabGroupTypeMaster",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @groupTypeId = request.GroupTypeId,
+                        @groupTypeName = request.GroupTypeName,
+                        @userId = globalValues.userId,
+                        @ipAddress = globalValues.ipAddress
+                    },
+                    new { result = 0 }
+                );
+
+                int resultValue = Convert.ToInt32(result);
+
+                if (resultValue == -1)
+                {
+                    var dupAlert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Duplicate GroupTypeName: {request.GroupTypeName}");
+                    return ServiceResult<object>.Failure(dupAlert.Type, "Group Type Name already exists", 409);
+                }
+
+                if (resultValue > 0)
+                {
+                    _distributedCache.Remove(CACHE_KEY_TabGroupType_All);
+                    _log.Info($"Cleared TabGroupTypeMaster cache. GroupTypeId={resultValue}");
+
+                    var alert = _messageService.GetMessageAndTypeByAlertCode(
+                        request.GroupTypeId == 0 ? "DATA_SAVED_SUCCESSFULLY" : "DATA_UPDATED_SUCCESSFULLY"
+                    );
+
+                    return ServiceResult<object>.Success(
+                        new { groupTypeId = resultValue },
+                        alert.Type,
+                        alert.Message,
+                        request.GroupTypeId == 0 ? 201 : 200
+                    );
+                }
+
+                var failAlert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(failAlert.Type, failAlert.Message, 500);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetTabGroupTypeMaster(int? groupTypeId, int? isActive)
+        {
+            try
+            {
+                _log.Info($"GetTabGroupTypeMaster called. GroupTypeId={groupTypeId?.ToString() ?? "All"}, IsActive={isActive?.ToString() ?? "All"}");
+
+                var cachedData = _distributedCache.GetString(CACHE_KEY_TabGroupType_All);
+                List<Dictionary<string, object>> allRows;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"TabGroupTypeMaster data retrieved from cache. Key={CACHE_KEY_TabGroupType_All}");
+                    allRows = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"TabGroupTypeMaster cache miss. Fetching from database.");
+
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_GetTabGroupTypeMaster",
+                        CommandType.StoredProcedure
+                    );
+
+                    allRows = dataTable?.AsEnumerable().Select(row =>
+                        dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                            col => col.ColumnName,
+                            col => row[col] == DBNull.Value ? null : row[col]
+                        )
+                    ).ToList() ?? new List<Dictionary<string, object>>();
+
+                    if (allRows.Any())
+                    {
+                        var serialized = JsonSerializer.Serialize(allRows);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(CACHE_KEY_TabGroupType_All, serialized, cacheOptions);
+                        _log.Info($"TabGroupTypeMaster cached permanently. Count={allRows.Count}");
+                    }
+                }
+
+                // In-memory filtering
+                var filtered = allRows;
+
+                // Helper to safely extract int value from JsonElement or raw object
+                static int? GetInt(Dictionary<string, object> row, string key)
+                {
+                    if (!row.TryGetValue(key, out var val) || val == null) return null;
+                    if (val is System.Text.Json.JsonElement je)
+                    {
+                        if (je.ValueKind == System.Text.Json.JsonValueKind.Number && je.TryGetInt32(out int n)) return n;
+                        if (je.ValueKind == System.Text.Json.JsonValueKind.Null) return null;
+                    }
+                    return Convert.ToInt32(val);
+                }
+
+                if (groupTypeId.HasValue)
+                {
+                    filtered = filtered.Where(r => GetInt(r, "GroupTypeId") == groupTypeId.Value).ToList();
+                }
+
+                if (isActive.HasValue)
+                {
+                    filtered = filtered.Where(r => GetInt(r, "IsActive") == isActive.Value).ToList();
+
+                }
+
+                if (!filtered.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    return ServiceResult<object>.Failure(alert.Type, "No tab group types found", 404);
+                }
+
+                var successAlert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
                 return ServiceResult<object>.Success(
-                    allBeds,
-                    alert.Type,
-                    $"{allBeds.Count} bed(s) retrieved successfully",
+                    filtered,
+                    successAlert.Type,
+                    $"{filtered.Count} record(s) retrieved successfully",
                     200
                 );
             }
@@ -8128,6 +8458,594 @@ namespace HISWEBAPI.Repositories.Implementations
                 LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
                 var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
                 return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        // ─── IPDTabMaster ─────────────────────────────────────────────────────────
+
+        public ServiceResult<object> CreateUpdateIPDTabMaster(
+            CreateUpdateIPDTabMasterRequest request,
+            AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CreateUpdateIPDTabMaster called. TabId={request.TabId}, TabName={request.TabName}");
+
+                var result = _sqlHelper.DML(
+                    "IU_IPDTabMaster",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @tabId = request.TabId,
+                        @groupTypeId = request.GroupTypeId,
+                        @tabName = request.TabName,
+                        @tabViewURL = request.TabViewURL ?? (object)DBNull.Value,
+                        @sequenceNo = request.SequenceNo,
+                        @tabTypeId = request.TabTypeId,
+                        @tabType = request.TabType,
+                        @roomTypeId = request.RoomTypeId ?? (object)DBNull.Value,
+                        @isActive = request.IsActive,
+                        @userId = globalValues.userId,
+                        @ipAddress = globalValues.ipAddress
+                    },
+                    new { result = 0 }
+                );
+
+                int resultValue = Convert.ToInt32(result);
+
+                if (resultValue == -1)
+                {
+                    var dupAlert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Duplicate TabViewURL: {request.TabViewURL}");
+                    return ServiceResult<object>.Failure(dupAlert.Type, "Tab Name(in Same Tab Type) or Tab URL already exists", 409);
+                }
+
+
+                if (resultValue > 0)
+                {
+                    _distributedCache.Remove(CACHE_KEY_IPDTab_All);
+                    GlobalFunctions.ClearCacheByPattern(_configuration, "_RoleWiseIPDTabMapping_*");
+                    GlobalFunctions.ClearCacheByPattern(_configuration, "_UserIPDTabMapping_*");
+
+                    _log.Info($"Cleared IPDTabMaster cache. TabId={resultValue}");
+
+                    var alert = _messageService.GetMessageAndTypeByAlertCode(
+                        request.TabId == 0 ? "DATA_SAVED_SUCCESSFULLY" : "DATA_UPDATED_SUCCESSFULLY"
+                    );
+
+                    return ServiceResult<object>.Success(
+                        new { tabId = resultValue },
+                        alert.Type,
+                        alert.Message,
+                        request.TabId == 0 ? 201 : 200
+                    );
+                }
+
+                var failAlert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(failAlert.Type, failAlert.Message, 500);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetIPDTabMaster(
+            int? tabId,
+            int? groupTypeId,
+            int? tabTypeId,
+            int? roomTypeId,
+            string tabName,
+            int? isActive)
+        {
+            try
+            {
+                _log.Info($"GetIPDTabMaster called. TabId={tabId?.ToString() ?? "All"}, GroupTypeId={groupTypeId?.ToString() ?? "All"}, TabTypeId={tabTypeId?.ToString() ?? "All"}, IsActive={isActive?.ToString() ?? "All"}");
+
+                var cachedData = _distributedCache.GetString(CACHE_KEY_IPDTab_All);
+                List<Dictionary<string, object>> allRows;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"IPDTabMaster data retrieved from cache. Key={CACHE_KEY_IPDTab_All}");
+                    allRows = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"IPDTabMaster cache miss. Fetching from database.");
+
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_GetIPDTabMaster",
+                        CommandType.StoredProcedure
+                    );
+
+                    allRows = dataTable?.AsEnumerable().Select(row =>
+                        dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                            col => col.ColumnName,
+                            col => row[col] == DBNull.Value ? null : row[col]
+                        )
+                    ).ToList() ?? new List<Dictionary<string, object>>();
+
+                    if (allRows.Any())
+                    {
+                        var serialized = JsonSerializer.Serialize(allRows);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(CACHE_KEY_IPDTab_All, serialized, cacheOptions);
+                        _log.Info($"IPDTabMaster cached permanently. Count={allRows.Count}");
+                    }
+                }
+
+                // In-memory filtering
+                var filtered = allRows;
+
+
+                // Helper to safely extract int value from JsonElement or raw object
+                static int? GetInt(Dictionary<string, object> row, string key)
+                {
+                    if (!row.TryGetValue(key, out var val) || val == null) return null;
+                    if (val is System.Text.Json.JsonElement je)
+                    {
+                        if (je.ValueKind == System.Text.Json.JsonValueKind.Number && je.TryGetInt32(out int n)) return n;
+                        if (je.ValueKind == System.Text.Json.JsonValueKind.Null) return null;
+                    }
+                    return Convert.ToInt32(val);
+                }
+
+                if (tabId.HasValue)
+                {
+                    filtered = filtered.Where(r => GetInt(r, "TabId") == tabId.Value).ToList();
+                }
+
+                if (groupTypeId.HasValue)
+                {
+                    filtered = filtered.Where(r => GetInt(r, "GroupTypeId") == groupTypeId.Value).ToList();
+
+                }
+
+                if (tabTypeId.HasValue)
+                {
+                    filtered = filtered.Where(r => GetInt(r, "TabTypeId") == tabTypeId.Value).ToList();
+
+                }
+                if (roomTypeId.HasValue)
+                {
+                    filtered = filtered.Where(r => GetInt(r, "RoomTypeId") == roomTypeId.Value).ToList();
+
+                }
+                if (isActive.HasValue)
+                {
+                    filtered = filtered.Where(r => GetInt(r, "IsActive") == isActive.Value).ToList();
+
+                }
+
+                if (!string.IsNullOrWhiteSpace(tabName))
+                {
+                    filtered = filtered.Where(r =>
+                        r.TryGetValue("TabName", out var val) &&
+                        val != null &&
+                        val.ToString().Contains(tabName.Trim(), StringComparison.OrdinalIgnoreCase)
+                    ).ToList();
+                }
+
+
+                if (!filtered.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    return ServiceResult<object>.Failure(alert.Type, "No tab records found", 404);
+                }
+
+                var successAlert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    filtered,
+                    successAlert.Type,
+                    $"{filtered.Count} record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+
+        public ServiceResult<string> SaveUpdateRoleWiseIPDTabMapping(SaveRoleWiseIPDTabMappingRequest request, AllGlobalValues globalValues)
+        {
+            try
+            {
+                // Delete existing role-wise IPD tab mappings for this role
+                var deleteResult = _sqlHelper.DML("D_DeleteRoleWiseIPDTabMapping", CommandType.StoredProcedure, new
+                {
+                    @RoleId = request.RoleId
+                },
+                new
+                {
+                    result = 0
+                });
+
+                _log.Info($"Deleted existing role-wise IPD tab mappings for RoleId={request.RoleId}");
+
+                // Generate cache key for this specific role
+                string cacheKey = $"_RoleWiseIPDTabMapping_{request.RoleId}";
+
+                // Clear cache after delete
+                _distributedCache.Remove(cacheKey);
+                _log.Info($"Cleared cache for key: {cacheKey}");
+
+                // If TabMappings list is empty or null, only delete operation was needed
+                if (request.TabMappings == null || !request.TabMappings.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_DELETED_SUCCESSFULLY");
+                    _log.Info("Role-wise IPD tab mappings deleted successfully. No new tabs to insert.");
+
+                    return ServiceResult<string>.Success(
+                        "Role-wise  tab mappings deleted successfully",
+                        alert.Type,
+                        alert.Message,
+                        200
+                    );
+                }
+
+                // Filter out items with TabId = 0
+                var validTabMappings = request.TabMappings.Where(t => t.TabId != 0).ToList();
+
+                if (!validTabMappings.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_DELETED_SUCCESSFULLY");
+                    _log.Info("Role-wise IPD tab mappings deleted successfully. No valid tabs to insert.");
+
+                    return ServiceResult<string>.Success(
+                        "Role-wise  tab mappings deleted successfully",
+                        alert.Type,
+                        alert.Message,
+                        200
+                    );
+                }
+
+                // Insert new role-wise IPD tab mappings
+                int insertedCount = 0;
+                foreach (var tabMapping in validTabMappings)
+                {
+                    var result = _sqlHelper.DML("I_RoleWiseIPDTabMapping", CommandType.StoredProcedure, new
+                    {
+                        @RoleId = request.RoleId,
+                        @TabId = tabMapping.TabId,
+                        @IpAddress = globalValues.ipAddress,
+                        @CreatedBy = globalValues.userId
+                    },
+                    new
+                    {
+                        result = 0
+                    });
+
+                    if (result > 0)
+                    {
+                        insertedCount++;
+                    }
+                }
+
+                _log.Info($"Inserted {insertedCount} role-wise tab mappings for RoleId={request.RoleId}");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    $"Role-wise tab mappings updated successfully. {insertedCount} tab(s) assigned.",
+                    alert1.Type,
+                    alert1.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<IEnumerable<Dictionary<string, object>>> GetRoleWiseIPDTabListMaster(int roleId)
+        {
+            try
+            {
+                _log.Info($"GetRoleWiseIPDTabListMaster called. RoleId={roleId}");
+
+                // Generate dynamic cache key based on roleId
+                string cacheKey = $"_RoleWiseIPDTabMapping_{roleId}";
+
+                // Try to get data from cache
+                var cachedData = _distributedCache.GetString(cacheKey);
+                List<Dictionary<string, object>> tabMappings;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"RoleWiseIPDTabMapping data retrieved from cache. Key={cacheKey}");
+                    tabMappings = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object>>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"RoleWiseIPDTabMapping cache miss. Fetching data from database. Key={cacheKey}");
+
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_RoleWiseIPDTabListMaster",
+                        CommandType.StoredProcedure,
+                        new
+                        {
+                            @RoleId = roleId
+                        }
+                    );
+
+                    tabMappings = new List<Dictionary<string, object>>();
+
+                    if (dataTable != null)
+                    {
+                        foreach (DataRow row in dataTable.Rows)
+                        {
+                            var dict = new Dictionary<string, object>();
+                            foreach (DataColumn col in dataTable.Columns)
+                            {
+                                dict[col.ColumnName] = row[col] == DBNull.Value ? null : row[col];
+                            }
+                            tabMappings.Add(dict);
+                        }
+                    }
+
+                    // Store data in cache with no expiration (permanent until manually cleared)
+                    if (tabMappings.Any())
+                    {
+                        var serialized = System.Text.Json.JsonSerializer.Serialize(tabMappings);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                        _log.Info($"RoleWiseIPDTabMapping data cached permanently. Key={cacheKey}, Count={tabMappings.Count}");
+                    }
+                }
+
+                if (!tabMappings.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No role-wise IPD tab mapping found for RoleId={roleId}");
+
+                    return ServiceResult<IEnumerable<Dictionary<string, object>>>.Failure(
+                        alert.Type,
+                        alert.Message,
+                        404
+                    );
+                }
+
+                _log.Info($"Retrieved {tabMappings.Count} role-wise tab mapping records from cache");
+
+                return ServiceResult<IEnumerable<Dictionary<string, object>>>.Success(
+                    tabMappings,
+                    "Info",
+                    $"{tabMappings.Count} tab mapping(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<IEnumerable<Dictionary<string, object>>>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+        public ServiceResult<string> SaveUpdateUserIPDTabMapping(SaveUserIPDTabMappingRequest request, AllGlobalValues globalValues)
+        {
+            try
+            {
+                // Delete existing user IPD tab mappings for this user/branch/role/type combination
+                var deleteResult = _sqlHelper.DML("D_DeleteUserIPDTabMapping", CommandType.StoredProcedure, new
+                {
+                    @TypeId = request.TypeId,
+                    @UserId = request.UserId,
+                    @BranchId = request.BranchId,
+                    @RoleId = request.RoleId
+                },
+                new
+                {
+                    result = 0
+                });
+
+                _log.Info($"Deleted existing IPD tab mappings for UserId={request.UserId}, BranchId={request.BranchId}, RoleId={request.RoleId}, TypeId={request.TypeId}");
+
+                // Generate cache key for this specific IPD tab mapping
+                string cacheKey = $"_UserIPDTabMapping_{request.BranchId}_{request.TypeId}_{request.UserId}_{request.RoleId}";
+
+                // Clear cache after delete
+                _distributedCache.Remove(cacheKey);
+                _log.Info($"Cleared cache for key: {cacheKey}");
+
+                // If TabMappings list is empty or null, only delete operation was needed
+                if (request.TabMappings == null || !request.TabMappings.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_DELETED_SUCCESSFULLY");
+                    _log.Info("IPD tab mappings deleted successfully. No new tabs to insert.");
+
+                    return ServiceResult<string>.Success(
+                        "Tab mappings deleted successfully",
+                        alert.Type,
+                        alert.Message,
+                        200
+                    );
+                }
+
+                // Filter out items with TabId = 0
+                var validTabMappings = request.TabMappings.Where(t => t.TabId != 0).ToList();
+
+                if (!validTabMappings.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_DELETED_SUCCESSFULLY");
+                    _log.Info("IPD tab mappings deleted successfully. No valid tabs to insert.");
+
+                    return ServiceResult<string>.Success(
+                        "Tab mappings deleted successfully",
+                        alert.Type,
+                        alert.Message,
+                        200
+                    );
+                }
+
+                // Insert new IPD tab mappings
+                int insertedCount = 0;
+                foreach (var tabMapping in validTabMappings)
+                {
+                    var result = _sqlHelper.DML("I_UserIPDTabMapping", CommandType.StoredProcedure, new
+                    {
+                        @TypeId = request.TypeId,
+                        @UserId = request.UserId,
+                        @BranchId = request.BranchId,
+                        @RoleId = request.RoleId,
+                        @TabId = tabMapping.TabId,
+                        @IpAddress = globalValues.ipAddress,
+                        @CreatedBy = globalValues.userId
+                    },
+                    new
+                    {
+                        result = 0
+                    });
+
+                    if (result > 0)
+                    {
+                        insertedCount++;
+                    }
+                }
+
+                _log.Info($"Inserted {insertedCount} IPD tab mappings for UserId={request.UserId}");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    $"Tab mappings updated successfully. {insertedCount} tab(s) assigned.",
+                    alert1.Type,
+                    alert1.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<IEnumerable<Dictionary<string, object>>> GetUserGrantedRemainingTabMaster(
+            int branchId,
+            int typeId,
+            int userId,
+            int roleId)
+        {
+            try
+            {
+                _log.Info($"GetUserGrantedRemainingTabMaster called. BranchId={branchId}, TypeId={typeId}, UserId={userId}, RoleId={roleId}");
+
+                // Generate dynamic cache key based on all parameters
+                string cacheKey = $"_UserIPDTabMapping_{branchId}_{typeId}_{userId}_{roleId}";
+
+                // Try to get data from cache
+                var cachedData = _distributedCache.GetString(cacheKey);
+                List<Dictionary<string, object>> tabMappings;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"UserIPDTabMapping data retrieved from cache. Key={cacheKey}");
+                    tabMappings = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object>>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"UserIPDTabMapping cache miss. Fetching data from database. Key={cacheKey}");
+
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_UserGrantedRemainingTabMaster",
+                        CommandType.StoredProcedure,
+                        new
+                        {
+                            @BranchId = branchId,
+                            @TypeId = typeId,
+                            @UserId = userId,
+                            @RoleId = roleId
+                        }
+                    );
+
+                    tabMappings = new List<Dictionary<string, object>>();
+
+                    if (dataTable != null)
+                    {
+                        foreach (DataRow row in dataTable.Rows)
+                        {
+                            var dict = new Dictionary<string, object>();
+                            foreach (DataColumn col in dataTable.Columns)
+                            {
+                                dict[col.ColumnName] = row[col] == DBNull.Value ? null : row[col];
+                            }
+                            tabMappings.Add(dict);
+                        }
+                    }
+
+                    // Store data in cache with no expiration (permanent until manually cleared)
+                    if (tabMappings.Any())
+                    {
+                        var serialized = System.Text.Json.JsonSerializer.Serialize(tabMappings);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                        _log.Info($"UserIPDTabMapping data cached permanently. Key={cacheKey}, Count={tabMappings.Count}");
+                    }
+                }
+
+                if (!tabMappings.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No IPD tab mapping found for BranchId={branchId}, TypeId={typeId}, UserId={userId}, RoleId={roleId}");
+
+                    return ServiceResult<IEnumerable<Dictionary<string, object>>>.Failure(
+                        alert.Type,
+                        alert.Message,
+                        404
+                    );
+                }
+
+                _log.Info($"Retrieved {tabMappings.Count} IPD tab mapping records from cache");
+
+                return ServiceResult<IEnumerable<Dictionary<string, object>>>.Success(
+                    tabMappings,
+                    "Info",
+                    $"{tabMappings.Count} tab mapping(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<IEnumerable<Dictionary<string, object>>>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
             }
         }
     }

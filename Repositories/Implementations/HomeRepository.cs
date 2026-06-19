@@ -2580,7 +2580,8 @@ namespace HISWEBAPI.Repositories.Implementations
                 var rows = dataTable.AsEnumerable().Select(r => new
                 {
                     BedId = r.Field<int>("BedId"),
-                    BedName = r.Field<string>("BedName")
+                    BedName = r.Field<string>("BedName"),
+                    Gender = r.Field<string>("Gender")
                 }).ToList();
 
                 _log.Info($"GetAvailableBeds: BranchId={branchId}, TypeId={typeId}, Available={rows.Count}");
@@ -2592,6 +2593,67 @@ namespace HISWEBAPI.Repositories.Implementations
                 LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
                 var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
                 return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetBillingTabs(int branchId, int roleId, int tabTypeId, int roomServiceItemId, AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"GetBillingTabs called. BranchId={branchId}, RoleId={roleId}, TabTypeId={tabTypeId}, RoomServiceItemId={roomServiceItemId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_IPDTabs",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        userId = globalValues.userId,
+                        branchId = branchId,
+                        roleId = roleId,
+                        tabTypeId = tabTypeId,
+                        roomServiceItemId = roomServiceItemId
+                    }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No billing tabs found for BranchId={branchId}, RoleId={roleId}, TabTypeId={tabTypeId}");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        "No billing tabs found",
+                        404
+                    );
+                }
+
+                var result = dataTable.AsEnumerable().Select(row =>
+                {
+                    var dict = new Dictionary<string, object>();
+                    foreach (DataColumn col in dataTable.Columns)
+                    {
+                        dict[col.ColumnName] = row[col] == DBNull.Value ? null : row[col];
+                    }
+                    return dict;
+                }).ToList();
+
+                _log.Info($"Retrieved {result.Count} billing tab(s)");
+
+                return ServiceResult<object>.Success(
+                    result,
+                    "Info",
+                    $"{result.Count} billing tab(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
             }
         }
 

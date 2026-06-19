@@ -39,5 +39,6 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<object> CheckPatientAdmitted(int patientId);
         ServiceResult<object> GetBedTypes(int branchId, int roomTypeId);
         ServiceResult<object> GetAvailableBeds(int branchId, int typeId);
+        ServiceResult<object> GetBillingTabs(int branchId, int roleId, int tabTypeId, int roomServiceItemId, AllGlobalValues globalValues);
     }
 }

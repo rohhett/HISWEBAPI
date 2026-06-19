@@ -24,13 +24,13 @@ namespace HISWEBAPI.Repositories.Interfaces
             string? emergencyContactNumber = null,
             string? address = null,
             string? registrationDate = null,
-            int? ipdNo = null,
+            string? ipdNo = null,
             int? branchId = null);
         ServiceResult<ServiceBillingDetailsModel> GetServiceAllDetailsForOPDBilling(int corporateId, int doctorId, int serviceItemId, int categoryId, int subCategoryId, int subSubCategoryId, int bedTypeId);
         ServiceResult<SaveOPDBillingResponse> SaveOPDBilling(SaveOPDBillingRequest request, AllGlobalValues globalValues);
         ServiceResult<IEnumerable<PackageAllDetailsModel>> GetPackageAllDetails(int packageId);
         ServiceResult<object> GetReceiptDetailsByFTID(int ftid, int isReceipt, int receiptId, AllGlobalValues globalValues);
-        ServiceResult<object> GetOPDReceiptList(long visitNo);
+        ServiceResult<object> GetOPDReceiptList(string visitNo);
         ServiceResult<object> GetOPDCardDetails(long ftid);
         ServiceResult<DataTable> FindDuplicateService(int serviceItemId, int patientId);
         ServiceResult<object> GetInvestigationObservationMappingDetails(int investigationId, int ageInDays, string gender);
@@ -47,6 +47,9 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<string> SavePatientVital(SavePatientVitalRequest request, AllGlobalValues globalValues);
         ServiceResult<object> GetPatientObservationResultsTrend(int patientId, int pageNumber, int pageSize);
         ServiceResult<SaveIPDAdmissionResponse> SaveIPDAdmission(SaveIPDAdmissionRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> SearchIPDPatient(SearchIPDPatientRequest request, AllGlobalValues globalValues);
+        ServiceResult<string> UploadVisitWisePatientDocument(UploadVisitWisePatientDocumentRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetVisitWisePatientDocumentMapping(int documentCategoryId, int visitId, int patientId);
 
 
     }

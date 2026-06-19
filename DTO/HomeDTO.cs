@@ -132,6 +132,7 @@ namespace HISWEBAPI.DTO
         public string SubCategoryName { get; set; }
 
         [Required(ErrorMessage = "CategoryId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "CategoryId must be greater than 0")]
         public int CategoryId { get; set; }
 
         public int LabTypeId { get; set; } = 0;
@@ -152,6 +153,7 @@ namespace HISWEBAPI.DTO
         public string SubSubCategoryName { get; set; }
 
         [Required(ErrorMessage = "SubCategoryId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "SubCategoryId must be greater than 0")]
         public int SubCategoryId { get; set; }
         public int PrintGroupId { get; set; }
         public int DepartmentId { get; set; }
@@ -171,6 +173,7 @@ namespace HISWEBAPI.DTO
         public string CategoryName { get; set; }
 
         [Required(ErrorMessage = "CategoryTypeId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "CategoryTypeId must be greater than 0")]
         public int CategoryTypeId { get; set; }
 
         [Required(ErrorMessage = "Category type name is required")]

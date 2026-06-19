@@ -115,9 +115,26 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<object> CreateUpdateWardNameMaster(CreateUpdateWardNameMasterRequest request, AllGlobalValues globalValues);
         ServiceResult<object> GetWardNameMaster(int? wardNameId);
 
+        ServiceResult<CreateUpdateBlockMasterResponse> CreateUpdateBlockMaster(CreateUpdateBlockMasterRequest request, AllGlobalValues globalValues);
+        ServiceResult<IEnumerable<BlockMasterModel>> GetBlockList(int? BlockId = null);
+
         ServiceResult<CreateUpdateFloorMasterResponse> CreateUpdateFloorMaster(CreateUpdateFloorMasterRequest request, AllGlobalValues globalValues);
         ServiceResult<IEnumerable<FloorMasterModel>> GetFloorList(int? floorId = null);
         ServiceResult<CreateUpdateBedMasterResponse> CreateUpdateBedMaster(CreateUpdateBedMasterRequest request, AllGlobalValues globalValues);
-        ServiceResult<object> GetAllBedList(int? bedId = null, int? isActive = null);
+        ServiceResult<object> GetAllBedList(int? bedId = null, int? isActive = null, int? blockId=null,int? floorId = null, int? wardNameId = null, int? branchId = null, int? typeId = null);
+        ServiceResult<object> CreateUpdateTabGroupTypeMaster(CreateUpdateTabGroupTypeMasterRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetTabGroupTypeMaster(int? groupTypeId, int? isActive);
+        ServiceResult<object> CreateUpdateIPDTabMaster(CreateUpdateIPDTabMasterRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetIPDTabMaster(int? tabId, int? groupTypeId, int? tabTypeId, int? roomTypeId,string tabName, int? isActive);
+
+        ServiceResult<string> SaveUpdateRoleWiseIPDTabMapping(SaveRoleWiseIPDTabMappingRequest request, AllGlobalValues globalValues);
+        ServiceResult<IEnumerable<Dictionary<string, object>>> GetRoleWiseIPDTabListMaster(int roleId);
+
+        ServiceResult<string> SaveUpdateUserIPDTabMapping(SaveUserIPDTabMappingRequest request, AllGlobalValues globalValues);
+        ServiceResult<IEnumerable<Dictionary<string, object>>> GetUserGrantedRemainingTabMaster(int branchId, int typeId, int userId, int roleId);
+
+
+
+
     }
 }

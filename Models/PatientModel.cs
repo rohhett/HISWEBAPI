@@ -69,10 +69,10 @@
         public string? ReferenceType { get; set; }
         public string? Remarks { get; set; }
         public int DoctorId { get; set; } = 0;
-        public int IPDNo { get; set; } = 0;
-        public int DayCareNo { get; set; } = 0;
-        public int DialysisNo { get; set; } = 0;
-        public int EmergencyNo { get; set; } = 0;
+        public string? IPDNo { get; set; }
+        public string? DayCareNo { get; set; }
+        public string? DialysisNo { get; set; }
+        public string? EmergencyNo { get; set; }
     }
 
     public class SearchPatientMasterModel
@@ -98,7 +98,7 @@
         public string? Email { get; set; }
         public string? FullAddress { get; set; }
         public string? RegistrationDate { get; set; }
-        public int? IPDNo { get; set; }
+        public string? IPDNo { get; set; }
     }
 
     public class ServiceBillingDetailsModel

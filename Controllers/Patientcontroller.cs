@@ -251,7 +251,7 @@ namespace HISWEBAPI.Controllers
     [FromQuery] string? emergencyContactNumber = null,
     [FromQuery] string? address = null,
     [FromQuery] string? registrationDate = null,
-    [FromQuery] int? ipdNo = null,
+    [FromQuery] string? ipdNo = null,
     [FromQuery] int? branchId = null)
         {
             _log.Info($"SearchPatientMaster called.");
@@ -518,19 +518,21 @@ namespace HISWEBAPI.Controllers
 
         [HttpGet("getOPDReceiptList")]
         [Authorize]
-        public IActionResult GetOPDReceiptList([FromQuery] long visitNo)
+        public IActionResult GetOPDReceiptList([FromQuery] string visitNo)
         {
             _log.Info($"GetOPDReceiptList called. VisitNo={visitNo}");
 
-            if (visitNo <= 0)
+     
+
+            if (string.IsNullOrWhiteSpace(visitNo))
             {
-                _log.Warn("Invalid VisitNo provided.");
+                _log.Warn("Invalid visitNo provided.");
                 var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
                 return BadRequest(new
                 {
                     result = false,
                     messageType = alert.Type,
-                    message = "VisitNo must be greater than 0",
+                    message = "visitNo is required",
                     errors = new { visitNo }
                 });
             }
@@ -1326,6 +1328,165 @@ namespace HISWEBAPI.Controllers
                 _log.Info($"SaveIPDAdmission succeeded: {serviceResult.Message}");
             else
                 _log.Warn($"SaveIPDAdmission failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("searchIPDPatient")]
+        [Authorize]
+        public IActionResult SearchIPDPatient(
+    [FromQuery] int branchId,
+    [FromQuery] string searchBy = null,
+    [FromQuery] string searchValue = null,
+    [FromQuery] int statusId = 0)
+        {
+            _log.Info($"SearchIPDPatient called. BranchId={branchId}, SearchBy={searchBy}, StatusId={statusId}");
+
+            if (branchId <= 0)
+            {
+                _log.Warn("Invalid BranchId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BranchId must be greater than 0",
+                    errors = new { branchId }
+                });
+            }
+
+            if (statusId < 0 || statusId > 10)
+            {
+                _log.Warn($"Invalid StatusId: {statusId}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "StatusId must be 0(All), 1(Admitted), 2(Discharged), 3(Bill Generated Pending), 4(File Closed Pending), 5(Today Admitted), 6(Today Discharged), 7(Zero Advance), 8(Cash), 9(Corporate), 10(Discharge Summary Ready)",
+                    errors = new { statusId }
+                });
+            }
+
+            if (!string.IsNullOrWhiteSpace(searchBy) && string.IsNullOrWhiteSpace(searchValue))
+            {
+                _log.Warn("SearchValue is required when SearchBy is provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "SearchValue is required when SearchBy is provided",
+                    errors = new { searchValue }
+                });
+            }
+
+            var request = new SearchIPDPatientRequest
+            {
+                BranchId = branchId,
+                SearchBy = searchBy ?? string.Empty,
+                SearchValue = searchValue ?? string.Empty,
+                StatusId = statusId
+            };
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.SearchIPDPatient(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"SearchIPDPatient completed: {serviceResult.Message}");
+            else
+                _log.Warn($"SearchIPDPatient failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+
+        [HttpPost("uploadVisitWisePatientDocument")]
+        [Authorize]
+        public IActionResult UploadVisitWisePatientDocument([FromForm] UploadVisitWisePatientDocumentRequest request)
+        {
+            _log.Info($"UploadVisitWisePatientDocument called. PatientId={request.PatientId}, VisitId={request.VisitId}, DocumentId={request.DocumentId}, DocumentCategoryId={request.DocumentCategoryId}");
+
+            if (!ModelState.IsValid)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new { result = false, messageType = alert.Type, message = alert.Message, errors = ModelState });
+            }
+
+            if (request.PatientId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "PatientId must be greater than 0", errors = new { request.PatientId } });
+            }
+
+            if (request.VisitId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "VisitId must be greater than 0", errors = new { request.VisitId } });
+            }
+
+            if (request.DocumentId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "DocumentId must be greater than 0", errors = new { request.DocumentId } });
+            }
+
+            if (request.DocumentCategoryId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "DocumentCategoryId must be greater than 0", errors = new { request.DocumentCategoryId } });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.UploadVisitWisePatientDocument(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"Visit-wise document uploaded successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"Visit-wise document upload failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getVisitWisePatientDocumentMapping")]
+        [Authorize]
+        public IActionResult GetVisitWisePatientDocumentMapping(
+            [FromQuery] int documentCategoryId,
+            [FromQuery] int visitId = 0,
+            [FromQuery] int patientId = 0)
+        {
+            _log.Info($"GetVisitWisePatientDocumentMapping called. DocumentCategoryId={documentCategoryId}, VisitId={visitId}, PatientId={patientId}");
+
+            if (documentCategoryId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "DocumentCategoryId must be greater than 0", errors = new { documentCategoryId } });
+            }
+
+            var serviceResult = _patientRepository.GetVisitWisePatientDocumentMapping(documentCategoryId, visitId, patientId);
+
+            if (serviceResult.Result)
+                _log.Info($"Visit-wise patient documents fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"Visit-wise patient documents fetch failed: {serviceResult.Message}");
 
             return StatusCode(serviceResult.StatusCode, new
             {

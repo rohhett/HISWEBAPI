@@ -934,6 +934,16 @@ namespace HISWEBAPI.DTO
 
         [Required(ErrorMessage = "IsActive is required")]
         public int IsActive { get; set; }
+
+        [Required(ErrorMessage = "DocumentCategoryId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "DocumentCategoryId must be greater than 0")]
+        public int DocumentCategoryId { get; set; }
+
+        [Required(ErrorMessage = "Document Category is required")]
+        [StringLength(256, ErrorMessage = "Document Category cannot exceed 256 characters")]
+        public string DocumentCategory { get; set; }
+        public int IsMandatory { get; set; } = 0;
+
     }
 
     public class PatientDocumentMasterResponse
@@ -1273,12 +1283,15 @@ namespace HISWEBAPI.DTO
         public int ServiceItemId { get; set; } = 0;
 
         [Required(ErrorMessage = "CategoryId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "CategoryId must be greater than 0")]
         public int CategoryId { get; set; }
 
         [Required(ErrorMessage = "SubCategoryId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "SubCategoryId must be greater than 0")]
         public int SubCategoryId { get; set; }
 
         [Required(ErrorMessage = "SubSubCategoryId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "SubSubCategoryId must be greater than 0")]
         public int SubSubCategoryId { get; set; }
 
         [Required(ErrorMessage = "Name is required")]
@@ -1329,6 +1342,20 @@ namespace HISWEBAPI.DTO
         public string WardName { get; set; }
     }
 
+    public class CreateUpdateBlockMasterRequest
+    {
+        public int BlockId { get; set; } = 0;
+
+        [Required(ErrorMessage = "Block name is required")]
+        [StringLength(256, ErrorMessage = "Block name cannot exceed 256 characters")]
+        public string BlockName { get; set; }
+    }
+
+    public class CreateUpdateBlockMasterResponse
+    {
+        public int BlockId { get; set; }
+    }
+
     public class CreateUpdateFloorMasterRequest
     {
         public int FloorId { get; set; } = 0;
@@ -1357,6 +1384,10 @@ namespace HISWEBAPI.DTO
         [Range(1, int.MaxValue, ErrorMessage = "TypeId must be greater than 0")]
         public int TypeId { get; set; }
 
+        [Required(ErrorMessage = "BlockId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "BlockId must be greater than 0")]
+        public int BlockId { get; set; }
+
         [Required(ErrorMessage = "FloorId is required")]
         [Range(1, int.MaxValue, ErrorMessage = "FloorId must be greater than 0")]
         public int FloorId { get; set; }
@@ -1365,15 +1396,15 @@ namespace HISWEBAPI.DTO
         [Range(1, int.MaxValue, ErrorMessage = "WardNameId must be greater than 0")]
         public int WardNameId { get; set; }
 
-        [Required(ErrorMessage = "WardName is required")]
-        [StringLength(256, ErrorMessage = "WardName cannot exceed 256 characters")]
-        public string WardName { get; set; }
 
         [StringLength(256, ErrorMessage = "RoomName cannot exceed 256 characters")]
         public string RoomName { get; set; }
 
+        [Required(ErrorMessage = "Gender is required")]
+        public string Gender { get; set; }
+
         [Required(ErrorMessage = "BedNo is required")]
-        [Range(1, 100, ErrorMessage = "Enter BedNo between 1 to 100")]
+        [Range(1, 25, ErrorMessage = "Enter BedNo between 1 to 25")]
         public int BedNo { get; set; }
 
         [Required(ErrorMessage = "IsActive is required")]
@@ -1384,4 +1415,90 @@ namespace HISWEBAPI.DTO
     {
         public int BedId { get; set; }
     }
+
+
+
+    public class CreateUpdateTabGroupTypeMasterRequest
+    {
+        public int GroupTypeId { get; set; } = 0;
+
+        [Required(ErrorMessage = "GroupTypeName is required")]
+        [StringLength(100, ErrorMessage = "GroupTypeName cannot exceed 100 characters")]
+        public string GroupTypeName { get; set; }
+
+    
+    }
+
+    public class CreateUpdateIPDTabMasterRequest
+    {
+        public int TabId { get; set; } = 0;
+
+        [Required(ErrorMessage = "GroupTypeId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "GroupTypeId must be greater than 0")]
+        public int GroupTypeId { get; set; }
+
+        [Required(ErrorMessage = "TabName is required")]
+        [StringLength(100, ErrorMessage = "TabName cannot exceed 100 characters")]
+        public string TabName { get; set; }
+
+        [StringLength(1000, ErrorMessage = "TabViewURL cannot exceed 1000 characters")]
+        public string TabViewURL { get; set; }
+
+        public int SequenceNo { get; set; } = 0;
+
+        [Required(ErrorMessage = "TabTypeId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "TabTypeId must be greater than 0")]
+        public int TabTypeId { get; set; }
+
+        [Required(ErrorMessage = "TabType is required")]
+        [StringLength(100, ErrorMessage = "TabType cannot exceed 100 characters")]
+        public string TabType { get; set; }
+
+        public int? RoomTypeId { get; set; }
+
+        [Required(ErrorMessage = "IsActive is required")]
+        public int IsActive { get; set; }
+    }
+
+   
+
+    public class SaveUserIPDTabMappingRequest
+    {
+        [Required(ErrorMessage = "TypeId is required")]
+        public int TypeId { get; set; }
+
+        [Required(ErrorMessage = "UserId is required")]
+        public int UserId { get; set; }
+
+        [Required(ErrorMessage = "BranchId is required")]
+        public int BranchId { get; set; }
+
+        [Required(ErrorMessage = "RoleId is required")]
+        public int RoleId { get; set; }
+
+        public List<UserIPDTabMappingItem> TabMappings { get; set; } = new List<UserIPDTabMappingItem>();
+    }
+
+    public class UserIPDTabMappingItem
+    {
+        [Required(ErrorMessage = "TabId is required")]
+        public int TabId { get; set; }
+    }
+
+
+    // Role Wise IPD Tab Mapping DTOs
+    public class SaveRoleWiseIPDTabMappingRequest
+    {
+        [Required(ErrorMessage = "RoleId is required")]
+        public int RoleId { get; set; }
+
+        public List<RoleWiseIPDTabMappingItem> TabMappings { get; set; } = new List<RoleWiseIPDTabMappingItem>();
+    }
+
+    public class RoleWiseIPDTabMappingItem
+    {
+        [Required(ErrorMessage = "TabId is required")]
+        public int TabId { get; set; }
+    }
+
 }

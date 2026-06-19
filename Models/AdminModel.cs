@@ -1,4 +1,6 @@
-﻿namespace HISWEBAPI.Models
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace HISWEBAPI.Models
 {
     public class AllGlobalValues
     {
@@ -349,6 +351,9 @@
         public string CreatedOn { get; set; }
         public string LastModifiedBy { get; set; }
         public string LastModifiedOn { get; set; }
+        public int DocumentCategoryId { get; set; }
+        public string DocumentCategory { get; set; }
+        public int IsMandatory { get; set; } = 0;
     }
 
     public class OutSourceLabMasterModel
@@ -458,6 +463,13 @@
         public int SequenceNo { get; set; }
     }
 
+    public class BlockMasterModel
+    {
+        public int BlockId { get; set; }
+        public string BlockName { get; set; }
+
+    }
+
     public class FloorMasterModel
     {
         public int FloorId { get; set; }
@@ -465,5 +477,5 @@
 
     }
 
-  
+
 }

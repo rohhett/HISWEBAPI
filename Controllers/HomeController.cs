@@ -1158,5 +1158,73 @@ namespace HISWEBAPI.Controllers
             });
         }
 
+        [HttpGet("getBillingTabs")]
+        [Authorize]
+        public IActionResult GetBillingTabs(
+    [FromQuery] int branchId,
+    [FromQuery] int roleId,
+    [FromQuery] int tabTypeId,
+    [FromQuery] int? roomServiceItemId = null)
+        {
+            _log.Info($"GetBillingTabs called. BranchId={branchId}, RoleId={roleId}, TabTypeId={tabTypeId}, RoomServiceItemId={roomServiceItemId?.ToString() ?? "0"}");
+
+            if (branchId <= 0)
+            {
+                _log.Warn("Invalid BranchId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BranchId must be greater than 0",
+                    errors = new { branchId }
+                });
+            }
+
+            if (roleId <= 0)
+            {
+                _log.Warn("Invalid RoleId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "RoleId must be greater than 0",
+                    errors = new { roleId }
+                });
+            }
+
+            if (tabTypeId <= 0 || tabTypeId > 5)
+            {
+                _log.Warn($"Invalid TabTypeId provided: {tabTypeId}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "TabTypeId must be between 1 and 5. Valid values: 1=IPD Tabs, 2=IVF Tabs, 3=Daycare Tabs, 4=Dialysis Tabs, 5=Emergency Tabs",
+                    errors = new { tabTypeId }
+                });
+            }
+
+            int resolvedRoomServiceItemId = roomServiceItemId.HasValue ? roomServiceItemId.Value : 0;
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _homeRepository.GetBillingTabs(branchId, roleId, tabTypeId, resolvedRoomServiceItemId, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"Billing tabs fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"No billing tabs found: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
     }
 }

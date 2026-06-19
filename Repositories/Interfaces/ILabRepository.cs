@@ -121,5 +121,17 @@ int subSubCategoryId, int investigationId, string patientName, int roleId, int c
         // Micro Mapping
         ServiceResult<string> CreateUpdateMicroMapping(CreateUpdateMicroMappingRequest request, AllGlobalValues globalValues);
         ServiceResult<IEnumerable<MicroMappingModel>> GetMicroMappingByOrganismId(int organismId);
+
+        ServiceResult<IEnumerable<Dictionary<string, object>>> searchPatientInvestigationForSampleProcessingHisto(
+int branchId, int typeId, string uhid, string ipdNo, string labNo,
+string fromDate, string toDate, string barCode, int subCategoryId,
+int subSubCategoryId, int investigationId, string patientName, int roleId, int corporateId, int statusId, int canSampleCollect);
+
+
+        ServiceResult<IEnumerable<Dictionary<string, object>>> searchPatientInvestigationForSampleProcessingMicro(
+int branchId, int typeId, string uhid, string ipdNo, string labNo,
+string fromDate, string toDate, string barCode, int subCategoryId,
+int subSubCategoryId, int investigationId, string patientName, int roleId, int corporateId, int statusId, int canSampleCollect);
+
     }
 }
