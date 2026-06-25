@@ -172,6 +172,7 @@ namespace HISWEBAPI.DTO
 
         public int InsuranceCompanyId { get; set; }
         public int CorporateId { get; set; }
+        public int doctorId { get; set; } = 0;
         public int ReferDoctorId { get; set; }
 
         public decimal GrossBillAmount { get; set; }
@@ -227,6 +228,7 @@ namespace HISWEBAPI.DTO
         public int RateListId { get; set; }
         public int ValidityDays { get; set; }
         public int DoctorId { get; set; }
+        public int PerformingDoctorId { get; set; }
 
         public decimal Qty { get; set; } = 1;
         public decimal Rate { get; set; }
@@ -255,6 +257,7 @@ namespace HISWEBAPI.DTO
         [Required(ErrorMessage = "Amount is required")]
         public decimal Amount { get; set; }
 
+        public int IsCopaymentReceipt { get; set; } = 0;
         public int BankId { get; set; }
         public string RefNo { get; set; }
         public string PlutusTransactionReferenceID { get; set; }
@@ -482,5 +485,83 @@ namespace HISWEBAPI.DTO
 
         [Required(ErrorMessage = "Document file is required")]
         public IFormFile DocumentFile { get; set; }
+    }
+
+
+    public class SaveOPDBookingRequest
+    {
+        [Required(ErrorMessage = "Visit details are required")]
+        public PatientOPDBookingRequest VisitDetails { get; set; }
+
+        [Required(ErrorMessage = "Billing items are required")]
+        [MinLength(1, ErrorMessage = "At least one billing item is required")]
+        public List<OPDBookingItemRequest> BillingItems { get; set; }
+    }
+
+    public class PatientOPDBookingRequest
+    {
+        [Required(ErrorMessage = "PatientId is required")]
+        public int PatientId { get; set; }
+
+        [Required(ErrorMessage = "BranchId is required")]
+        public int BranchId { get; set; }
+
+        public int InsuranceCompanyId { get; set; } = 0;
+
+        [Required(ErrorMessage = "CorporateId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "CorporateId must be greater than 0")]
+        public int CorporateId { get; set; }
+        public int ReferDoctorId { get; set; }
+        public int IsDiscountApprovalRequired { get; set; } = 0;
+
+        public decimal GrossBillAmount { get; set; }
+        public decimal TotalDiscPerOnBill { get; set; }
+        public decimal TotalDiscAmtOnBill { get; set; }
+        public decimal RoundOff { get; set; }
+        public decimal NetAmount { get; set; }
+
+        public string? PolicyNo { get; set; }
+        public string? PolicyCardNo { get; set; }
+        public string? ExpiryDate { get; set; }
+        public string? CardHolder { get; set; }
+        public string? ReferalNo { get; set; }
+        public string? ReferalDate { get; set; }
+    }
+
+    public class OPDBookingItemRequest
+    {
+        [Required(ErrorMessage = "ServiceItemId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "ServiceItemId must be greater than 0")]
+        public int ServiceItemId { get; set; }
+
+        [Required(ErrorMessage = "SubSubCategoryId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "SubSubCategoryId must be greater than 0")]
+        public int SubSubCategoryId { get; set; }
+
+        [Required(ErrorMessage = "ServiceName is required")]
+        public string ServiceName { get; set; }
+
+        public string? Code { get; set; }
+
+        [Required(ErrorMessage = "RateListId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "RateListId must be greater than 0")]
+        public int RateListId { get; set; }
+
+        [Required(ErrorMessage = "DoctorId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "DoctorId must be greater than 0")]
+        public int DoctorId { get; set; }
+        public decimal Qty { get; set; } = 1;
+        public decimal Rate { get; set; }
+        public decimal DiscPer { get; set; }
+        public decimal DiscAmt { get; set; }
+        public decimal GrossAmt { get; set; }
+        public decimal NetAmt { get; set; }
+
+        public int IsUrgent { get; set; } = 0;
+    }
+
+    public class SaveOPDBookingResponse
+    {
+        public int BookingId { get; set; }
     }
 }

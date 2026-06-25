@@ -1032,7 +1032,11 @@ namespace HISWEBAPI.Repositories.Implementations
                         @ShortName = request.ShortName,
                         @SampleVolume = request.SampleVolume,
                         @InvestigationComment = request.InvestigationComment,
-                        @tatInMin = request.TatInMin
+                        @tatInMin = request.TatInMin,
+                        @SNOMEDCode = request.SNOMEDCode,
+                        @isRequiredSeparatePerformingDoctor = request.IsRequiredSeparatePerformingDoctor,
+                        @doctorDepartmentIds = request.DoctorDepartmentIds
+                      
                     },
                     new { result = 0 }
                 );
@@ -1145,7 +1149,10 @@ int? reportTypeId,
                         SampleVolume = row.Field<string>("SampleVolume") ?? string.Empty,
                         InvestigationComment = row.Field<string>("InvestigationComment") ?? string.Empty,
                         TatInMin = row.Field<int?>("tatInMin") ?? 0,
-                        IsActive = row.Field<int?>("IsActive") ?? 0
+                        IsActive = row.Field<int?>("IsActive") ?? 0,
+                        SNOMEDCode = row.Field<string>("SNOMEDCode") ?? string.Empty,
+                        DoctorDepartmentIds = row.Field<string>("DoctorDepartmentIds") ?? string.Empty,
+                        IsRequiredSeparatePerformingDoctor = row.Field<int?>("IsRequiredSeparatePerformingDoctor") ?? 0
                     }).ToList();
 
                     if (allItems.Any())

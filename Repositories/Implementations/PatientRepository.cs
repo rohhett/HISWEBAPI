@@ -15,6 +15,7 @@ using System.Data;
 using System.Linq;
 using System.Reflection;
 using System.Text.Json;
+using static iTextSharp.text.pdf.AcroFields;
 
 namespace HISWEBAPI.Repositories.Implementations
 {
@@ -760,6 +761,7 @@ namespace HISWEBAPI.Repositories.Implementations
             }
         }
         public ServiceResult<ServiceBillingDetailsModel> GetServiceAllDetailsForOPDBilling(
+          int branchId,
           int corporateId,
           int doctorId,
           int serviceItemId,
@@ -777,6 +779,7 @@ namespace HISWEBAPI.Repositories.Implementations
                     CommandType.StoredProcedure,
                     new
                     {
+                        @branchId = branchId,
                         @corporateId = corporateId,
                         @doctorId = doctorId,
                         @serviceItemId = serviceItemId,
@@ -814,12 +817,17 @@ namespace HISWEBAPI.Repositories.Implementations
                     IsNonPayable = row["IsNonPayable"] != DBNull.Value ? Convert.ToInt32(row["IsNonPayable"]) : 0,
                     ServiceItemId = row["ServiceItemId"] != DBNull.Value ? Convert.ToInt32(row["ServiceItemId"]) : serviceItemId,
                     CorporateId = row["CorporateId"] != DBNull.Value ? Convert.ToInt32(row["CorporateId"]) : corporateId,
+                    CategoryTypeId = row["CategoryTypeId"] != DBNull.Value ? Convert.ToInt32(row["CategoryTypeId"]) : 0,
                     CategoryId = row["CategoryId"] != DBNull.Value ? Convert.ToInt32(row["CategoryId"]) : categoryId,
                     SubCategoryId = row["SubCategoryId"] != DBNull.Value ? Convert.ToInt32(row["SubCategoryId"]) : subCategoryId,
                     SubSubCategoryId = row["SubSubCategoryId"] != DBNull.Value ? Convert.ToInt32(row["SubSubCategoryId"]) : subSubCategoryId,
                     IsCorporateDiscount = row["IsCorporateDiscount"] != DBNull.Value ? Convert.ToInt32(row["IsCorporateDiscount"]) : 0,
                     GSTPer = row["GSTPer"] != DBNull.Value ? Convert.ToDecimal(row["GSTPer"]) : 0,
-                    SampleTypeId = row["SampleTypeId"] != DBNull.Value ? Convert.ToInt32(row["SampleTypeId"]) : 0
+                    SampleTypeId = row["SampleTypeId"] != DBNull.Value ? Convert.ToInt32(row["SampleTypeId"]) : 0,
+                    ReportTypeId = row["ReportTypeId"] != DBNull.Value ? Convert.ToInt32(row["ReportTypeId"]) : 0,
+                    IsRequiredSeparatePerformingDoctor = row["IsRequiredSeparatePerformingDoctor"] != DBNull.Value ? Convert.ToInt32(row["IsRequiredSeparatePerformingDoctor"]) : 0,
+                    DoctorDepartmentIds = row["DoctorDepartmentIds"]?.ToString() ?? string.Empty,
+
                 };
 
                 _log.Info($"Service billing details retrieved. ServiceName={result.ServiceName}, Rate={result.Rate}, RateListId={result.RateListId}");
@@ -871,7 +879,7 @@ namespace HISWEBAPI.Repositories.Implementations
                     Type = "OPD",
                     TypeId = 1,
                     CurrentAge = v.CurrentAge,
-                    DoctorId = 0,           // populated from first consultation item
+                    DoctorId = 0,
                     CorporateId = v.CorporateId,
                     InsuranceCompanyId = v.InsuranceCompanyId,
                     ReferDoctorId = v.ReferDoctorId > 0 ? v.ReferDoctorId : (int?)null,
@@ -903,6 +911,36 @@ namespace HISWEBAPI.Repositories.Implementations
 
                 int visitId = Convert.ToInt32(pvd.Create(_sqlHelper, tnx));
                 _log.Info($"PatientVisitDetails created. VisitId={visitId}");
+
+
+                // ── 2. PatientBillDetails ────────────────────────────────────────────────
+                var pbd = new PatientBillDetails
+                {
+                    HospId = globalValues.hospId,
+                    BranchId = v.BranchId,
+                    PatientId = v.PatientId,
+                    VisitId = visitId,
+                    TypeId = 1,                                // 1 = OPD
+                    TotalBillAmount = v.GrossBillAmount,
+                    TotalDiscountPerOnBill = v.TotalDiscPerOnBill,
+                    TotalDiscountAmountOnBill = v.TotalDiscAmtOnBill,
+                    DiscountApprovedById = v.DiscApprovedById > 0 ? v.DiscApprovedById : (int?)null,
+                    DiscountReason = v.DiscountReason,
+                    RoundOff = v.RoundOff,
+                    TotalPayableAmount = v.NetAmount,
+                    TotalPaidAmount = totalPaidAmount,
+                    TotalBalanceAmount = v.NetAmount - totalPaidAmount,
+                    TotalPatientPayableAmount = v.NetAmount,
+                    TotalCorporatePayableAmount = 0,
+                    TotalPatientPaidAmount = totalPaidAmount,
+                    TotalCorporatePaidAmount = 0,
+                    UserId = globalValues.userId,
+                    IpAddress = globalValues.ipAddress
+                };
+
+                long billId = pbd.Create(_sqlHelper, tnx);
+                _log.Info($"PatientBillDetails created. BillId={billId}");
+
 
                 // ── 2. FinancialTransactions ─────────────────────────────────────────
                 var ft = new FinancialTransactions
@@ -973,6 +1011,7 @@ namespace HISWEBAPI.Repositories.Implementations
                         CorporateAlias = item.CorporateAlias,
                         CorporateCode = item.CorporateCode,
                         DoctorId = item.DoctorId > 0 ? item.DoctorId : (int?)null,
+                        PerformingDoctorId = item.PerformingDoctorId > 0 ? item.PerformingDoctorId : (int?)null,
                         CorporateId = v.CorporateId > 0 ? v.CorporateId : (int?)null,
                         Rate = item.Rate,
                         Qty = item.Qty,
@@ -1100,6 +1139,7 @@ namespace HISWEBAPI.Repositories.Implementations
                         VisitId = visitId,
                         PatientId = v.PatientId,
                         Amount = totalPaidAmount,
+                        IsCopaymentReceipt= request.PaymentDetails[0].IsCopaymentReceipt,
                         PlutusTransactionReferenceID = request.PaymentDetails[0].PlutusTransactionReferenceID,
                         TransactionLogId = request.PaymentDetails[0].TransactionLogId,
                         UserId = globalValues.userId,
@@ -2231,6 +2271,37 @@ namespace HISWEBAPI.Repositories.Implementations
                 int visitId = Convert.ToInt32(pvd.Create(_sqlHelper, tnx));
                 _log.Info($"PatientVisitDetails created. VisitId={visitId}");
 
+
+                // ── 2. PatientBillDetails ────────────────────────────────────────────────
+                var pbd = new PatientBillDetails
+                {
+                    HospId = globalValues.hospId,
+                    BranchId = request.BranchId,
+                    PatientId = request.PatientId,
+                    VisitId = visitId,
+                    TypeId = 2,                                // 1 = IPD
+                    TotalBillAmount =0,
+                    TotalDiscountPerOnBill = 0,
+                    TotalDiscountAmountOnBill = 0,
+                    DiscountApprovedById = null,
+                    DiscountReason = null,
+                    RoundOff = 0,
+                    TotalPayableAmount = 0,
+                    TotalPaidAmount = 0,
+                    TotalBalanceAmount = 0,
+                    TotalPatientPayableAmount = 0,
+                    TotalCorporatePayableAmount = 0,
+                    TotalPatientPaidAmount = 0,
+                    TotalCorporatePaidAmount = 0,
+                    UserId = globalValues.userId,
+                    IpAddress = globalValues.ipAddress
+                };
+
+                long billId = pbd.Create(_sqlHelper, tnx);
+                _log.Info($"PatientBillDetails created. BillId={billId}");
+
+
+
                 // ── 2. MLC (only when AdmissionType == "MLC") ───────────────────────
                 if (request.AdmissionType == "MLC")
                 {
@@ -2544,5 +2615,300 @@ namespace HISWEBAPI.Repositories.Implementations
                 return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
             }
         }
+
+
+
+
+        public ServiceResult<SaveOPDBookingResponse> SaveOPDBooking(
+    SaveOPDBookingRequest request,
+    AllGlobalValues globalValues)
+        {
+            var connectionString = _configuration.GetConnectionString("ConnectionString");
+            SqlConnection con = new SqlConnection(connectionString);
+            con.Open();
+            var tnx = CustomSqlHelper.getSqlTransaction(con);
+
+            try
+            {
+                _log.Info($"SaveOPDBooking called. PatientId={request.VisitDetails.PatientId}, BranchId={request.VisitDetails.BranchId}");
+
+                var v = request.VisitDetails;
+
+                int bookingId = Convert.ToInt32(_sqlHelper.RunProcedureInsert(
+      "I_OPDBookingDetails",
+      new IDataParameter[]
+      {
+        new SqlParameter("@BranchId", v.BranchId),
+        new SqlParameter("@PatientId", v.PatientId),
+        new SqlParameter("@CorporateId", v.CorporateId),
+        new SqlParameter("@InsuranceCompanyId", v.InsuranceCompanyId),
+        new SqlParameter("@ReferDoctorId", v.ReferDoctorId > 0 ? (object)v.ReferDoctorId : DBNull.Value),
+        new SqlParameter("@TotalBillAmount", v.GrossBillAmount),
+        new SqlParameter("@TotalDiscountPerOnBill", v.TotalDiscPerOnBill),
+        new SqlParameter("@TotalDiscountAmountOnBill", v.TotalDiscAmtOnBill),
+        new SqlParameter("@RoundOff", v.RoundOff),
+        new SqlParameter("@TotalPatientPayableAmount", v.NetAmount),
+        new SqlParameter("@PolicyNo", string.IsNullOrEmpty(v.PolicyNo) ? (object)DBNull.Value : v.PolicyNo),
+        new SqlParameter("@PolicyCardNo", string.IsNullOrEmpty(v.PolicyCardNo) ? (object)DBNull.Value : v.PolicyCardNo),
+        new SqlParameter("@ExpiryDate", string.IsNullOrEmpty(v.ExpiryDate) ? (object)DBNull.Value : v.ExpiryDate),
+        new SqlParameter("@CardHolder", string.IsNullOrEmpty(v.CardHolder) ? (object)DBNull.Value : v.CardHolder),
+        new SqlParameter("@ReferalNo", string.IsNullOrEmpty(v.ReferalNo) ? (object)DBNull.Value : v.ReferalNo),
+        new SqlParameter("@ReferalDate", string.IsNullOrEmpty(v.ReferalDate) ? (object)DBNull.Value : v.ReferalDate),
+        new SqlParameter("@isDiscountApprovalRequired", v.IsDiscountApprovalRequired),
+        new SqlParameter("@UserId", globalValues.userId),
+        new SqlParameter("@IpAddress", globalValues.ipAddress ?? (object)DBNull.Value),
+        new SqlParameter("@Result", SqlDbType.Int) { Direction = ParameterDirection.Output }
+      }
+  ));
+
+                _log.Info($"OPDBookingDetails created. BookingId={bookingId}");
+
+                // ── 2. Insert line items ────────────────────────────────────────────────
+                foreach (var item in request.BillingItems)
+                {
+                    _sqlHelper.DML(tnx, "I_OPDBookingItemDetails", CommandType.StoredProcedure, new
+                    {
+                        @BranchId = v.BranchId,
+                        @BookingId = bookingId,
+                        @PatientId = v.PatientId,
+                        @ServiceItemId = item.ServiceItemId,
+                        @SubSubCategoryId = item.SubSubCategoryId,
+                        @ServiceName = item.ServiceName,
+                        @ServiceCode = item.Code,
+                        @DoctorId = item.DoctorId > 0 ? item.DoctorId : (int?)null,
+                        @Rate = item.Rate,
+                        @Qty = item.Qty,
+                        @GrossAmt = item.GrossAmt,
+                        @DiscPer = item.DiscPer,
+                        @DiscAmt = item.DiscAmt,
+                        @NetAmt = item.NetAmt,
+                        @RateListId = item.RateListId,
+                        @IsUrgent = item.IsUrgent,
+                        @UserId = globalValues.userId,
+                        @IpAddress = globalValues.ipAddress
+                    });
+                }
+
+                tnx.Commit();
+                _log.Info($"SaveOPDBooking committed. BookingId={bookingId}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<SaveOPDBookingResponse>.Success(
+                    new SaveOPDBookingResponse { BookingId = bookingId },
+                    alert.Type,
+                    "OPD Booking saved successfully",
+                    201
+                );
+            }
+            catch (Exception ex)
+            {
+                try { tnx.Rollback(); } catch { }
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<SaveOPDBookingResponse>.Failure(alert.Type, alert.Message, 500);
+            }
+            finally
+            {
+                tnx.Dispose();
+                if (con.State == ConnectionState.Open)
+                    con.Close();
+            }
+        }
+
+
+        public ServiceResult<object> GetOPDBookingDetailsForPaymentCollection(string fromDate, string toDate)
+        {
+            try
+            {
+                _log.Info($"GetOPDBookingDetailsForPaymentCollection called. FromDate={fromDate}, ToDate={toDate}");
+
+                // Parse dates
+                if (!DateTime.TryParse(fromDate, out DateTime parsedFromDate))
+                {
+                    var alertDate = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return ServiceResult<object>.Failure(alertDate.Type, "Invalid FromDate format", 400);
+                }
+                if (!DateTime.TryParse(toDate, out DateTime parsedToDate))
+                {
+                    var alertDate = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return ServiceResult<object>.Failure(alertDate.Type, "Invalid ToDate format", 400);
+                }
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_OPDBookingDetailsForPaymentCollection",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @fromDate = parsedFromDate.ToString("yyyy-MM-dd"),
+                        @toDate = parsedToDate.ToString("yyyy-MM-dd"),
+                    }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No OPD booking details found for payment collection. FromDate={fromDate}, ToDate={toDate}");
+                    return ServiceResult<object>.Failure(alert.Type, alert.Message, 404);
+                }
+
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"OPD booking details for payment collection retrieved successfully. Count={result.Count}");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(result, alert1.Type, $"{result.Count} record(s) retrieved successfully", 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetOPDBookingDetailsForDiscountApproval(string fromDate, string toDate)
+        {
+            try
+            {
+                _log.Info($"GetOPDBookingDetailsForDiscountApproval called. FromDate={fromDate}, ToDate={toDate}");
+
+                if (!DateTime.TryParse(fromDate, out DateTime parsedFromDate))
+                {
+                    var alertDate = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return ServiceResult<object>.Failure(alertDate.Type, "Invalid FromDate format", 400);
+                }
+                if (!DateTime.TryParse(toDate, out DateTime parsedToDate))
+                {
+                    var alertDate = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return ServiceResult<object>.Failure(alertDate.Type, "Invalid ToDate format", 400);
+                }
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_OPDBookingDetailsForDiscountApproval",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @fromDate = parsedFromDate.ToString("yyyy-MM-dd"),
+                        @toDate = parsedToDate.ToString("yyyy-MM-dd"),
+                    }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No OPD booking details found for discount approval. FromDate={fromDate}, ToDate={toDate}");
+                    return ServiceResult<object>.Failure(alert.Type, alert.Message, 404);
+                }
+
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"OPD booking details for discount approval retrieved successfully. Count={result.Count}");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(result, alert1.Type, $"{result.Count} record(s) retrieved successfully", 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetOPDBookingDetailsByBookingId(int bookingId)
+        {
+            try
+            {
+                _log.Info($"GetOPDBookingDetailsByBookingId called. BookingId={bookingId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_OPDBookingDetailsByBookingId",
+                    CommandType.StoredProcedure,
+                    new { @bookingId = bookingId }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No OPD booking details found for BookingId={bookingId}");
+                    return ServiceResult<object>.Failure(alert.Type, alert.Message, 404);
+                }
+
+                // OBD header columns — these are the same across all rows for a single bookingId
+                var obdColumns = new HashSet<string>
+        {
+            "BookingId", "TokenNo", "BranchId", "PatientId", "UHID",
+            "CorporateId", "InsuranceCompanyId", "ReferDoctorId",
+            "TotalBillAmount", "TotalDiscountPerOnBill", "TotalDiscountAmountOnBill",
+            "RoundOff", "TotalPatientPayableAmount",
+            "PolicyNo", "PolicyCardNo", "ExpiryDate", "CardHolder",
+            "ReferalNo", "ReferalDate",
+            "IsPaymentCollected", "IsDiscountApprovalRequired", "IsDiscountApproved",
+            "IsLevel1Approve", "Level1ApproveId", "Level1ApproveOn",
+            "IsLevel2Approve", "Level2ApproveId", "Level2ApproveOn",
+            "IsLevel3Approve", "Level3ApproveId", "Level3ApproveOn",
+            "IsLevel4Approve", "Level4ApproveId", "Level4ApproveOn",
+            "IsCancel", "CancelBy", "CancelOn", "CancelReason",
+            "CreatedBy", "CreatedOn", "LastModifiedBy", "LastModifiedOn"
+        };
+
+                // OBID item columns
+                var obidColumns = new HashSet<string>
+        {
+            "ServiceItemId", "CategoryId", "SubCategoryId", "SubSubCategoryId",
+            "ServiceName", "ServiceCode", "DoctorId",
+            "Rate", "Qty", "GrossAmt", "DiscPer", "DiscAmt", "NetAmt",
+            "RateListId", "IsUrgent"
+        };
+
+                // Build header from first row (OBD data is same across all rows)
+                var firstRow = dataTable.Rows[0];
+                var allColumns = dataTable.Columns.Cast<DataColumn>().Select(c => c.ColumnName).ToHashSet();
+
+                var header = allColumns
+                    .Where(col => obdColumns.Contains(col))
+                    .ToDictionary(
+                        col => col,
+                        col => firstRow[col] == DBNull.Value ? null : firstRow[col]
+                    );
+
+                // Build items array (OBID data — one per row)
+                var items = dataTable.AsEnumerable().Select(row =>
+                    allColumns
+                        .Where(col => obidColumns.Contains(col))
+                        .ToDictionary(
+                            col => col,
+                            col => row[col] == DBNull.Value ? null : row[col]
+                        )
+                ).ToList();
+
+                var response = new Dictionary<string, object>(header)
+                {
+                    ["bookingItems"] = items
+                };
+
+                _log.Info($"OPD booking details retrieved for BookingId={bookingId}. Items={items.Count}");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(response, alert1.Type, $"Booking details retrieved with {items.Count} item(s)", 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
     }
 }

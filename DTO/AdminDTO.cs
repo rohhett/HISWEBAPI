@@ -494,21 +494,7 @@ namespace HISWEBAPI.DTO
         [StringLength(20)]
         public string FYStartFrom { get; set; }
 
-        [Required(ErrorMessage = "Default country is required")]
-        public int DefaultCountryId { get; set; }
-
-        [Required(ErrorMessage = "Default state is required")]
-        public int DefaultStateId { get; set; }
-
-        [Required(ErrorMessage = "Default district is required")]
-        public int DefaultDistrictId { get; set; }
-
-        [Required(ErrorMessage = "Default city is required")]
-        public int DefaultCityId { get; set; }
-
-        public int DefaultInsuranceCompanyId { get; set; }
-
-        public int DefaultCorporateId { get; set; }
+      
     }
 
     public class BranchMasterResponse
@@ -1006,6 +992,7 @@ namespace HISWEBAPI.DTO
         [Required(ErrorMessage = "IsActive is required")]
         [Range(0, 1, ErrorMessage = "IsActive must be 0 or 1")]
         public int IsActive { get; set; }
+        public int ImportFromRateListId { get; set; } = 0;
     }
 
     public class TariffMasterRequest
@@ -1126,15 +1113,9 @@ namespace HISWEBAPI.DTO
         [StringLength(100, ErrorMessage = "Active payment modes cannot exceed 100 characters")]
         public string ActivePaymentModes { get; set; }
 
-        [Required(ErrorMessage = "Active Branches is required")]
-        [StringLength(100, ErrorMessage = "Active branches cannot exceed 100 characters")]
-        public string ActiveBranches { get; set; }
+     
 
-        [Required(ErrorMessage = "Rate List Id OPD is required")]
-        public string RateListIdOPD { get; set; }
-
-        [Required(ErrorMessage = "Rate List Id IPD is required")]
-        public string RateListIdIPD { get; set; }
+      
     }
 
     public class CorporateMasterResponse
@@ -1308,6 +1289,8 @@ namespace HISWEBAPI.DTO
 
         [StringLength(50, ErrorMessage = "SNOMED Code cannot exceed 50 characters")]
         public string? SNOMEDCode { get; set; }
+        public int IsRequiredSeparatePerformingDoctor { get; set; } = 0;
+        public string? DoctorDepartmentIds { get; set; }
         public int? OPDConsultationTypeId  { get; set; }
         public string? OPDConsultationType { get; set; }
         public int? IsOnlineConsultationAllow  { get; set; }
@@ -1499,6 +1482,160 @@ namespace HISWEBAPI.DTO
     {
         [Required(ErrorMessage = "TabId is required")]
         public int TabId { get; set; }
+    }
+
+
+    public class CreateUpdateApprovalAuthorityMasterRequest
+    {
+        public int Id { get; set; } = 0;
+
+        [Required(ErrorMessage = "BranchId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "BranchId must be greater than 0")]
+        public int BranchId { get; set; }
+
+        [Required(ErrorMessage = "ApprovalFlowId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "ApprovalFlowId must be greater than 0")]
+        public int ApprovalFlowId { get; set; }
+
+        [Required(ErrorMessage = "ApprovalFlow is required")]
+        [StringLength(100, ErrorMessage = "ApprovalFlow cannot exceed 100 characters")]
+        public string ApprovalFlow { get; set; }
+
+        [Required(ErrorMessage = "IsAllApprovalRequired is required")]
+        [Range(0, 1, ErrorMessage = "IsAllApprovalRequired must be 0 or 1")]
+        public int IsAllApprovalRequired { get; set; }
+
+        [Required(ErrorMessage = "ApprovalTypeId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "ApprovalTypeId must be greater than 0")]
+        public int ApprovalTypeId { get; set; }
+
+        [Required(ErrorMessage = "ApprovalType is required")]
+        [StringLength(100, ErrorMessage = "ApprovalType cannot exceed 100 characters")]
+        public string ApprovalType { get; set; }
+
+        public int RoleId { get; set; } = 0;
+
+        [Required(ErrorMessage = "ApprovalLevelId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "ApprovalLevelId must be greater than 0")]
+        public int ApprovalLevelId { get; set; }
+
+        [Required(ErrorMessage = "ApprovalLevel is required")]
+        [StringLength(100, ErrorMessage = "ApprovalLevel cannot exceed 100 characters")]
+        public string ApprovalLevel { get; set; }
+
+        [Required(ErrorMessage = "Level1UserId is required")]
+        public string Level1UserId { get; set; }
+        public string Level2UserId { get; set; }
+        public string Level3UserId { get; set; }
+        public string Level4UserId { get; set; }
+
+        public decimal AmountUpTo { get; set; } = 0;
+
+        [Required(ErrorMessage = "IsActive is required")]
+        [Range(0, 1, ErrorMessage = "IsActive must be 0 or 1")]
+        public int IsActive { get; set; }
+    }
+
+    public class CreateUpdateApprovalAuthorityMasterResponse
+    {
+        public long Id { get; set; }
+    }
+
+
+
+    // ─── Branch Corporate Ratelist Mapping ───────────────────────────────────────
+
+    public class BranchCorporateRatelistMappingItem
+    {
+        [Required(ErrorMessage = "RateListIdOPD is required")]
+        public string RateListIdOPD { get; set; }
+
+        [Required(ErrorMessage = "RateListIdIPD is required")]
+        public string RateListIdIPD { get; set; }
+    }
+
+    public class SaveBranchCorporateRatelistMappingRequest
+    {
+        [Required(ErrorMessage = "BranchId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "BranchId must be greater than 0")]
+        public int BranchId { get; set; }
+
+        [Required(ErrorMessage = "CorporateId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "CorporateId must be greater than 0")]
+        public int CorporateId { get; set; }
+
+        /// <summary>
+        /// List of ratelist mappings to insert after deactivating existing ones.
+        /// Pass empty list to just deactivate existing mappings.
+        /// </summary>
+        [Required(ErrorMessage = "Mappings list is required")]
+        public List<BranchCorporateRatelistMappingItem> Mappings { get; set; } = new();
+    }
+
+    // ─── Branch Corporate Wise Service Exclusion Mapping ─────────────────────────
+
+    public class SaveBranchCorporateServiceExclusionRequest
+    {
+        [Required(ErrorMessage = "BranchId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "BranchId must be greater than 0")]
+        public int BranchId { get; set; }
+
+        [Required(ErrorMessage = "CorporateId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "CorporateId must be greater than 0")]
+        public int CorporateId { get; set; }
+
+        /// <summary>
+        /// List of ServiceItemIds to exclude. Pass empty list to just deactivate existing exclusions.
+        /// </summary>
+        [Required(ErrorMessage = "ServiceItemIds list is required")]
+        public List<int> ServiceItemIds { get; set; } = new();
+    }
+
+    // ─── Branch Right Mapping ─────────────────────────────────────────────────────
+
+    public class SaveBranchRightMappingRequest
+    {
+        [Required(ErrorMessage = "BranchId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "BranchId must be greater than 0")]
+        public int BranchId { get; set; }
+
+        /// <summary>
+        /// List of BranchRightIds to map. Pass empty list to just delete existing mappings.
+        /// </summary>
+        [Required(ErrorMessage = "BranchRightIds list is required")]
+        public List<int> BranchRightIds { get; set; } = new();
+    }
+
+
+    public class UpdateDefaultBranchSettingRequest
+    {
+        [Required(ErrorMessage = "BranchId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "BranchId must be greater than 0")]
+        public int BranchId { get; set; }
+
+        [Required(ErrorMessage = "DefaultCountryId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "DefaultCountryId must be greater than 0")]
+        public int DefaultCountryId { get; set; }
+
+        [Required(ErrorMessage = "DefaultStateId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "DefaultStateId must be greater than 0")]
+        public int DefaultStateId { get; set; }
+
+        [Required(ErrorMessage = "DefaultDistrictId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "DefaultDistrictId must be greater than 0")]
+        public int DefaultDistrictId { get; set; }
+
+        [Required(ErrorMessage = "DefaultCityId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "DefaultCityId must be greater than 0")]
+        public int DefaultCityId { get; set; }
+
+        [Required(ErrorMessage = "DefaultInsuranceCompanyId is required")]
+        [Range(0, int.MaxValue, ErrorMessage = "DefaultInsuranceCompanyId must be greater than or equal to 0")]
+        public int DefaultInsuranceCompanyId { get; set; }
+
+        [Required(ErrorMessage = "DefaultCorporateId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "DefaultCorporateId must be greater than 0")]
+        public int DefaultCorporateId { get; set; }
     }
 
 }

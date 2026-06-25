@@ -86,38 +86,22 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<CorporateMasterResponse> CreateUpdateCorporateMaster(CorporateMasterRequest request, AllGlobalValues globalValues);
         ServiceResult<IEnumerable<CorporateMasterDetailModel>> GetCorporateMasterList(int? corporateId = null, string corporateName = null, int? insuranceCompanyId = null, string insuranceCompanyName = null, int? isActive = null);
         ServiceResult<string> UpdateCorporateMasterStatus(int corporateId, int isActive, AllGlobalValues globalValues);
-
         ServiceResult<DiscountApprovalMasterResponse> CreateUpdateDiscountApprovalMaster(DiscountApprovalMasterRequest request, AllGlobalValues globalValues);
         ServiceResult<IEnumerable<DiscountApprovalMasterModel>> GetDiscountApprovalMasterList(string name = null, int? isActive = null);
         ServiceResult<object> SaveUserwiseDiscountMaster(List<UserwiseDiscountMasterRequest> request, AllGlobalValues globalValues);
         ServiceResult<object> GetUserwiseDiscountMaster();
-
-        // Doctor Header Master
-        ServiceResult<CreateUpdateDoctorHeaderResponse> CreateUpdateDoctorHeader(
-            CreateUpdateDoctorHeaderRequest request,
-            AllGlobalValues globalValues);
-
+        ServiceResult<CreateUpdateDoctorHeaderResponse> CreateUpdateDoctorHeader( CreateUpdateDoctorHeaderRequest request, AllGlobalValues globalValues);
         ServiceResult<IEnumerable<DoctorHeaderMasterModel>> GetAllDoctorHeaderMaster(int? headerId = null);
-
         ServiceResult<IEnumerable<DoctorHeaderLOVModel>> GetDoctorHeaderLOVs(int headerId);
-
-        ServiceResult<IEnumerable<DoctorHeaderMappingModel>> GetDoctorHeaderMappingForMaster(
-            int typeId,
-            int relatedToId);
-
-        ServiceResult<string> SaveDoctorHeaderDepartmentMapping(
-            SaveDoctorHeaderMappingRequest request,
-            AllGlobalValues globalValues);
-
+        ServiceResult<IEnumerable<DoctorHeaderMappingModel>> GetDoctorHeaderMappingForMaster( int typeId, int relatedToId);
+        ServiceResult<string> SaveDoctorHeaderDepartmentMapping(SaveDoctorHeaderMappingRequest request, AllGlobalValues globalValues);
         ServiceResult<object> CreateUpdateServiceItemMaster(CreateUpdateServiceItemMasterRequest request, AllGlobalValues globalValues);
         ServiceResult<object> CreateUpdatePrintGroupMaster(CreateUpdatePrintGroupMasterRequest request, AllGlobalValues globalValues);
         ServiceResult<object> GetPrintGroupMaster(int? printGroupId);
         ServiceResult<object> CreateUpdateWardNameMaster(CreateUpdateWardNameMasterRequest request, AllGlobalValues globalValues);
         ServiceResult<object> GetWardNameMaster(int? wardNameId);
-
         ServiceResult<CreateUpdateBlockMasterResponse> CreateUpdateBlockMaster(CreateUpdateBlockMasterRequest request, AllGlobalValues globalValues);
         ServiceResult<IEnumerable<BlockMasterModel>> GetBlockList(int? BlockId = null);
-
         ServiceResult<CreateUpdateFloorMasterResponse> CreateUpdateFloorMaster(CreateUpdateFloorMasterRequest request, AllGlobalValues globalValues);
         ServiceResult<IEnumerable<FloorMasterModel>> GetFloorList(int? floorId = null);
         ServiceResult<CreateUpdateBedMasterResponse> CreateUpdateBedMaster(CreateUpdateBedMasterRequest request, AllGlobalValues globalValues);
@@ -126,15 +110,23 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<object> GetTabGroupTypeMaster(int? groupTypeId, int? isActive);
         ServiceResult<object> CreateUpdateIPDTabMaster(CreateUpdateIPDTabMasterRequest request, AllGlobalValues globalValues);
         ServiceResult<object> GetIPDTabMaster(int? tabId, int? groupTypeId, int? tabTypeId, int? roomTypeId,string tabName, int? isActive);
-
         ServiceResult<string> SaveUpdateRoleWiseIPDTabMapping(SaveRoleWiseIPDTabMappingRequest request, AllGlobalValues globalValues);
         ServiceResult<IEnumerable<Dictionary<string, object>>> GetRoleWiseIPDTabListMaster(int roleId);
-
         ServiceResult<string> SaveUpdateUserIPDTabMapping(SaveUserIPDTabMappingRequest request, AllGlobalValues globalValues);
         ServiceResult<IEnumerable<Dictionary<string, object>>> GetUserGrantedRemainingTabMaster(int branchId, int typeId, int userId, int roleId);
-
-
-
+        ServiceResult<CreateUpdateApprovalAuthorityMasterResponse> CreateUpdateApprovalAuthorityMaster(CreateUpdateApprovalAuthorityMasterRequest request,AllGlobalValues globalValues);
+        ServiceResult<object> GetApprovalAuthorityMasterList(int approvalTypeId);
+        ServiceResult<string> UpdateApprovalAuthorityMasterStatus(int id, AllGlobalValues globalValues);
+        // Branch Corporate Ratelist Mapping
+        ServiceResult<object> SaveBranchCorporateRatelistMapping(SaveBranchCorporateRatelistMappingRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetBranchCorporateRatelistMapping(int? branchId = null, int? corporateId = null);
+        // Branch Corporate Service Exclusion Mapping
+        ServiceResult<object> SaveBranchCorporateServiceExclusionMapping(SaveBranchCorporateServiceExclusionRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetBranchCorporateServiceExclusionMapping(int? branchId = null, int? corporateId = null);
+        // Branch Right Mapping
+        ServiceResult<object> SaveBranchRightMapping(SaveBranchRightMappingRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetBranchRightMapping(int branchId);
+        ServiceResult<string> UpdateDefaultBranchSetting(UpdateDefaultBranchSettingRequest request, AllGlobalValues globalValues);
 
     }
 }

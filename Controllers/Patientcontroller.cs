@@ -290,6 +290,7 @@ namespace HISWEBAPI.Controllers
         [HttpGet("getServiceAllDetailsForOPDBilling")]
         [Authorize]
         public IActionResult GetServiceAllDetailsForOPDBilling(
+           [FromQuery] int branchId,
            [FromQuery] int corporateId,
            [FromQuery] int doctorId,
            [FromQuery] int serviceItemId,
@@ -303,6 +304,7 @@ namespace HISWEBAPI.Controllers
             // Validate all required params must be > 0
             var validationErrors = new Dictionary<string, int>();
 
+            if (branchId <= 0) validationErrors["branchId"] = branchId;
             if (corporateId <= 0) validationErrors["corporateId"] = corporateId;
             if (doctorId <= 0) validationErrors["doctorId"] = doctorId;
             if (serviceItemId <= 0) validationErrors["serviceItemId"] = serviceItemId;
@@ -324,7 +326,7 @@ namespace HISWEBAPI.Controllers
             }
 
             var serviceResult = _patientRepository.GetServiceAllDetailsForOPDBilling(
-                corporateId, doctorId, serviceItemId, categoryId, subCategoryId, subSubCategoryId, bedTypeId);
+                branchId,corporateId, doctorId, serviceItemId, categoryId, subCategoryId, subSubCategoryId, bedTypeId);
 
             if (serviceResult.Result)
                 _log.Info($"Service billing details fetched successfully: {serviceResult.Message}");
@@ -1496,6 +1498,185 @@ namespace HISWEBAPI.Controllers
                 data = serviceResult.Data
             });
         }
+
+        [HttpPost("saveOPDBooking")]
+        [Authorize]
+        public IActionResult SaveOPDBooking([FromBody] SaveOPDBookingRequest request)
+        {
+            _log.Info($"SaveOPDBooking called. PatientId={request?.VisitDetails?.PatientId}, BranchId={request?.VisitDetails?.BranchId}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SaveOPDBooking.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            // Additional validation
+            if (request.BillingItems == null || request.BillingItems.Count == 0)
+            {
+                _log.Warn("No billing items provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "At least one billing item is required",
+                    errors = new[] { "BillingItems cannot be empty" }
+                });
+            }
+
+            if (request.VisitDetails.PatientId <= 0)
+            {
+                _log.Warn("Invalid PatientId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "PatientId must be greater than 0",
+                    errors = new { patientId = request.VisitDetails.PatientId }
+                });
+            }
+
+            if (request.VisitDetails.BranchId <= 0)
+            {
+                _log.Warn("Invalid BranchId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BranchId must be greater than 0",
+                    errors = new { branchId = request.VisitDetails.BranchId }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.SaveOPDBooking(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"SaveOPDBooking succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"SaveOPDBooking failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+
+        [HttpGet("getOPDBookingDetailsForPaymentCollection")]
+        [Authorize]
+        public IActionResult GetOPDBookingDetailsForPaymentCollection(
+    [FromQuery] string fromDate,
+    [FromQuery] string toDate)
+        {
+            _log.Info($"GetOPDBookingDetailsForPaymentCollection called. FromDate={fromDate}, ToDate={toDate}");
+
+            if (string.IsNullOrWhiteSpace(fromDate))
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "FromDate is required" });
+            }
+
+            if (string.IsNullOrWhiteSpace(toDate))
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "ToDate is required" });
+            }
+
+            var serviceResult = _patientRepository.GetOPDBookingDetailsForPaymentCollection(fromDate, toDate);
+
+            if (serviceResult.Result)
+                _log.Info($"OPD booking details for payment collection fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"OPD booking details for payment collection fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getOPDBookingDetailsForDiscountApproval")]
+        [Authorize]
+        public IActionResult GetOPDBookingDetailsForDiscountApproval(
+            [FromQuery] string fromDate,
+            [FromQuery] string toDate)
+        {
+            _log.Info($"GetOPDBookingDetailsForDiscountApproval called. FromDate={fromDate}, ToDate={toDate}");
+
+            if (string.IsNullOrWhiteSpace(fromDate))
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "FromDate is required" });
+            }
+
+            if (string.IsNullOrWhiteSpace(toDate))
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "ToDate is required" });
+            }
+
+            var serviceResult = _patientRepository.GetOPDBookingDetailsForDiscountApproval(fromDate, toDate);
+
+            if (serviceResult.Result)
+                _log.Info($"OPD booking details for discount approval fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"OPD booking details for discount approval fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getOPDBookingDetailsByBookingId")]
+        [Authorize]
+        public IActionResult GetOPDBookingDetailsByBookingId([FromQuery] int bookingId)
+        {
+            _log.Info($"GetOPDBookingDetailsByBookingId called. BookingId={bookingId}");
+
+            if (bookingId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "BookingId must be greater than 0" });
+            }
+
+            var serviceResult = _patientRepository.GetOPDBookingDetailsByBookingId(bookingId);
+
+            if (serviceResult.Result)
+                _log.Info($"OPD booking details by BookingId fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"OPD booking details by BookingId fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+
 
     }
 }

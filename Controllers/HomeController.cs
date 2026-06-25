@@ -477,7 +477,57 @@ namespace HISWEBAPI.Controllers
             });
         }
 
+        [HttpGet("getCorporateListByBranchIdAndInsuranceCompanyId")]
+        [Authorize]
+        public IActionResult GetCorporateListByBranchIdAndInsuranceCompanyId(
+           [FromQuery] int? branchId,
+           [FromQuery] int? insuranceCompanyId
+           )
+        {
+            _log.Info($"GetCorporateListByInsuranceCompanyId API called. InsuranceCompanyId={insuranceCompanyId?.ToString() ?? "All"}");
 
+            if (branchId == null || branchId <= 0)
+            {
+                _log.Warn("Invalid branchId supplied.");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = "ERROR",
+                    message = "branchId is mandatory and must be greater than 0.",
+                    data = ""
+                });
+            }
+
+            if (insuranceCompanyId == null || insuranceCompanyId < 0)
+            {
+                _log.Warn("Invalid insuranceCompanyId supplied.");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = "ERROR",
+                    message = "insuranceCompanyId is mandatory and must be greater than equal to 0.",
+                    data = ""
+                });
+            }
+
+            var serviceResult = _homeRepository.GetCorporateListByBranchIdAndInsuranceCompanyId(
+                branchId,
+                insuranceCompanyId
+                );
+
+            if (serviceResult.Result)
+                _log.Info($"Corporates fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"No corporates found: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
 
         [HttpGet("getFile")]
         [Authorize] 
@@ -586,13 +636,13 @@ namespace HISWEBAPI.Controllers
         [HttpGet("getDoctorMasterListByBranchId")]
         [Authorize]
         public IActionResult GetDoctorMasterListByBranchId(
-      [FromQuery] int branchId,
-      [FromQuery] int? departmentId = null,
-      [FromQuery] int? specializationId = null,
-      [FromQuery] int? canApproveLabReport = null,
-      [FromQuery] byte? isDoctorUnit = null)
+           [FromQuery] int branchId,
+           [FromQuery] string departmentId = null,
+           [FromQuery] string specializationId = null,
+           [FromQuery] int? canApproveLabReport = null,
+           [FromQuery] byte? isDoctorUnit = null)
         {
-            _log.Info($"GetDoctorMasterListByBranchId called. BranchId={branchId}, DepartmentId={departmentId?.ToString() ?? "All"}, SpecializationId={specializationId?.ToString() ?? "All"}, IsDoctorUnit={isDoctorUnit?.ToString() ?? "All"}");
+            _log.Info($"GetDoctorMasterListByBranchId called. BranchId={branchId}, DepartmentId={departmentId ?? "All"}, SpecializationId={specializationId ?? "All"}, CanApproveLabReport={canApproveLabReport?.ToString() ?? "All"}, IsDoctorUnit={isDoctorUnit?.ToString() ?? "All"}");
 
             if (branchId <= 0)
             {
@@ -605,6 +655,42 @@ namespace HISWEBAPI.Controllers
                     message = "BranchId must be greater than 0",
                     errors = new { branchId }
                 });
+            }
+
+            // Validate departmentId format if provided
+            if (!string.IsNullOrWhiteSpace(departmentId))
+            {
+                var parts = departmentId.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Any(p => !int.TryParse(p.Trim(), out _)))
+                {
+                    _log.Warn($"Invalid DepartmentId format: {departmentId}");
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "DepartmentId must be a comma-separated list of integers (e.g. 1,2,3)",
+                        errors = new { departmentId }
+                    });
+                }
+            }
+
+            // Validate specializationId format if provided
+            if (!string.IsNullOrWhiteSpace(specializationId))
+            {
+                var parts = specializationId.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Any(p => !int.TryParse(p.Trim(), out _)))
+                {
+                    _log.Warn($"Invalid SpecializationId format: {specializationId}");
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "SpecializationId must be a comma-separated list of integers (e.g. 1,2,3)",
+                        errors = new { specializationId }
+                    });
+                }
             }
 
             var serviceResult = _homeRepository.GetDoctorMasterListByBranchId(
@@ -1216,6 +1302,41 @@ namespace HISWEBAPI.Controllers
                 _log.Info($"Billing tabs fetched successfully: {serviceResult.Message}");
             else
                 _log.Warn($"No billing tabs found: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getAssignBranchRight")]
+        [Authorize]
+        public IActionResult GetAssignBranchRight([FromQuery] int branchId)
+        {
+            _log.Info($"GetAssignBranchRight called. BranchId={branchId}");
+
+            if (branchId <= 0)
+            {
+                _log.Warn("Invalid BranchId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BranchId must be greater than 0",
+                    errors = new { branchId }
+                });
+            }
+
+            var serviceResult = _homeRepository.GetAssignBranchRight(branchId);
+
+            if (serviceResult.Result)
+                _log.Info($"GetAssignBranchRight fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetAssignBranchRight fetch failed: {serviceResult.Message}");
 
             return StatusCode(serviceResult.StatusCode, new
             {

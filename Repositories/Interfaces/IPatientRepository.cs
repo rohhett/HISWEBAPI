@@ -26,7 +26,7 @@ namespace HISWEBAPI.Repositories.Interfaces
             string? registrationDate = null,
             string? ipdNo = null,
             int? branchId = null);
-        ServiceResult<ServiceBillingDetailsModel> GetServiceAllDetailsForOPDBilling(int corporateId, int doctorId, int serviceItemId, int categoryId, int subCategoryId, int subSubCategoryId, int bedTypeId);
+        ServiceResult<ServiceBillingDetailsModel> GetServiceAllDetailsForOPDBilling(int branchId,int corporateId, int doctorId, int serviceItemId, int categoryId, int subCategoryId, int subSubCategoryId, int bedTypeId);
         ServiceResult<SaveOPDBillingResponse> SaveOPDBilling(SaveOPDBillingRequest request, AllGlobalValues globalValues);
         ServiceResult<IEnumerable<PackageAllDetailsModel>> GetPackageAllDetails(int packageId);
         ServiceResult<object> GetReceiptDetailsByFTID(int ftid, int isReceipt, int receiptId, AllGlobalValues globalValues);
@@ -50,6 +50,11 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<object> SearchIPDPatient(SearchIPDPatientRequest request, AllGlobalValues globalValues);
         ServiceResult<string> UploadVisitWisePatientDocument(UploadVisitWisePatientDocumentRequest request, AllGlobalValues globalValues);
         ServiceResult<object> GetVisitWisePatientDocumentMapping(int documentCategoryId, int visitId, int patientId);
+        ServiceResult<SaveOPDBookingResponse> SaveOPDBooking(SaveOPDBookingRequest request, AllGlobalValues globalValues);
+
+        ServiceResult<object> GetOPDBookingDetailsForPaymentCollection(string fromDate, string toDate);
+        ServiceResult<object> GetOPDBookingDetailsForDiscountApproval(string fromDate, string toDate);
+        ServiceResult<object> GetOPDBookingDetailsByBookingId(int bookingId);
 
 
     }

@@ -71,6 +71,16 @@ namespace HISWEBAPI.DTO
         public int IsActive { get; set; }
     }
 
+    public class CorporateBranchMappingModel
+    {
+        public int BranchId { get; set; }
+        public int InsuranceCompanyId { get; set; }
+        public int CorporateId { get; set; }
+        public string CorporateName { get; set; }
+        public string PaymentType { get; set; }
+        public int PaymentTypeId { get; set; }
+    }
+
     public class GetCorporateListRequest
     {
        

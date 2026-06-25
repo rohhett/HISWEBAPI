@@ -19,10 +19,17 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<LocationByPincodeModel> GetLocationByPincode(int pincode);
         ServiceResult<IEnumerable<InsuranceCompanyModel>> GetAllInsuranceCompanyList();
         ServiceResult<IEnumerable<CorporateModel>> GetCorporateListByInsuranceCompanyId(int? insuranceCompanyId, int? isActive);
+        ServiceResult<IEnumerable<CorporateBranchMappingModel>> GetCorporateListByBranchIdAndInsuranceCompanyId(int? branchId, int? insuranceCompanyId);
+
         ServiceResult<DTO.FileStreamResult> GetFile(string filePath);
         ServiceResult<FileBase64Result> GetFileAsBase64(string filePath);
         ServiceResult<FileExistsResult> CheckFileExists(string filePath);
-        ServiceResult<IEnumerable<DoctorMasterModel>> GetDoctorMasterListByBranchId(int branchId,int? departmentId = null, int? specializationId = null, int? canApproveLabReport = null, byte? isDoctorUnit = null);
+        ServiceResult<IEnumerable<DoctorMasterModel>> GetDoctorMasterListByBranchId(
+            int branchId,
+            string departmentId = null,
+            string specializationId = null,
+            int? canApproveLabReport = null,
+            byte? isDoctorUnit = null);
         ServiceResult<IEnumerable<CategoryTypeModel>> GetCategoryTypeList(string categoryTypeIds);
         ServiceResult<IEnumerable<CategoryModel>> GetCategoryList(string categoryIds, string categoryTypeIds);
         ServiceResult<CreateUpdateCategoryResponse> CreateUpdateCategory(CreateUpdateCategoryRequest request, AllGlobalValues globalValues);
@@ -40,5 +47,7 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<object> GetBedTypes(int branchId, int roomTypeId);
         ServiceResult<object> GetAvailableBeds(int branchId, int typeId);
         ServiceResult<object> GetBillingTabs(int branchId, int roleId, int tabTypeId, int roomServiceItemId, AllGlobalValues globalValues);
+        ServiceResult<object> GetAssignBranchRight(int branchId);
+
     }
 }

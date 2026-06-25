@@ -21,6 +21,7 @@ namespace HISWEBAPI.Domain
         public int IsBloodBankReturn { get; set; }
         public int IsExpenseReceipt { get; set; }
         public int IsAdvanceReceipt { get; set; }
+        public int IsCopaymentReceipt { get; set; }
         public int ExpenseId { get; set; }
         public int IsCorporateReceipt { get; set; }
         public string Remarks { get; set; }
@@ -48,6 +49,7 @@ namespace HISWEBAPI.Domain
                 @isBloodBankReturn = IsBloodBankReturn,
                 @isExpenseReceipt = IsExpenseReceipt,
                 @isAdvanceReceipt = IsAdvanceReceipt,
+                @isCopaymentReceipt = IsCopaymentReceipt,
                 @expenseId = ExpenseId,
                 @isCorporateReceipt = IsCorporateReceipt,
                 @remarks = Remarks,

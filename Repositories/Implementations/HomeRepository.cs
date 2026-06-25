@@ -951,6 +951,114 @@ namespace HISWEBAPI.Repositories.Implementations
         }
 
 
+        public ServiceResult<IEnumerable<CorporateBranchMappingModel>> GetCorporateListByBranchIdAndInsuranceCompanyId(int? branchId, int? insuranceCompanyId)
+        {
+            try
+            {
+
+                // Define cache key - cache ALL corporates together
+                string cacheKey = "_BranchWiseCorporate_All";
+
+                // Try to get all corporates from Redis cache
+                var cachedData = _distributedCache.GetString(cacheKey);
+                List<CorporateBranchMappingModel> allCorporates;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"Corporate data retrieved from cache. Key={cacheKey}");
+                    allCorporates = System.Text.Json.JsonSerializer.Deserialize<List<CorporateBranchMappingModel>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"Corporate cache miss. Fetching all data from database. Key={cacheKey}");
+
+                    // Fetch ALL corporates from database (no filtering in SP call)
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_GetBranchMappingWiseCorporateList",
+                        CommandType.StoredProcedure,
+                        new
+                        {
+
+                        }
+                    );
+
+                    allCorporates = dataTable?.AsEnumerable().Select(row => new CorporateBranchMappingModel
+                    {
+                        CorporateId = row.Field<int>("CorporateId"),
+                        CorporateName = row.Field<string>("CorporateName") ?? string.Empty,
+                        BranchId = row.Field<int>("BranchId"),
+                        InsuranceCompanyId = row.Field<int>("InsuranceCompanyId"),
+                        PaymentType = row.Field<string>("PaymentType") ?? string.Empty,
+                        PaymentTypeId = row.Field<int>("PaymentTypeId"),
+                    }).ToList() ?? new List<CorporateBranchMappingModel>();
+
+                    // Store ALL corporates in cache (no expiration)
+                    if (allCorporates.Any())
+                    {
+                        var serialized = System.Text.Json.JsonSerializer.Serialize(allCorporates);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            // No expiration - cache persists until manually cleared
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                        _log.Info($"All Corporate data cached permanently. Key={cacheKey}, Count={allCorporates.Count}");
+                    }
+                }
+
+                // Filter in memory based on parameters (always from cache)
+                List<CorporateBranchMappingModel> filteredCorporates = allCorporates;
+
+                if (branchId.HasValue)
+                {
+                    _log.Info($"Filtering cached data by branchId: {branchId.Value}");
+                    filteredCorporates = filteredCorporates.Where(c => c.BranchId == branchId.Value).ToList();
+                }
+
+                if (insuranceCompanyId.HasValue)
+                {
+                    _log.Info($"Filtering cached data by InsuranceCompanyId: {insuranceCompanyId.Value}");
+                    filteredCorporates = filteredCorporates.Where(c => c.InsuranceCompanyId == insuranceCompanyId.Value).ToList();
+                }
+
+              
+
+                if (!filteredCorporates.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No corporates found for InsuranceCompanyId={insuranceCompanyId?.ToString() ?? "All"}");
+
+                    return ServiceResult<IEnumerable<CorporateBranchMappingModel>>.Failure(
+                        alert.Type,
+                        alert.Message,
+                        404
+                    );
+                }
+
+                _log.Info($"Retrieved {filteredCorporates.Count} corporates from cache");
+
+                return ServiceResult<IEnumerable<CorporateBranchMappingModel>>.Success(
+                    filteredCorporates,
+                    "Info",
+                    $"{filteredCorporates.Count} corporate(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<IEnumerable<CorporateBranchMappingModel>>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+
+
         public ServiceResult<FileStreamResult> GetFile(string filePath)
         {
             try
@@ -1248,17 +1356,16 @@ namespace HISWEBAPI.Repositories.Implementations
         }
 
         public ServiceResult<IEnumerable<DoctorMasterModel>> GetDoctorMasterListByBranchId(
-       int branchId,
-       int? departmentId = null,
-       int? specializationId = null,
-       int? canApproveLabReport = null,
-       byte? isDoctorUnit = null)
+      int branchId,
+      string departmentId = null,
+      string specializationId = null,
+      int? canApproveLabReport = null,
+      byte? isDoctorUnit = null)
         {
             try
             {
-                _log.Info($"GetDoctorMasterListByBranchId called. BranchId={branchId}, DepartmentId={departmentId?.ToString() ?? "All"}, SpecializationId={specializationId?.ToString() ?? "All"}, IsDoctorUnit={isDoctorUnit?.ToString() ?? "All"}");
+                _log.Info($"GetDoctorMasterListByBranchId called. BranchId={branchId}, DepartmentId={departmentId ?? "All"}, SpecializationId={specializationId ?? "All"}, CanApproveLabReport={canApproveLabReport?.ToString() ?? "All"}, IsDoctorUnit={isDoctorUnit?.ToString() ?? "All"}");
 
-                // Validate branchId
                 if (branchId <= 0)
                 {
                     _log.Warn("Invalid BranchId provided.");
@@ -1270,10 +1377,32 @@ namespace HISWEBAPI.Repositories.Implementations
                     );
                 }
 
-                // Generate dynamic cache key based on branchId ONLY (cache all doctors for this branch)
-                string cacheKey = $"_DoctorMaster_Branch{branchId}";
+                // Parse comma-separated departmentId and specializationId into HashSets for fast lookup
+                HashSet<int> departmentIds = null;
+                if (!string.IsNullOrWhiteSpace(departmentId))
+                {
+                    departmentIds = new HashSet<int>(
+                        departmentId.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                            .Select(x => x.Trim())
+                            .Where(x => int.TryParse(x, out _))
+                            .Select(int.Parse)
+                    );
+                    _log.Info($"Parsed DepartmentIds: {string.Join(",", departmentIds)}");
+                }
 
-                // Try to get data from Redis cache
+                HashSet<int> specializationIds = null;
+                if (!string.IsNullOrWhiteSpace(specializationId))
+                {
+                    specializationIds = new HashSet<int>(
+                        specializationId.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                            .Select(x => x.Trim())
+                            .Where(x => int.TryParse(x, out _))
+                            .Select(int.Parse)
+                    );
+                    _log.Info($"Parsed SpecializationIds: {string.Join(",", specializationIds)}");
+                }
+
+                string cacheKey = $"_DoctorMaster_Branch{branchId}";
                 var cachedData = _distributedCache.GetString(cacheKey);
                 List<DoctorMasterModel> allDoctors;
 
@@ -1286,7 +1415,6 @@ namespace HISWEBAPI.Repositories.Implementations
                 {
                     _log.Info($"DoctorMaster cache miss. Fetching ALL data from database for BranchId={branchId}. Key={cacheKey}");
 
-                    // Fetch ALL doctors for this branch from database (no filtering in SP call)
                     var dataTable = _sqlHelper.GetDataTable(
                         "S_getDoctorMasterListByBranchId",
                         CommandType.StoredProcedure,
@@ -1303,7 +1431,6 @@ namespace HISWEBAPI.Repositories.Implementations
                         IsDoctorUnit = row.Field<byte>("IsDoctorUnit")
                     }).ToList() ?? new List<DoctorMasterModel>();
 
-                    // Store ALL doctors for this branch in Redis cache (permanent until manually cleared)
                     if (allDoctors.Any())
                     {
                         var serialized = System.Text.Json.JsonSerializer.Serialize(allDoctors);
@@ -1317,19 +1444,19 @@ namespace HISWEBAPI.Repositories.Implementations
                     }
                 }
 
-                // Filter in memory based on optional parameters (always from cache)
+                // Filter in memory
                 List<DoctorMasterModel> filteredDoctors = allDoctors;
 
-                if (departmentId.HasValue)
+                if (departmentIds != null && departmentIds.Any())
                 {
-                    _log.Info($"Filtering cached data by DepartmentId: {departmentId.Value}");
-                    filteredDoctors = filteredDoctors.Where(d => d.DepartmentId == departmentId.Value).ToList();
+                    _log.Info($"Filtering cached data by DepartmentIds: {string.Join(",", departmentIds)}");
+                    filteredDoctors = filteredDoctors.Where(d => departmentIds.Contains(d.DepartmentId)).ToList();
                 }
 
-                if (specializationId.HasValue)
+                if (specializationIds != null && specializationIds.Any())
                 {
-                    _log.Info($"Filtering cached data by SpecializationId: {specializationId.Value}");
-                    filteredDoctors = filteredDoctors.Where(d => d.SpecializationId == specializationId.Value).ToList();
+                    _log.Info($"Filtering cached data by SpecializationIds: {string.Join(",", specializationIds)}");
+                    filteredDoctors = filteredDoctors.Where(d => specializationIds.Contains(d.SpecializationId)).ToList();
                 }
 
                 if (canApproveLabReport.HasValue)
@@ -1350,7 +1477,7 @@ namespace HISWEBAPI.Repositories.Implementations
                     _log.Info($"No doctors found for BranchId={branchId} with applied filters");
                     return ServiceResult<IEnumerable<DoctorMasterModel>>.Failure(
                         alert.Type,
-                        $"No doctors found for the specified criteria",
+                        "No doctors found for the specified criteria",
                         404
                     );
                 }
@@ -2042,6 +2169,8 @@ namespace HISWEBAPI.Repositories.Implementations
                         OPDConsultationTypeId = row.Field<int?>("OPDConsultationTypeId") ?? 0,
                         OPDConsultationType = row.Field<string>("OPDConsultationType") ?? string.Empty,
                         SNOMEDCode = row.Field<string>("SNOMEDCode") ?? string.Empty,
+                        DoctorDepartmentIds = row.Field<string>("DoctorDepartmentIds") ?? string.Empty,
+                        IsRequiredSeparatePerformingDoctor = row.Field<int?>("IsRequiredSeparatePerformingDoctor") ?? 0,
                         IsOnlineConsultationAllow = row.Field<int?>("isOnlineConsultationAllow") ?? 0,
                         IsTeleConsultationService = row.Field<int?>("isTeleConsultationService") ?? 0,
                     }).ToList();
@@ -2654,6 +2783,73 @@ namespace HISWEBAPI.Repositories.Implementations
                     alert.Message,
                     500
                 );
+            }
+        }
+
+
+        public ServiceResult<object> GetAssignBranchRight(int branchId)
+        {
+            try
+            {
+                _log.Info($"GetAssignBranchRight called. BranchId={branchId}");
+
+                string cacheKey = $"_AssignBranchRight_{branchId}";
+
+                var cachedData = _distributedCache.GetString(cacheKey);
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"AssignBranchRight retrieved from cache. Key={cacheKey}");
+                    return ServiceResult<object>.Success(
+                        System.Text.Json.JsonSerializer.Deserialize<object>(cachedData),
+                        "Info",
+                        "Data retrieved successfully",
+                        200
+                    );
+                }
+
+                _log.Info($"AssignBranchRight cache miss. Fetching from database. Key={cacheKey}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetBranchAccessRights",
+                    CommandType.StoredProcedure,
+                    new { @BranchId = branchId }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var notFoundAlert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    return ServiceResult<object>.Failure(notFoundAlert.Type, "No branch rights found", 404);
+                }
+
+                var rawData = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                var serialized = System.Text.Json.JsonSerializer.Serialize(rawData);
+                var cacheOptions = new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpiration = null,
+                    SlidingExpiration = null
+                };
+                _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                _log.Info($"AssignBranchRight cached permanently. Key={cacheKey}, Count={rawData.Count}");
+
+                return ServiceResult<object>.Success(
+                    rawData,
+                    "Info",
+                    $"{rawData.Count} right(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
             }
         }
 

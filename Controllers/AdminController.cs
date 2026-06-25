@@ -4723,5 +4723,491 @@ namespace HISWEBAPI.Controllers
                 data = serviceResult.Data
             });
         }
+
+        [HttpPost("createUpdateApprovalAuthorityMaster")]
+        [Authorize]
+        public IActionResult CreateUpdateApprovalAuthorityMaster(
+            [FromBody] CreateUpdateApprovalAuthorityMasterRequest request)
+        {
+            _log.Info($"CreateUpdateApprovalAuthorityMaster called. Id={request.Id}, ApprovalTypeId={request.ApprovalTypeId}, BranchId={request.BranchId}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for ApprovalAuthorityMaster insert/update.");
+                var validationAlert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = validationAlert.Type,
+                    message = validationAlert.Message,
+                    errors = ModelState
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _adminRepository.CreateUpdateApprovalAuthorityMaster(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"ApprovalAuthorityMaster operation completed: {serviceResult.Message}");
+            else
+                _log.Warn($"ApprovalAuthorityMaster operation failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getApprovalAuthorityMasterList")]
+        [Authorize]
+        public IActionResult GetApprovalAuthorityMasterList([FromQuery] int approvalTypeId)
+        {
+            _log.Info($"GetApprovalAuthorityMasterList called. ApprovalTypeId={approvalTypeId}");
+
+            if (approvalTypeId <= 0)
+            {
+                _log.Warn("Invalid ApprovalTypeId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "ApprovalTypeId must be greater than 0",
+                    errors = new { approvalTypeId }
+                });
+            }
+
+            var serviceResult = _adminRepository.GetApprovalAuthorityMasterList(approvalTypeId);
+
+            if (serviceResult.Result)
+                _log.Info($"ApprovalAuthorityMaster list fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"ApprovalAuthorityMaster list fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("updateApprovalAuthorityMasterStatus")]
+        [Authorize]
+        public IActionResult UpdateApprovalAuthorityMasterStatus([FromQuery] int id)
+        {
+            _log.Info($"UpdateApprovalAuthorityMasterStatus called. Id={id}");
+
+            if (id <= 0)
+            {
+                _log.Warn("Invalid Id provided for ApprovalAuthorityMaster status toggle.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "Id must be greater than 0",
+                    errors = new { id }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _adminRepository.UpdateApprovalAuthorityMasterStatus(id, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"ApprovalAuthorityMaster status toggled successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"ApprovalAuthorityMaster status toggle failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        #region Branch Corporate Ratelist Mapping
+
+        [HttpPost("saveBranchCorporateRatelistMapping")]
+        [Authorize]
+        public IActionResult SaveBranchCorporateRatelistMapping([FromBody] SaveBranchCorporateRatelistMappingRequest request)
+        {
+            _log.Info($"SaveBranchCorporateRatelistMapping called. BranchId={request.BranchId}, CorporateId={request.CorporateId}, Count={request.Mappings?.Count ?? 0}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SaveBranchCorporateRatelistMapping.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            // Validate all ServiceItemIds > 0 if any provided
+            if (request.Mappings != null && request.Mappings.Any())
+            {
+                var invalid = request.Mappings
+                    .Where(m => string.IsNullOrWhiteSpace(m.RateListIdOPD) || string.IsNullOrWhiteSpace(m.RateListIdIPD))
+                    .ToList();
+
+                if (invalid.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "All mapping items must have valid RateListIdOPD and RateListIdIPD values"
+                    });
+                }
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _adminRepository.SaveBranchCorporateRatelistMapping(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"SaveBranchCorporateRatelistMapping completed: {serviceResult.Message}");
+            else
+                _log.Warn($"SaveBranchCorporateRatelistMapping failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getBranchCorporateRatelistMapping")]
+        [Authorize]
+        public IActionResult GetBranchCorporateRatelistMapping(
+      [FromQuery] int? branchId = null,
+      [FromQuery] int? corporateId = null)
+        {
+            _log.Info($"GetBranchCorporateRatelistMapping called. BranchId={branchId?.ToString() ?? "All"}, CorporateId={corporateId?.ToString() ?? "All"}");
+
+            if (branchId.HasValue && branchId.Value <= 0)
+            {
+                _log.Warn("Invalid BranchId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BranchId must be greater than 0",
+                    errors = new { branchId }
+                });
+            }
+
+            if (corporateId.HasValue && corporateId.Value <= 0)
+            {
+                _log.Warn("Invalid CorporateId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "CorporateId must be greater than 0",
+                    errors = new { corporateId }
+                });
+            }
+
+            var serviceResult = _adminRepository.GetBranchCorporateRatelistMapping(branchId, corporateId);
+
+            if (serviceResult.Result)
+                _log.Info($"BranchCorporateRatelistMapping fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"BranchCorporateRatelistMapping fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        #endregion
+
+        #region Branch Corporate Wise Service Exclusion Mapping
+
+        [HttpPost("saveBranchCorporateServiceExclusionMapping")]
+        [Authorize]
+        public IActionResult SaveBranchCorporateServiceExclusionMapping([FromBody] SaveBranchCorporateServiceExclusionRequest request)
+        {
+            _log.Info($"SaveBranchCorporateServiceExclusionMapping called. BranchId={request.BranchId}, CorporateId={request.CorporateId}, Count={request.ServiceItemIds?.Count ?? 0}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SaveBranchCorporateServiceExclusionMapping.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            // Validate all ServiceItemIds > 0 if any provided
+            if (request.ServiceItemIds != null && request.ServiceItemIds.Any())
+            {
+                var invalidIds = request.ServiceItemIds.Where(id => id <= 0).ToList();
+                if (invalidIds.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "All ServiceItemIds must be greater than 0",
+                        errors = new { invalidIds }
+                    });
+                }
+
+                var duplicateIds = request.ServiceItemIds
+                    .GroupBy(x => x)
+                    .Where(g => g.Count() > 1)
+                    .Select(g => g.Key)
+                    .ToList();
+
+                if (duplicateIds.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "Duplicate ServiceItemIds are not allowed",
+                        errors = new { duplicateIds }
+                    });
+                }
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _adminRepository.SaveBranchCorporateServiceExclusionMapping(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"SaveBranchCorporateServiceExclusionMapping completed: {serviceResult.Message}");
+            else
+                _log.Warn($"SaveBranchCorporateServiceExclusionMapping failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getBranchCorporateServiceExclusionMapping")]
+        [Authorize]
+        public IActionResult GetBranchCorporateServiceExclusionMapping(
+     [FromQuery] int? branchId = null,
+     [FromQuery] int? corporateId = null)
+        {
+            _log.Info($"GetBranchCorporateServiceExclusionMapping called. BranchId={branchId?.ToString() ?? "All"}, CorporateId={corporateId?.ToString() ?? "All"}");
+
+            if (branchId.HasValue && branchId.Value <= 0)
+            {
+                _log.Warn("Invalid BranchId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BranchId must be greater than 0",
+                    errors = new { branchId }
+                });
+            }
+
+            if (corporateId.HasValue && corporateId.Value <= 0)
+            {
+                _log.Warn("Invalid CorporateId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "CorporateId must be greater than 0",
+                    errors = new { corporateId }
+                });
+            }
+
+            var serviceResult = _adminRepository.GetBranchCorporateServiceExclusionMapping(branchId, corporateId);
+
+            if (serviceResult.Result)
+                _log.Info($"BranchCorporateServiceExclusionMapping fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"BranchCorporateServiceExclusionMapping fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        #endregion
+
+        #region Branch Right Mapping
+
+        [HttpPost("saveBranchRightMapping")]
+        [Authorize]
+        public IActionResult SaveBranchRightMapping([FromBody] SaveBranchRightMappingRequest request)
+        {
+            _log.Info($"SaveBranchRightMapping called. BranchId={request.BranchId}, RightCount={request.BranchRightIds?.Count ?? 0}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SaveBranchRightMapping.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.BranchRightIds != null && request.BranchRightIds.Any())
+            {
+                var invalidIds = request.BranchRightIds.Where(id => id <= 0).ToList();
+                if (invalidIds.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "All BranchRightIds must be greater than 0",
+                        errors = new { invalidIds }
+                    });
+                }
+
+                var duplicateIds = request.BranchRightIds
+                    .GroupBy(x => x)
+                    .Where(g => g.Count() > 1)
+                    .Select(g => g.Key)
+                    .ToList();
+
+                if (duplicateIds.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "Duplicate BranchRightIds are not allowed",
+                        errors = new { duplicateIds }
+                    });
+                }
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _adminRepository.SaveBranchRightMapping(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"SaveBranchRightMapping completed: {serviceResult.Message}");
+            else
+                _log.Warn($"SaveBranchRightMapping failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getBranchRightMapping")]
+        [Authorize]
+        public IActionResult GetBranchRightMapping([FromQuery] int branchId)
+        {
+            _log.Info("GetBranchRightMapping called.");
+            if (branchId <= 0)
+            {
+                _log.Warn("Invalid BranchId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BranchId must be greater than 0",
+                    errors = new { branchId }
+                });
+            }
+
+            var serviceResult = _adminRepository.GetBranchRightMapping(branchId);
+
+            if (serviceResult.Result)
+                _log.Info($"BranchRightMapping fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"BranchRightMapping fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+        [HttpPatch("updateDefaultBranchSetting")]
+        [Authorize]
+        public IActionResult UpdateDefaultBranchSetting([FromBody] UpdateDefaultBranchSettingRequest request)
+        {
+            _log.Info($"UpdateDefaultBranchSetting called. BranchId={request.BranchId}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for UpdateDefaultBranchSetting.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _adminRepository.UpdateDefaultBranchSetting(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"Default branch settings updated successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"Default branch settings update failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+
+        #endregion
     }
 }

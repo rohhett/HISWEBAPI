@@ -18,6 +18,7 @@ namespace HISWEBAPI.Domain
         public string CorporateAlias { get; set; }
         public string CorporateCode { get; set; }
         public int? DoctorId { get; set; }
+        public int? PerformingDoctorId { get; set; }
         public int? CorporateId { get; set; }
         public decimal Rate { get; set; }
         public decimal Qty { get; set; }
@@ -63,6 +64,7 @@ namespace HISWEBAPI.Domain
                 @corporateAlias = CorporateAlias,
                 @corporateCode = CorporateCode,
                 @doctorId = DoctorId,
+                @performingDoctorId = PerformingDoctorId,
                 @corporateId = CorporateId,
                 @rate = Rate,
                 @qty = Qty,

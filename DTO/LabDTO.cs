@@ -124,6 +124,11 @@ namespace HISWEBAPI.DTO
         public string SampleVolume { get; set; }
         public string InvestigationComment { get; set; }
         public int TatInMin { get; set; } = 0;
+
+        [StringLength(50, ErrorMessage = "SNOMED Code cannot exceed 50 characters")]
+        public string? SNOMEDCode { get; set; }
+        public int IsRequiredSeparatePerformingDoctor { get; set; } = 0;
+        public string? DoctorDepartmentIds { get; set; }
     }
 
 

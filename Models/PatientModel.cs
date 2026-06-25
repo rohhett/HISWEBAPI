@@ -116,12 +116,16 @@
         public int IsNonPayable { get; set; }
         public int ServiceItemId { get; set; }
         public int CorporateId { get; set; }
+        public int CategoryTypeId { get; set; }
         public int CategoryId { get; set; }
         public int SubCategoryId { get; set; }
         public int SubSubCategoryId { get; set; }
         public int IsCorporateDiscount { get; set; }
         public decimal GSTPer { get; set; }
         public int SampleTypeId { get; set; }
+        public int ReportTypeId { get; set; }
+        public string DoctorDepartmentIds { get; set; }
+        public int IsRequiredSeparatePerformingDoctor { get; set; }
     }
 
     public class OPDVisitSummaryModel

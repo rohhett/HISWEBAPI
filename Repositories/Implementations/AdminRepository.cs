@@ -37,6 +37,8 @@ namespace HISWEBAPI.Repositories.Implementations
         private const string CACHE_KEY_DOCTOR_HEADER_ALL = "_DoctorHeaderMaster_All";
         private const string CACHE_KEY_TabGroupType_All = "_TabGroupTypeMaster_All";
         private const string CACHE_KEY_IPDTab_All = "_IPDTabMaster_All";
+        private const string CACHE_KEY_PREFIX_ApprovalAuthority = "_ApprovalAuthorityMaster_TypeId";
+
 
         public AdminRepository(
             ICustomSqlHelper sqlHelper,
@@ -2897,12 +2899,6 @@ namespace HISWEBAPI.Repositories.Implementations
             new SqlParameter("@address", request.Address ?? (object)DBNull.Value),
             new SqlParameter("@isActive", request.IsActive),
             new SqlParameter("@fYStartFrom", request.FYStartFrom),
-            new SqlParameter("@defaultCountryId", request.DefaultCountryId),
-            new SqlParameter("@defaultStateId", request.DefaultStateId),
-            new SqlParameter("@defaultDistrictId", request.DefaultDistrictId),
-            new SqlParameter("@defaultCityId", request.DefaultCityId),
-            new SqlParameter("@defaultInsuranceCompanyId", request.DefaultInsuranceCompanyId),
-            new SqlParameter("@defaultCorporateId", request.DefaultCorporateId),
             new SqlParameter("@userId", globalValues.userId),
             new SqlParameter("@IpAddress", globalValues.ipAddress),
             new SqlParameter("@Result", SqlDbType.Int) { Direction = ParameterDirection.Output }
@@ -5923,21 +5919,22 @@ namespace HISWEBAPI.Repositories.Implementations
                     );
                 }
 
-                var result = _sqlHelper.DML(
+                long result = _sqlHelper.RunProcedureInsert(
                     "IU_RateListMaster",
-                    CommandType.StoredProcedure,
-                    new
+                    new IDataParameter[]
                     {
-                        @hospId = globalValues.hospId,
-                        @rateListId = request.RateListId,
-                        @rateListName = request.RateListName,
-                        @applicableDate = ApplicableDate.ToString("yyyy-MM-dd"),
-                        @expiryDate = expiryDate.ToString("yyyy-MM-dd"),
-                        @isActive = request.IsActive,
-                        @userId = globalValues.userId,
-                        @IpAddress = globalValues.ipAddress
-                    },
-                    new { result = 0 }
+                      new SqlParameter("@HospId",          globalValues.hospId),
+                      new SqlParameter("@RateListId",      request.RateListId),
+                      new SqlParameter("@RateListName",    request.RateListName),
+                      new SqlParameter("@ApplicableDate",  ApplicableDate.ToString("yyyy-MM-dd")),
+                      new SqlParameter("@ExpiryDate",      expiryDate.ToString("yyyy-MM-dd")),
+                      new SqlParameter("@IsActive",        request.IsActive),
+                      new SqlParameter("@UserId",          globalValues.userId),
+                      new SqlParameter("@IpAddress",       string.IsNullOrEmpty(globalValues.ipAddress)
+                                                               ? (object)DBNull.Value
+                                                               : globalValues.ipAddress),
+                      new SqlParameter("@Result", SqlDbType.Int) { Direction = ParameterDirection.Output }
+                    }
                 );
 
                 // SP returns -1 when name already exists
@@ -5950,6 +5947,23 @@ namespace HISWEBAPI.Repositories.Implementations
                         "Rate List Name Already Exists.",
                         409
                     );
+                }
+
+
+                if(result>0 && request.RateListId==0 && request.ImportFromRateListId > 0)
+                {
+                         _sqlHelper.DML(
+                         "I_ImportRateListByRateListId",
+                         CommandType.StoredProcedure,
+                         new
+                         {
+                             @rateListId = result,
+                             @ImportFromRateListId= request.ImportFromRateListId,
+                             @userId = globalValues.userId,
+                             @IpAddress = globalValues.ipAddress
+                         }
+                     );
+
                 }
 
                 // Invalidate the single cache key so next GET re-fetches fresh data from DB
@@ -6433,9 +6447,7 @@ namespace HISWEBAPI.Repositories.Implementations
                     @hikePerOut = request.HikePerOut,
                     @hikePerIn = request.HikePerIn,
                     @activePaymentModes = request.ActivePaymentModes ?? string.Empty,
-                    @activeBranches = request.ActiveBranches ?? string.Empty,
-                    @rateListIdOPD = request.RateListIdOPD ?? string.Empty,
-                    @rateListIdIPD = request.RateListIdIPD ?? string.Empty,
+                   
                     @userId = globalValues.userId,
                     @IpAddress = globalValues.ipAddress
                 },
@@ -6447,6 +6459,7 @@ namespace HISWEBAPI.Repositories.Implementations
                 // Clear cache after successful operation
                 _distributedCache.Remove("_CorporateMaster_All");
                 _distributedCache.Remove("_Corporate_All");
+                _distributedCache.Remove("_BranchWiseCorporate_All");
                 _log.Info("Cleared CorporateMaster and Corporate cache");
 
                 if (result < 0)
@@ -6548,10 +6561,8 @@ namespace HISWEBAPI.Repositories.Implementations
                         DiscountPerIn = row.Field<decimal?>("DiscountPerIn") ?? 0,
                         HikePerOut = row.Field<decimal?>("HikePerOut") ?? 0,
                         HikePerIn = row.Field<decimal?>("HikePerIn") ?? 0,
-                        ActivePaymentModes = row.Field<string>("ActivePaymentModes") ?? string.Empty,
-                        ActiveBranches = row.Field<string>("ActiveBranches") ?? string.Empty,
-                        RateListIdOPD = row.Field<string>("RateListIdOPD") ?? string.Empty,
-                        RateListIdIPD = row.Field<string>("RateListIdIPD") ?? string.Empty
+                        ActivePaymentModes = row.Field<string>("ActivePaymentModes") ?? string.Empty
+                      
                     }).ToList() ?? new List<CorporateMasterDetailModel>();
 
                     if (allCorporates.Any())
@@ -7448,6 +7459,8 @@ namespace HISWEBAPI.Repositories.Implementations
               new SqlParameter("@OPDConsultationTypeId", (object?)request.OPDConsultationTypeId ?? DBNull.Value),
             new SqlParameter("@OPDConsultationType", (object?)request.OPDConsultationType ?? DBNull.Value),
             new SqlParameter("@SNOMEDCode", (object?)request.SNOMEDCode ?? DBNull.Value),
+            new SqlParameter("@isRequiredSeparatePerformingDoctor", request.IsRequiredSeparatePerformingDoctor),
+            new SqlParameter("@doctorDepartmentIds", (object?)request.DoctorDepartmentIds ?? DBNull.Value),
             new SqlParameter("@isOnlineConsultationAllow", (object?)request.IsOnlineConsultationAllow ?? DBNull.Value),
             new SqlParameter("@isTeleConsultationService", (object?)request.IsTeleConsultationService ?? DBNull.Value),
 
@@ -9048,5 +9061,711 @@ namespace HISWEBAPI.Repositories.Implementations
                 );
             }
         }
+
+
+        public ServiceResult<CreateUpdateApprovalAuthorityMasterResponse> CreateUpdateApprovalAuthorityMaster(
+           CreateUpdateApprovalAuthorityMasterRequest request,
+           AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CreateUpdateApprovalAuthorityMaster called. Id={request.Id}, ApprovalTypeId={request.ApprovalTypeId}, BranchId={request.BranchId}");
+
+               var result = _sqlHelper.DML(
+                   "IU_ApprovalAuthorityMaster",
+                   CommandType.StoredProcedure,
+                   new
+                   {
+                       @hospId = globalValues.hospId,
+                       @branchId = request.BranchId,
+                       @id = request.Id,
+                       @approvalFlow = request.ApprovalFlow,
+                       @approvalFlowId = request.ApprovalFlowId,
+                       @isAllApprovalRequired = request.IsAllApprovalRequired,
+                       @approvalTypeId = request.ApprovalTypeId,
+                       @approvalType = request.ApprovalType,
+                       @roleId = request.RoleId,
+                       @approvalLevelId = request.ApprovalLevelId,
+                       @approvalLevel = request.ApprovalLevel,
+                       @level1UserId = request.Level1UserId,
+                       @level2UserId = request.Level2UserId,
+                       @level3UserId = request.Level3UserId,
+                       @level4UserId = request.Level4UserId,
+                       @amountUpTo = request.AmountUpTo,
+                       @userId = globalValues.userId,
+                       @IpAddress = globalValues.ipAddress
+                   },
+                   new { result = 0 }   
+               );
+               
+               long resultValue = Convert.ToInt64(result);
+               
+                if (resultValue == -1)
+                {
+                    var dupAlert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Duplicate ApprovalAuthority found for ApprovalTypeId={request.ApprovalTypeId}, BranchId={request.BranchId}");
+                    return ServiceResult<CreateUpdateApprovalAuthorityMasterResponse>.Failure(
+                        dupAlert.Type,
+                        "Approval Authority already exists with the same type, role and amount.",
+                        409
+                    );
+                }
+
+                if (resultValue > 0)
+                {
+                    // Invalidate cache for this approvalTypeId
+                    string cacheKey = $"{CACHE_KEY_PREFIX_ApprovalAuthority}{request.ApprovalTypeId}";
+                    _distributedCache.Remove(cacheKey);
+                    _log.Info($"Cleared ApprovalAuthorityMaster cache. Key={cacheKey}");
+
+                    var alert = _messageService.GetMessageAndTypeByAlertCode(
+                        request.Id == 0 ? "DATA_SAVED_SUCCESSFULLY" : "DATA_UPDATED_SUCCESSFULLY"
+                    );
+
+                    _log.Info($"ApprovalAuthority {(request.Id == 0 ? "created" : "updated")} successfully. Id={resultValue}");
+
+                    return ServiceResult<CreateUpdateApprovalAuthorityMasterResponse>.Success(
+                        new CreateUpdateApprovalAuthorityMasterResponse { Id = resultValue },
+                        alert.Type,
+                        alert.Message,
+                        request.Id == 0 ? 201 : 200
+                    );
+                }
+
+                var failAlert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_FAILED");
+                _log.Error($"ApprovalAuthority operation failed with result: {resultValue}");
+                return ServiceResult<CreateUpdateApprovalAuthorityMasterResponse>.Failure(
+                    failAlert.Type,
+                    failAlert.Message,
+                    500
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<CreateUpdateApprovalAuthorityMasterResponse>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<object> GetApprovalAuthorityMasterList(int approvalTypeId)
+        {
+            try
+            {
+                _log.Info($"GetApprovalAuthorityMasterList called. ApprovalTypeId={approvalTypeId}");
+
+                string cacheKey = $"{CACHE_KEY_PREFIX_ApprovalAuthority}{approvalTypeId}";
+
+                var cachedData = _distributedCache.GetString(cacheKey);
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"ApprovalAuthorityMaster data retrieved from cache. Key={cacheKey}");
+                    return ServiceResult<object>.Success(
+                        System.Text.Json.JsonSerializer.Deserialize<object>(cachedData),
+                        "Info",
+                        "Data retrieved successfully",
+                        200
+                    );
+                }
+
+                _log.Info($"ApprovalAuthorityMaster cache miss. Fetching from database. Key={cacheKey}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetApprovalAuthorityMasterList",
+                    CommandType.StoredProcedure,
+                    new { @approvalTypeId = approvalTypeId }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var notFoundAlert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No ApprovalAuthority records found for ApprovalTypeId={approvalTypeId}");
+                    return ServiceResult<object>.Failure(
+                        notFoundAlert.Type,
+                        "No approval authority records found",
+                        404
+                    );
+                }
+
+                // Raw DataTable → list of dictionaries (no model mapping)
+                var rawData = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                // Cache permanently (invalidated on write)
+                var serialized = System.Text.Json.JsonSerializer.Serialize(rawData);
+                var cacheOptions = new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpiration = null,
+                    SlidingExpiration = null
+                };
+                _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                _log.Info($"ApprovalAuthorityMaster cached permanently. Key={cacheKey}, Count={rawData.Count}");
+
+                return ServiceResult<object>.Success(
+                    rawData,
+                    "Info",
+                    $"{rawData.Count} record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<string> UpdateApprovalAuthorityMasterStatus(int id, AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"UpdateApprovalAuthorityMasterStatus called. Id={id}");
+
+                _sqlHelper.DML(
+                    "D_DeleteApprovalAuthorityMaster",
+                    CommandType.StoredProcedure,
+                    new { @ApprovalAuthorityId = id }
+                );
+
+                // Invalidate all ApprovalAuthority cache keys (pattern-based)
+                GlobalFunctions.ClearCacheByPattern(_configuration, $"{CACHE_KEY_PREFIX_ApprovalAuthority}*");
+                _log.Info($"Cleared all ApprovalAuthorityMaster cache entries.");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                _log.Info($"ApprovalAuthority status toggled successfully. Id={id}");
+
+                return ServiceResult<string>.Success(
+                    "Status updated successfully",
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+
+        #region Branch Corporate Ratelist Mapping
+
+        public ServiceResult<object> SaveBranchCorporateRatelistMapping(
+            SaveBranchCorporateRatelistMappingRequest request,
+            AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"SaveBranchCorporateRatelistMapping called. BranchId={request.BranchId}, CorporateId={request.CorporateId}, Count={request.Mappings.Count}");
+
+                // Step 1: Deactivate existing mappings via U_ SP
+                _sqlHelper.DML(
+                    "U_BranchCorporateRatelistMapping",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @BranchId = request.BranchId,
+                        @CorporateId = request.CorporateId,
+                        @userId = globalValues.userId,
+                        @IpAddress = globalValues.ipAddress
+                    }
+                );
+
+                _log.Info($"Deactivated existing BranchCorporateRatelistMapping for BranchId={request.BranchId}, CorporateId={request.CorporateId}");
+
+                // Step 2: Insert each new mapping via I_ SP
+                if (request.Mappings != null && request.Mappings.Any())
+                {
+                    foreach (var item in request.Mappings)
+                    {
+                        _sqlHelper.DML(
+                            "I_BranchCorporateRatelistMapping",
+                            CommandType.StoredProcedure,
+                            new
+                            {
+                                @BranchId = request.BranchId,
+                                @CorporateId = request.CorporateId,
+                                @RateListIdOPD = item.RateListIdOPD,
+                                @RateListIdIPD = item.RateListIdIPD,
+                                @userId = globalValues.userId,
+                                @IpAddress = globalValues.ipAddress
+                            }
+                        );
+                    }
+
+                    _log.Info($"Inserted {request.Mappings.Count} BranchCorporateRatelistMapping record(s).");
+                }
+
+                // Invalidate cache
+                _distributedCache.Remove("_BranchCorporateRatelistMapping_All");
+                _distributedCache.Remove("_BranchWiseCorporate_All");
+
+                _log.Info("Cleared BranchCorporateRatelistMapping cache.");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    new { BranchId = request.BranchId, CorporateId = request.CorporateId, InsertedCount = request.Mappings?.Count ?? 0 },
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetBranchCorporateRatelistMapping(int? branchId = null, int? corporateId = null)
+        {
+            try
+            {
+                _log.Info($"GetBranchCorporateRatelistMapping called. BranchId={branchId?.ToString() ?? "All"}, CorporateId={corporateId?.ToString() ?? "All"}");
+                const string cacheKey = "_BranchCorporateRatelistMapping_All";
+                var cachedData = _distributedCache.GetString(cacheKey);
+                List<Dictionary<string, object>> allData;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"BranchCorporateRatelistMapping retrieved from cache. Key={cacheKey}");
+                    allData = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object>>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"BranchCorporateRatelistMapping cache miss. Fetching from database. Key={cacheKey}");
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_BranchCorporateRatelistMapping",
+                        CommandType.StoredProcedure
+                    );
+
+                    if (dataTable == null || dataTable.Rows.Count == 0)
+                    {
+                        var notFoundAlert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                        return ServiceResult<object>.Failure(notFoundAlert.Type, "No branch corporate ratelist mappings found", 404);
+                    }
+
+                    allData = dataTable.AsEnumerable().Select(row =>
+                        dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                            col => col.ColumnName,
+                            col => row[col] == DBNull.Value ? null : row[col]
+                        )
+                    ).ToList();
+
+                    var serialized = System.Text.Json.JsonSerializer.Serialize(allData);
+                    var cacheOptions = new DistributedCacheEntryOptions
+                    {
+                        AbsoluteExpiration = null,
+                        SlidingExpiration = null
+                    };
+                    _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                    _log.Info($"BranchCorporateRatelistMapping cached permanently. Count={allData.Count}");
+                }
+
+                // Filter in memory from cache
+                var filteredData = allData.AsEnumerable();
+
+                if (branchId.HasValue)
+                {
+                    _log.Info($"Filtering by BranchId: {branchId.Value}");
+                    filteredData = filteredData.Where(row =>
+                        row.TryGetValue("BranchId", out var val) &&
+                        val is System.Text.Json.JsonElement je &&
+                        je.TryGetInt32(out int id) &&
+                        id == branchId.Value
+                    );
+                }
+
+                if (corporateId.HasValue)
+                {
+                    _log.Info($"Filtering by CorporateId: {corporateId.Value}");
+                    filteredData = filteredData.Where(row =>
+                        row.TryGetValue("CorporateId", out var val) &&
+                        val is System.Text.Json.JsonElement je &&
+                        je.TryGetInt32(out int id) &&
+                        id == corporateId.Value
+                    );
+                }
+
+                var result = filteredData.ToList();
+
+                if (!result.Any())
+                {
+                    var notFoundAlert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info("No records found after filtering.");
+                    return ServiceResult<object>.Failure(notFoundAlert.Type, "No records found for the given filters", 404);
+                }
+
+                _log.Info($"Returning {result.Count} record(s) after filtering.");
+                return ServiceResult<object>.Success(
+                    result,
+                    "Info",
+                    $"{result.Count} record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+        #endregion
+
+        #region Branch Corporate Wise Service Exclusion Mapping
+
+        public ServiceResult<object> SaveBranchCorporateServiceExclusionMapping(
+            SaveBranchCorporateServiceExclusionRequest request,
+            AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"SaveBranchCorporateServiceExclusionMapping called. BranchId={request.BranchId}, CorporateId={request.CorporateId}, Count={request.ServiceItemIds.Count}");
+
+                // Step 1: Deactivate existing exclusions via U_ SP
+                _sqlHelper.DML(
+                    "U_BranchCorporateWiseServiceExclusionMapping",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @BranchId = request.BranchId,
+                        @CorporateId = request.CorporateId,
+                        @userId = globalValues.userId,
+                        @IpAddress = globalValues.ipAddress
+                    }
+                );
+
+                _log.Info($"Deactivated existing BranchCorporateWiseServiceExclusionMapping for BranchId={request.BranchId}, CorporateId={request.CorporateId}");
+
+                // Step 2: Insert each new exclusion via I_ SP
+                if (request.ServiceItemIds != null && request.ServiceItemIds.Any())
+                {
+                    foreach (var serviceItemId in request.ServiceItemIds)
+                    {
+                        _sqlHelper.DML(
+                            "I_BranchCorporateWiseServiceExclusionMapping",
+                            CommandType.StoredProcedure,
+                            new
+                            {
+                                @BranchId = request.BranchId,
+                                @CorporateId = request.CorporateId,
+                                @ServiceItemId = serviceItemId,
+                                @userId = globalValues.userId,
+                                @IpAddress = globalValues.ipAddress
+                            }
+                        );
+                    }
+
+                    _log.Info($"Inserted {request.ServiceItemIds.Count} BranchCorporateWiseServiceExclusionMapping record(s).");
+                }
+
+                // Invalidate cache
+                _distributedCache.Remove("_BranchCorporateServiceExclusion_All");
+                _log.Info("Cleared BranchCorporateServiceExclusion cache.");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    new { BranchId = request.BranchId, CorporateId = request.CorporateId, InsertedCount = request.ServiceItemIds?.Count ?? 0 },
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetBranchCorporateServiceExclusionMapping(int? branchId = null, int? corporateId = null)
+        {
+            try
+            {
+                _log.Info($"GetBranchCorporateServiceExclusionMapping called. BranchId={branchId?.ToString() ?? "All"}, CorporateId={corporateId?.ToString() ?? "All"}");
+                const string cacheKey = "_BranchCorporateServiceExclusion_All";
+                var cachedData = _distributedCache.GetString(cacheKey);
+                List<Dictionary<string, object>> allData;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"BranchCorporateServiceExclusion retrieved from cache. Key={cacheKey}");
+                    allData = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object>>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"BranchCorporateServiceExclusion cache miss. Fetching from database. Key={cacheKey}");
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_BranchCorporateWiseServiceExclusionMapping",
+                        CommandType.StoredProcedure
+                    );
+
+                    if (dataTable == null || dataTable.Rows.Count == 0)
+                    {
+                        var notFoundAlert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                        return ServiceResult<object>.Failure(notFoundAlert.Type, "No branch corporate service exclusion mappings found", 404);
+                    }
+
+                    allData = dataTable.AsEnumerable().Select(row =>
+                        dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                            col => col.ColumnName,
+                            col => row[col] == DBNull.Value ? null : row[col]
+                        )
+                    ).ToList();
+
+                    var serialized = System.Text.Json.JsonSerializer.Serialize(allData);
+                    var cacheOptions = new DistributedCacheEntryOptions
+                    {
+                        AbsoluteExpiration = null,
+                        SlidingExpiration = null
+                    };
+                    _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                    _log.Info($"BranchCorporateServiceExclusion cached permanently. Count={allData.Count}");
+                }
+
+                // Filter in memory from cache
+                var filteredData = allData.AsEnumerable();
+
+                if (branchId.HasValue)
+                {
+                    _log.Info($"Filtering by BranchId: {branchId.Value}");
+                    filteredData = filteredData.Where(row =>
+                        row.TryGetValue("BranchId", out var val) &&
+                        val != null &&
+                        Convert.ToInt32(((System.Text.Json.JsonElement)val).GetRawText()) == branchId.Value
+                    );
+                }
+
+                if (corporateId.HasValue)
+                {
+                    _log.Info($"Filtering by CorporateId: {corporateId.Value}");
+                    filteredData = filteredData.Where(row =>
+                        row.TryGetValue("CorporateId", out var val) &&
+                        val != null &&
+                        Convert.ToInt32(((System.Text.Json.JsonElement)val).GetRawText()) == corporateId.Value
+                    );
+                }
+
+                var result = filteredData.ToList();
+
+                if (!result.Any())
+                {
+                    var notFoundAlert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info("No records found after filtering.");
+                    return ServiceResult<object>.Failure(notFoundAlert.Type, "No records found for the given filters", 404);
+                }
+
+                _log.Info($"Returning {result.Count} record(s) after filtering.");
+                return ServiceResult<object>.Success(
+                    result,
+                    "Info",
+                    $"{result.Count} record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        #endregion
+
+        #region Branch Right Mapping
+
+        public ServiceResult<object> SaveBranchRightMapping(
+            SaveBranchRightMappingRequest request,
+            AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"SaveBranchRightMapping called. BranchId={request.BranchId}, RightCount={request.BranchRightIds.Count}");
+
+                // Step 1: Delete existing mappings via D_ SP (hard delete per SP definition)
+                _sqlHelper.DML(
+                    "D_BranchRightMapping",
+                    CommandType.StoredProcedure,
+                    new { @BranchId = request.BranchId }
+                );
+
+                _log.Info($"Deleted existing BranchRightMapping for BranchId={request.BranchId}");
+
+                // Step 2: Insert each right via I_ SP
+                if (request.BranchRightIds != null && request.BranchRightIds.Any())
+                {
+                    foreach (var branchRightId in request.BranchRightIds)
+                    {
+                        _sqlHelper.DML(
+                            "I_BranchRightMapping",
+                            CommandType.StoredProcedure,
+                            new
+                            {
+                                @BranchId = request.BranchId,
+                                @BranchRightId = branchRightId,
+                                @userId = globalValues.userId,
+                                @IpAddress = globalValues.ipAddress
+                            }
+                        );
+                    }
+
+                    _log.Info($"Inserted {request.BranchRightIds.Count} BranchRightMapping record(s).");
+                }
+
+                // Invalidate cache
+                _distributedCache.Remove($"_BranchRightMapping_{request.BranchId}");
+                _distributedCache.Remove($"_AssignBranchRight_{request.BranchId}");
+                _log.Info("Cleared BranchRightMapping cache.");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    new { BranchId = request.BranchId, InsertedCount = request.BranchRightIds?.Count ?? 0 },
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetBranchRightMapping(int branchId)
+        {
+            try
+            {
+                _log.Info("GetBranchRightMapping called.");
+
+                string cacheKey = $"_BranchRightMapping_{branchId}";
+
+                var cachedData = _distributedCache.GetString(cacheKey);
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"BranchRightMapping retrieved from cache. Key={cacheKey}");
+                    return ServiceResult<object>.Success(
+                        System.Text.Json.JsonSerializer.Deserialize<object>(cachedData),
+                        "Info",
+                        "Data retrieved successfully",
+                        200
+                    );
+                }
+
+                _log.Info($"BranchRightMapping cache miss. Fetching from database. Key={cacheKey}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_getAssignBranchRight",
+                     CommandType.StoredProcedure,
+                    new { @BranchId = branchId }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var notFoundAlert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    return ServiceResult<object>.Failure(notFoundAlert.Type, "No branch right mappings found", 404);
+                }
+
+                var rawData = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                var serialized = System.Text.Json.JsonSerializer.Serialize(rawData);
+                var cacheOptions = new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpiration = null,
+                    SlidingExpiration = null
+                };
+                _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                _log.Info($"BranchRightMapping cached permanently. Count={rawData.Count}");
+
+                return ServiceResult<object>.Success(
+                    rawData,
+                    "Info",
+                    $"{rawData.Count} record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<string> UpdateDefaultBranchSetting(UpdateDefaultBranchSettingRequest request, AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"UpdateDefaultBranchSetting called. BranchId={request.BranchId}");
+
+                var result = _sqlHelper.DML(
+                    "U_DefaultBranchSetting",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @branchId = request.BranchId,
+                        @defaultCountryId = request.DefaultCountryId,
+                        @defaultStateId = request.DefaultStateId,
+                        @defaultDistrictId = request.DefaultDistrictId,
+                        @defaultCityId = request.DefaultCityId,
+                        @defaultInsuranceCompanyId = request.DefaultInsuranceCompanyId,
+                        @defaultCorporateId = request.DefaultCorporateId,
+                        @userId = globalValues.userId,
+                        @IpAddress = globalValues.ipAddress
+                    }
+                );
+
+                // Clear branch cache
+                _distributedCache.Remove("_BranchMaster_All");
+                _log.Info($"Cleared BranchMaster cache after default settings update. BranchId={request.BranchId}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    "Default branch settings updated successfully",
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        #endregion
     }
 }

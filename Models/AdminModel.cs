@@ -209,6 +209,8 @@ namespace HISWEBAPI.Models
         public int DefaultCityId { get; set; }
         public int DefaultInsuranceCompanyId { get; set; }
         public int DefaultCorporateId { get; set; }
+        public int ApplyDiscountApproval { get; set; }
+        public int SeparateCollectionCounter { get; set; }
     }
 
     public class HeaderMasterModel
@@ -411,9 +413,7 @@ namespace HISWEBAPI.Models
         public decimal HikePerOut { get; set; }
         public decimal HikePerIn { get; set; }
         public string ActivePaymentModes { get; set; }
-        public string ActiveBranches { get; set; }
-        public string RateListIdOPD { get; set; }
-        public string RateListIdIPD { get; set; }
+    
     }
 
     public class DiscountApprovalMasterModel

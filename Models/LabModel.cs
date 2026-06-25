@@ -91,6 +91,8 @@
         public string RoomType { get; set; }
         public int? IsICU { get; set; }
         public string? SNOMEDCode { get; set; }
+        public string? DoctorDepartmentIds { get; set; }
+        public int? IsRequiredSeparatePerformingDoctor { get; set; }
         public int? OPDConsultationTypeId { get; set; }
         public string? OPDConsultationType { get; set; }
         public int? IsOnlineConsultationAllow { get; set; }
