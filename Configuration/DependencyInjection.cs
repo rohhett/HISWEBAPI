@@ -63,6 +63,7 @@ public static class DependencyInjection
         services.AddScoped<ILabRepository, LabRepository>();
         services.AddScoped<IPatientRepository, PatientRepository>();
         services.AddScoped<IPatientLabReport, PatientLabReport>();
+        services.AddScoped<IEMRRepository, EMRRepository>();
 
     }
 

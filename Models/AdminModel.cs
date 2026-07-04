@@ -439,6 +439,7 @@ namespace HISWEBAPI.Models
         public int IsPrint { get; set; }
         public int IsShowInTempRoom { get; set; }
         public int UsedForPatientType { get; set; }
+        public int IsMandatory { get; set; }
         public string UsedForPatientTypeName { get; set; }
         public int IsActive { get; set; }
     }
@@ -449,6 +450,8 @@ namespace HISWEBAPI.Models
     {
         public string Value { get; set; }
         public int DataTypeId { get; set; }
+        public string HeaderName { get; set; }
+        public string Options { get; set; }
     }
 
     // ─── Doctor Header Mapping (for master screen) ────────────────────────────────

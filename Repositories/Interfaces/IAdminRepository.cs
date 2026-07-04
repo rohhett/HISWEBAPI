@@ -127,6 +127,12 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<object> SaveBranchRightMapping(SaveBranchRightMappingRequest request, AllGlobalValues globalValues);
         ServiceResult<object> GetBranchRightMapping(int branchId);
         ServiceResult<string> UpdateDefaultBranchSetting(UpdateDefaultBranchSettingRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetVitalMasterList(int? isActive);
+        ServiceResult<object> CreateUpdateVitalMaster(CreateUpdateVitalMasterRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetVitalUnitMasterList();
+        ServiceResult<object> CreateUpdateVitalUnitMaster(CreateUpdateVitalUnitMasterRequest request, AllGlobalValues globalValues);
 
+        ServiceResult<object> GetVitalDepartmentMapping(int typeId, int relatedToId);
+        ServiceResult<string> SaveVitalDepartmentMapping(SaveVitalDepartmentMappingRequest request, AllGlobalValues globalValues);
     }
 }

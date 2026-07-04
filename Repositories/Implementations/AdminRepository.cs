@@ -7074,6 +7074,7 @@ namespace HISWEBAPI.Repositories.Implementations
                     @isPrint = request.IsPrint,
                     @isShowInTempRoom = request.IsShowInTempRoom,
                     @usedForPatientType = request.UsedForPatientType,
+                    @isMandatory = request.IsMandatory,
                     @isActive = request.IsActive,
                     @userId = globalValues.userId,
                     @IpAddress = globalValues.ipAddress
@@ -7125,11 +7126,20 @@ namespace HISWEBAPI.Repositories.Implementations
                 {
                     foreach (var lov in request.ListOfValues)
                     {
+                        // Convert options list to comma-separated string (or JSON)
+                        string optionsString = null;
+                        if (lov.Options != null && lov.Options.Any())
+                        {
+                            optionsString = string.Join("##", lov.Options);
+                        }
+
                         _sqlHelper.DML(tnx, "I_DoctorHeaderLOVMapping", CommandType.StoredProcedure, new
                         {
                             @headerId = headerId,
-                            @value = lov.Value,
-                            @dataTypeId = lov.DataTypeId
+                            @value = lov.Value ?? string.Empty,
+                            @dataTypeId = lov.DataTypeId,
+                            @headerName = lov.HeaderName ?? (object)DBNull.Value,
+                            @options = optionsString ?? (object)DBNull.Value
                         });
                     }
                 }
@@ -7204,6 +7214,7 @@ namespace HISWEBAPI.Repositories.Implementations
                         ControlTypeId = row.Field<int?>("ControlTypeId"),
                         IsPrint = row.Field<int>("IsPrint"),
                         IsShowInTempRoom = row.Field<int>("IsShowInTempRoom"),
+                        IsMandatory = row.Field<int>("IsMandatory"),
                         UsedForPatientType = row.Field<int>("UsedForPatientType"),
                         UsedForPatientTypeName = row.Field<string>("UsedForPatientTypeName"),
                         IsActive = row.Field<int>("IsActive")
@@ -7270,7 +7281,10 @@ namespace HISWEBAPI.Repositories.Implementations
                 var lovs = dataTable?.AsEnumerable().Select(row => new DoctorHeaderLOVModel
                 {
                     Value = row.Field<string>("Value") ?? string.Empty,
-                    DataTypeId = row.Field<int?>("DataTypeId") ?? 0
+                    DataTypeId = row.Field<int?>("DataTypeId") ?? 0,
+                    HeaderName = row.Field<string>("HeaderName") ?? string.Empty,
+                    Options = row.Field<string>("Options") ?? string.Empty,
+
                 }).ToList() ?? new List<DoctorHeaderLOVModel>();
 
                 if (!lovs.Any())
@@ -9767,5 +9781,411 @@ namespace HISWEBAPI.Repositories.Implementations
         }
 
         #endregion
+
+
+
+        private const string CACHE_KEY_VitalMaster_All = "_VitalMaster_All";
+        private const string CACHE_KEY_VitalUnitMaster_All = "_VitalUnitMaster_All";
+
+        public ServiceResult<object> GetVitalMasterList(int? isActive)
+        {
+            try
+            {
+                _log.Info($"GetVitalMasterList called. IsActive={isActive?.ToString() ?? "All"}");
+
+                var cachedData = _distributedCache.GetString(CACHE_KEY_VitalMaster_All);
+                List<Dictionary<string, object>> allItems;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"VitalMaster data retrieved from cache. Key={CACHE_KEY_VitalMaster_All}");
+                    allItems = System.Text.Json.JsonSerializer
+                        .Deserialize<List<Dictionary<string, object>>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"VitalMaster cache miss. Fetching from database. Key={CACHE_KEY_VitalMaster_All}");
+
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_GetVitalMasterList",
+                        CommandType.StoredProcedure
+                    );
+
+                    allItems = dataTable?.AsEnumerable().Select(row =>
+                        dataTable.Columns.Cast<DataColumn>()
+                            .ToDictionary(
+                                col => col.ColumnName,
+                                col => row[col] == DBNull.Value ? null : row[col]
+                            )
+                    ).ToList() ?? new List<Dictionary<string, object>>();
+
+                    if (allItems.Any())
+                    {
+                        var serialized = System.Text.Json.JsonSerializer.Serialize(allItems);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(CACHE_KEY_VitalMaster_All, serialized, cacheOptions);
+                        _log.Info($"VitalMaster data cached permanently. Key={CACHE_KEY_VitalMaster_All}, Count={allItems.Count}");
+                    }
+                }
+
+                // In-memory filter by IsActive
+                if (isActive.HasValue)
+                {
+                    allItems = allItems.Where(row =>
+                    {
+                        if (row.TryGetValue("IsActive", out var val) && val != null)
+                        {
+                            return val.ToString() == isActive.Value.ToString();
+                        }
+                        return false;
+                    }).ToList();
+                    _log.Info($"Filtered by IsActive={isActive.Value}. Count={allItems.Count}");
+                }
+
+                if (!allItems.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    return ServiceResult<object>.Failure(alert.Type, "No vital records found", 404);
+                }
+
+                var successAlert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    allItems,
+                    successAlert.Type,
+                    $"{allItems.Count} vital record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> CreateUpdateVitalMaster(
+            CreateUpdateVitalMasterRequest request,
+            AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CreateUpdateVitalMaster called. VitalId={request.VitalId}, VitalName={request.VitalName}");
+
+                var parameters = new SqlParameter[]
+                {
+            new SqlParameter("@vitalId",   SqlDbType.Int)          { Value = request.VitalId },
+            new SqlParameter("@vitalName", SqlDbType.NVarChar, 256){ Value = request.VitalName },
+            new SqlParameter("@unitID",    SqlDbType.Int)          { Value = request.UnitId },
+            new SqlParameter("@unitName",  SqlDbType.NVarChar, 256){ Value = request.UnitName ?? (object)DBNull.Value },
+            new SqlParameter("@minValue",  SqlDbType.NVarChar, 256){ Value = request.MinValue ?? (object)DBNull.Value },
+            new SqlParameter("@maxValue",  SqlDbType.NVarChar, 256){ Value = request.MaxValue ?? (object)DBNull.Value },
+            new SqlParameter("@snomedCode",  SqlDbType.NVarChar, 256){ Value = request.snomedCode ?? (object)DBNull.Value },
+            new SqlParameter("@active",    SqlDbType.Int)          { Value = request.Active },
+            new SqlParameter("@isMandatory",    SqlDbType.Int)          { Value = request.IsMandatory },
+            new SqlParameter("@isBodyMeasurement",    SqlDbType.Int)          { Value = request.IsBodyMeasurement },
+            new SqlParameter("@userId",    SqlDbType.Int)          { Value = globalValues.userId },
+            new SqlParameter("@IpAddress", SqlDbType.NVarChar, 20) { Value = globalValues.ipAddress ?? (object)DBNull.Value },
+            new SqlParameter("@Result",    SqlDbType.Int)          { Direction = ParameterDirection.Output }
+                };
+
+                long result = _sqlHelper.RunProcedureInsert("IU_VitalMaster", parameters);
+
+                if (result == -1)
+                {
+                    var dupAlert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Duplicate VitalName: {request.VitalName}");
+                    return ServiceResult<object>.Failure(
+                        dupAlert.Type,
+                        "Vital name already exists",
+                        409
+                    );
+                }
+
+                if (result > 0)
+                {
+                    _distributedCache.Remove(CACHE_KEY_VitalMaster_All);
+                    _log.Info($"Cleared VitalMaster cache. VitalId={result}");
+
+                    var alert = _messageService.GetMessageAndTypeByAlertCode(
+                        request.VitalId == 0 ? "DATA_SAVED_SUCCESSFULLY" : "DATA_UPDATED_SUCCESSFULLY"
+                    );
+                    return ServiceResult<object>.Success(
+                        new { VitalId = result },
+                        alert.Type,
+                        alert.Message,
+                        request.VitalId == 0 ? 201 : 200
+                    );
+                }
+
+                var failAlert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(failAlert.Type, failAlert.Message, 500);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetVitalUnitMasterList()
+        {
+            try
+            {
+                _log.Info("GetVitalUnitMasterList called.");
+
+                var cachedData = _distributedCache.GetString(CACHE_KEY_VitalUnitMaster_All);
+                List<Dictionary<string, object>> allItems;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"VitalUnitMaster data retrieved from cache. Key={CACHE_KEY_VitalUnitMaster_All}");
+                    allItems = System.Text.Json.JsonSerializer
+                        .Deserialize<List<Dictionary<string, object>>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"VitalUnitMaster cache miss. Fetching from database. Key={CACHE_KEY_VitalUnitMaster_All}");
+
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_GetVitalUnitMasterList",
+                        CommandType.StoredProcedure
+                    );
+
+                    allItems = dataTable?.AsEnumerable().Select(row =>
+                        dataTable.Columns.Cast<DataColumn>()
+                            .ToDictionary(
+                                col => col.ColumnName,
+                                col => row[col] == DBNull.Value ? null : row[col]
+                            )
+                    ).ToList() ?? new List<Dictionary<string, object>>();
+
+                    if (allItems.Any())
+                    {
+                        var serialized = System.Text.Json.JsonSerializer.Serialize(allItems);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(CACHE_KEY_VitalUnitMaster_All, serialized, cacheOptions);
+                        _log.Info($"VitalUnitMaster data cached permanently. Key={CACHE_KEY_VitalUnitMaster_All}, Count={allItems.Count}");
+                    }
+                }
+
+                if (!allItems.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    return ServiceResult<object>.Failure(alert.Type, "No vital unit records found", 404);
+                }
+
+                var successAlert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    allItems,
+                    successAlert.Type,
+                    $"{allItems.Count} vital unit record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> CreateUpdateVitalUnitMaster(
+            CreateUpdateVitalUnitMasterRequest request,
+            AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CreateUpdateVitalUnitMaster called. Id={request.Id}, UnitName={request.UnitName}");
+
+                var parameters = new SqlParameter[]
+                {
+            new SqlParameter("@Id",        SqlDbType.Int)          { Value = request.Id },
+            new SqlParameter("@unitName",  SqlDbType.NVarChar, 256){ Value = request.UnitName },
+            new SqlParameter("@userId",    SqlDbType.Int)          { Value = globalValues.userId },
+            new SqlParameter("@IpAddress", SqlDbType.NVarChar, 20) { Value = globalValues.ipAddress ?? (object)DBNull.Value },
+            new SqlParameter("@Result",    SqlDbType.Int)          { Direction = ParameterDirection.Output }
+                };
+
+                long result = _sqlHelper.RunProcedureInsert("IU_VitalUnitMaster", parameters);
+
+                if (result == -1)
+                {
+                    var dupAlert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Duplicate UnitName: {request.UnitName}");
+                    return ServiceResult<object>.Failure(
+                        dupAlert.Type,
+                        "Vital unit name already exists",
+                        409
+                    );
+                }
+
+                if (result > 0)
+                {
+                    _distributedCache.Remove(CACHE_KEY_VitalUnitMaster_All);
+                    _log.Info($"Cleared VitalUnitMaster cache. Id={result}");
+
+                    var alert = _messageService.GetMessageAndTypeByAlertCode(
+                        request.Id == 0 ? "DATA_SAVED_SUCCESSFULLY" : "DATA_UPDATED_SUCCESSFULLY"
+                    );
+                    return ServiceResult<object>.Success(
+                        new { Id = result },
+                        alert.Type,
+                        alert.Message,
+                        request.Id == 0 ? 201 : 200
+                    );
+                }
+
+                var failAlert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(failAlert.Type, failAlert.Message, 500);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+
+        public ServiceResult<object> GetVitalDepartmentMapping(int typeId, int relatedToId)
+        {
+            try
+            {
+                _log.Info($"GetVitalDepartmentMapping called. TypeId={typeId}, RelatedToId={relatedToId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetVitalDepartmentMapping",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @typeId = typeId,
+                        @relatedToId = relatedToId
+                    });
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var notFoundAlert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No vital department mapping found for TypeId={typeId}, RelatedToId={relatedToId}");
+                    return ServiceResult<object>.Failure(
+                        notFoundAlert.Type,
+                        "No vital department mapping found",
+                        404
+                    );
+                }
+
+                var rawData = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>()
+                        .ToDictionary(
+                            col => col.ColumnName,
+                            col => row[col] == DBNull.Value ? null : row[col]
+                        )
+                ).ToList();
+
+                _log.Info($"GetVitalDepartmentMapping retrieved {rawData.Count} record(s)");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    rawData,
+                    alert.Type,
+                    $"{rawData.Count} record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<string> SaveVitalDepartmentMapping(
+            SaveVitalDepartmentMappingRequest request,
+            AllGlobalValues globalValues)
+        {
+            SqlConnection con = null;
+            SqlTransaction tnx = null;
+            try
+            {
+                _log.Info($"SaveVitalDepartmentMapping called. TypeId={request.TypeId}, RelatedToId={request.RelatedToId}, Items={request.HeaderMappingData?.Count ?? 0}");
+
+                var connectionString = _configuration.GetConnectionString("ConnectionString");
+                if (string.IsNullOrEmpty(connectionString))
+                    throw new InvalidOperationException("Connection string 'ConnectionString' not found.");
+
+                con = new SqlConnection(connectionString);
+                con.Open();
+                tnx = CustomSqlHelper.getSqlTransaction(con);
+
+                // Step 1 – Delete existing mappings
+                _sqlHelper.DML(tnx, "D_DeleteVitalDepartmentMapping", CommandType.StoredProcedure, new
+                {
+                    @typeId = request.TypeId,
+                    @relatedToId = request.RelatedToId
+                });
+                _log.Info($"Deleted existing mappings for TypeId={request.TypeId}, RelatedToId={request.RelatedToId}");
+
+                // Step 2 – Insert new mappings
+                int insertedCount = 0;
+                if (request.HeaderMappingData != null && request.HeaderMappingData.Any())
+                {
+                    foreach (var item in request.HeaderMappingData)
+                    {
+                        _sqlHelper.DML(tnx, "I_VitalDepartmentMapping", CommandType.StoredProcedure, new
+                        {
+                            @hospId = globalValues.hospId,
+                            @typeId = request.TypeId,
+                            @typeName = request.TypeName ?? string.Empty,
+                            @vitalId = item.vitalId,
+                            @retatedToId = request.RelatedToId,
+                            @sequenceNo = item.SequenceNo,
+                            @userId = globalValues.userId,
+                            @ipAddress = globalValues.ipAddress
+                        });
+                        insertedCount++;
+                    }
+                }
+
+                tnx.Commit();
+                _log.Info($"SaveVitalDepartmentMapping committed. Inserted={insertedCount}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    $"{insertedCount} mapping(s) saved successfully",
+                    alert.Type,
+                    "Mapping Updated Successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                try { tnx?.Rollback(); } catch { /* swallow */ }
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(alert.Type, alert.Message, 500);
+            }
+            finally
+            {
+                tnx?.Dispose();
+                if (con != null)
+                {
+                    if (con.State == System.Data.ConnectionState.Open) con.Close();
+                    con.Dispose();
+                }
+            }
+        }
+
+
     }
 }

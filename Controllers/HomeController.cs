@@ -1347,5 +1347,42 @@ namespace HISWEBAPI.Controllers
             });
         }
 
+        [HttpGet("getPatientLedgerBill")]
+        [Authorize]
+        public IActionResult GetPatientLedgerBill([FromQuery] int patientId)
+        {
+            _log.Info($"GetPatientLedgerBill called. PatientId={patientId}");
+
+            if (patientId <= 0)
+            {
+                _log.Warn("Invalid PatientId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "PatientId must be greater than 0",
+                    errors = new { patientId }
+                });
+            }
+
+            var serviceResult = _homeRepository.GetPatientLedgerBill(patientId);
+
+            if (serviceResult.Result)
+                _log.Info($"PatientLedgerBill fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"PatientLedgerBill fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+
+
     }
 }

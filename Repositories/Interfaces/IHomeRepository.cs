@@ -48,6 +48,8 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<object> GetAvailableBeds(int branchId, int typeId);
         ServiceResult<object> GetBillingTabs(int branchId, int roleId, int tabTypeId, int roomServiceItemId, AllGlobalValues globalValues);
         ServiceResult<object> GetAssignBranchRight(int branchId);
+        ServiceResult<IEnumerable<Dictionary<string, object>>> GetPatientLedgerBill(int patientId);
+
 
     }
 }

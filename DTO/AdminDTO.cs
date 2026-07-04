@@ -1189,17 +1189,20 @@ namespace HISWEBAPI.DTO
 
         [Required(ErrorMessage = "IsActive is required")]
         public int IsActive { get; set; }
+        public int IsMandatory { get; set; } = 0;
+
 
         public List<DoctorHeaderLOVRequest> ListOfValues { get; set; }
     }
 
     public class DoctorHeaderLOVRequest
     {
-        [Required(ErrorMessage = "Value is required")]
-        [StringLength(256, ErrorMessage = "Value cannot exceed 256 characters")]
+       
         public string Value { get; set; }
 
         public int DataTypeId { get; set; } = 0;
+        public string HeaderName { get; set; }
+        public List<string> Options { get; set; } = new List<string>();
     }
 
     public class CreateUpdateDoctorHeaderResponse
@@ -1636,6 +1639,72 @@ namespace HISWEBAPI.DTO
         [Required(ErrorMessage = "DefaultCorporateId is required")]
         [Range(1, int.MaxValue, ErrorMessage = "DefaultCorporateId must be greater than 0")]
         public int DefaultCorporateId { get; set; }
+    }
+
+    public class CreateUpdateVitalMasterRequest
+    {
+        public int VitalId { get; set; } = 0;
+
+        [Required(ErrorMessage = "VitalName is required")]
+        [StringLength(256, ErrorMessage = "VitalName cannot exceed 256 characters")]
+        public string VitalName { get; set; }
+
+        [Required(ErrorMessage = "UnitId is required")]
+        public int UnitId { get; set; }
+
+        [StringLength(256, ErrorMessage = "UnitName cannot exceed 256 characters")]
+        public string UnitName { get; set; }
+
+        [StringLength(256, ErrorMessage = "MinValue cannot exceed 256 characters")]
+        public string MinValue { get; set; }
+
+        [StringLength(256, ErrorMessage = "MaxValue cannot exceed 256 characters")]
+        public string MaxValue { get; set; }
+
+        public string snomedCode { get; set; }
+
+        [Required(ErrorMessage = "Active is required")]
+        [Range(0, 1, ErrorMessage = "Active must be 0 or 1")]
+        public int Active { get; set; }
+        public int IsMandatory { get; set; } = 0;
+        public int IsBodyMeasurement { get; set; } = 0;
+
+    }
+
+    public class CreateUpdateVitalUnitMasterRequest
+    {
+        public int Id { get; set; } = 0;
+
+        [Required(ErrorMessage = "UnitName is required")]
+        [StringLength(100, ErrorMessage = "UnitName cannot exceed 100 characters")]
+        public string UnitName { get; set; }
+    }
+
+    public class SaveVitalDepartmentMappingRequest
+    {
+        [Required(ErrorMessage = "TypeId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "TypeId must be greater than 0")]
+        public int TypeId { get; set; }
+
+        [StringLength(100)]
+        public string TypeName { get; set; }
+
+        [Required(ErrorMessage = "RelatedToId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "RelatedToId must be greater than 0")]
+        public int RelatedToId { get; set; }
+
+        public List<VitalDepartmentMappingItemRequest> HeaderMappingData { get; set; }
+    }
+
+    public class VitalDepartmentMappingItemRequest
+    {
+      
+       
+
+        [Required(ErrorMessage = "VitalId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "VitalId must be greater than 0")]
+        public int vitalId { get; set; }
+        public int SequenceNo { get; set; } = 0;
     }
 
 }

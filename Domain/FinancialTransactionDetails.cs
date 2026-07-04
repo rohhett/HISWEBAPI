@@ -15,6 +15,7 @@ namespace HISWEBAPI.Domain
         public int SubSubCategoryId { get; set; }
         public string ServiceName { get; set; }
         public string ServiceCode { get; set; }
+        public string Remarks { get; set; }
         public string CorporateAlias { get; set; }
         public string CorporateCode { get; set; }
         public int? DoctorId { get; set; }
@@ -61,6 +62,7 @@ namespace HISWEBAPI.Domain
                 @subSubCategoryId = SubSubCategoryId,
                 @serviceName = ServiceName,
                 @serviceCode = ServiceCode,
+                @remarks = Remarks,
                 @corporateAlias = CorporateAlias,
                 @corporateCode = CorporateCode,
                 @doctorId = DoctorId,

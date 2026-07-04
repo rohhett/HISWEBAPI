@@ -209,6 +209,12 @@ namespace HISWEBAPI.DTO
         public string Contacts { get; set; } = string.Empty;
         public string EmailIds { get; set; } = string.Empty;
     }
+    public class GetPatientLedgerBillRequest
+    {
+        [Required(ErrorMessage = "PatientId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "PatientId must be greater than 0")]
+        public int PatientId { get; set; }
+    }
 
-   
+
 }

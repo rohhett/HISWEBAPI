@@ -9,6 +9,7 @@ namespace HISWEBAPI.DTO
         [Required(ErrorMessage = "BranchId is required")]
         public int BranchId { get; set; }
 
+        public int RoleId { get; set; } = 0;
 
         [Required(ErrorMessage = "Title is required")]
         [StringLength(20, ErrorMessage = "Title cannot exceed 20 characters")]
@@ -167,6 +168,9 @@ namespace HISWEBAPI.DTO
         [Required(ErrorMessage = "BranchId is required")]
         public int BranchId { get; set; }
 
+        [Required(ErrorMessage = "RoleId is required")]
+        public int RoleId { get; set; } = 0;
+
         [Required(ErrorMessage = "CurrentAge is required")]
         public string CurrentAge { get; set; }
 
@@ -220,6 +224,7 @@ namespace HISWEBAPI.DTO
         public string ServiceName { get; set; }
 
         public string Code { get; set; }
+        public string? Remarks { get; set; }
         public string CorporateAlias { get; set; }
         public string CorporateCode { get; set; }
         public string DiscountReason { get; set; }
@@ -258,6 +263,7 @@ namespace HISWEBAPI.DTO
         public decimal Amount { get; set; }
 
         public int IsCopaymentReceipt { get; set; } = 0;
+        public int IsPatientAdvanceAmount { get; set; } = 0;
         public int BankId { get; set; }
         public string RefNo { get; set; }
         public string PlutusTransactionReferenceID { get; set; }
@@ -344,7 +350,7 @@ namespace HISWEBAPI.DTO
 
         /// <summary>1 = OPD, 2 = IPD</summary>
         [Required(ErrorMessage = "TypeId is required")]
-        [Range(1, 2, ErrorMessage = "TypeId must be 1 (OPD) or 2 (IPD)")]
+        [Range(1, 20, ErrorMessage = "TypeId must be 1 (OPD) or 2 (IPD) or 6 (DayCare) or 7 (Dialysis) or 9 (Emergency)")]
         public int TypeId { get; set; }
 
         /// <summary>IPD only – 0 = to get all IPD Admitted Patient,  1 = AdmissionDate, 2 = DischargeDate</summary>
@@ -505,6 +511,7 @@ namespace HISWEBAPI.DTO
 
         [Required(ErrorMessage = "BranchId is required")]
         public int BranchId { get; set; }
+        public int RoleId { get; set; } = 0;
 
         public int InsuranceCompanyId { get; set; } = 0;
 
@@ -519,7 +526,10 @@ namespace HISWEBAPI.DTO
         public decimal TotalDiscAmtOnBill { get; set; }
         public decimal RoundOff { get; set; }
         public decimal NetAmount { get; set; }
-
+        public int DiscountApprovedID { get; set; } = 0;
+        public string? DiscountApprovedName { get; set; }
+        public string? DiscountReason { get; set; }
+        public string? Remark { get; set; }
         public string? PolicyNo { get; set; }
         public string? PolicyCardNo { get; set; }
         public string? ExpiryDate { get; set; }
@@ -542,14 +552,14 @@ namespace HISWEBAPI.DTO
         public string ServiceName { get; set; }
 
         public string? Code { get; set; }
+        public string? Remarks { get; set; }
 
-        [Required(ErrorMessage = "RateListId is required")]
-        [Range(1, int.MaxValue, ErrorMessage = "RateListId must be greater than 0")]
-        public int RateListId { get; set; }
+        public int RateListId { get; set; } = 0;
 
         [Required(ErrorMessage = "DoctorId is required")]
         [Range(1, int.MaxValue, ErrorMessage = "DoctorId must be greater than 0")]
         public int DoctorId { get; set; }
+        public int PerformingDoctorId { get; set; } = 0;
         public decimal Qty { get; set; } = 1;
         public decimal Rate { get; set; }
         public decimal DiscPer { get; set; }
@@ -564,4 +574,65 @@ namespace HISWEBAPI.DTO
     {
         public int BookingId { get; set; }
     }
+
+    public class CancelOPDBookingRequest
+    {
+        [Required(ErrorMessage = "BookingId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "BookingId must be greater than 0")]
+        public int BookingId { get; set; }
+
+        [StringLength(256, ErrorMessage = "CancelReason cannot exceed 256 characters")]
+        public string? CancelReason { get; set; }
+    }
+
+    public class ApproveOPDBookingDiscountRequest
+    {
+        [Required(ErrorMessage = "BookingId is required")]
+        [Range(1, long.MaxValue, ErrorMessage = "BookingId must be greater than 0")]
+        public long BookingId { get; set; }
+
+        [Required(ErrorMessage = "Flag is required")]
+        [Range(0, 4, ErrorMessage = "Flag must be between 0 and 4")]
+        public int Flag { get; set; }
+
+        [Range(0, 100, ErrorMessage = "ApprovedPer must be between 0 and 100")]
+        public decimal ApprovedPer { get; set; } = 0;
+
+        [StringLength(256, ErrorMessage = "ApprovalRemarks cannot exceed 256 characters")]
+        public string? ApprovalRemarks { get; set; }
+    }
+
+    // ─── Patient Advance (Ledger) ────────────────────────────────────────────────
+
+    public class SavePatientAdvanceRequest
+    {
+        [Required(ErrorMessage = "BranchId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "BranchId must be greater than 0")]
+        public int BranchId { get; set; }
+
+        [Required(ErrorMessage = "RoleId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "RoleId must be greater than 0")]
+        public int RoleId { get; set; }
+
+
+        [Required(ErrorMessage = "PatientId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "PatientId must be greater than 0")]
+        public int PatientId { get; set; }
+
+        [Range(0, int.MaxValue, ErrorMessage = "PatientLedgerId must be greater than or equal to 0")]
+        public int PatientLedgerId { get; set; } = 0;
+
+        [Required(ErrorMessage = "PaymentDetails is required")]
+        [MinLength(1, ErrorMessage = "At least one payment detail is required")]
+        public List<PaymentDetailRequest> PaymentDetails { get; set; } = new();
+    }
+
+    public class SavePatientAdvanceResponse
+    {
+        public int PatientId { get; set; }
+        public int LedgerId { get; set; }
+        public int ReceiptId { get; set; }
+    }
+
+
 }

@@ -8,6 +8,7 @@ namespace HISWEBAPI.Domain
     {
         public int HospId { get; set; }
         public int BranchId { get; set; }
+        public int RoleId { get; set; }
         public int PatientId { get; set; }
         public int VisitId { get; set; }
         public int TypeId { get; set; }
@@ -24,6 +25,7 @@ namespace HISWEBAPI.Domain
         public decimal TotalCorporatePayableAmount { get; set; }
         public decimal TotalPatientPaidAmount { get; set; }
         public decimal TotalCorporatePaidAmount { get; set; }
+        public decimal TotalAmountSettledWithPatientAdvance { get; set; }
         public int UserId { get; set; }
         public string IpAddress { get; set; }
 
@@ -33,6 +35,7 @@ namespace HISWEBAPI.Domain
             {
                 new SqlParameter("@hospId",                    SqlDbType.Int)     { Value = HospId },
                 new SqlParameter("@branchId",                  SqlDbType.Int)     { Value = BranchId },
+                new SqlParameter("@roleId",                    SqlDbType.Int)     { Value = RoleId },
                 new SqlParameter("@patientId",                 SqlDbType.Int)     { Value = PatientId },
                 new SqlParameter("@visitId",                   SqlDbType.Int)     { Value = VisitId },
                 new SqlParameter("@typeId",                    SqlDbType.Int)     { Value = TypeId },
@@ -49,6 +52,7 @@ namespace HISWEBAPI.Domain
                 new SqlParameter("@totalCorporatePayableAmount",SqlDbType.Decimal){ Value = TotalCorporatePayableAmount, Precision = 16, Scale = 6 },
                 new SqlParameter("@totalPatientPaidAmount",    SqlDbType.Decimal) { Value = TotalPatientPaidAmount,     Precision = 16, Scale = 6 },
                 new SqlParameter("@totalCorporatePaidAmount",  SqlDbType.Decimal) { Value = TotalCorporatePaidAmount,   Precision = 16, Scale = 6 },
+                new SqlParameter("@totalAmountSettledWithPatientAdvance",  SqlDbType.Decimal) { Value = TotalAmountSettledWithPatientAdvance,   Precision = 16, Scale = 6 },
                 new SqlParameter("@userId",                    SqlDbType.Int)     { Value = UserId },
                 new SqlParameter("@IpAddress",                 SqlDbType.NVarChar, 20) { Value = IpAddress ?? string.Empty },
                 new SqlParameter("@Result",                    SqlDbType.Int)     { Direction = ParameterDirection.Output }

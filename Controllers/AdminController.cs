@@ -5209,5 +5209,242 @@ namespace HISWEBAPI.Controllers
 
 
         #endregion
+
+
+
+        [HttpPost("createUpdateVitalMaster")]
+        [Authorize]
+        public IActionResult CreateUpdateVitalMaster([FromBody] CreateUpdateVitalMasterRequest request)
+        {
+            _log.Info($"CreateUpdateVitalMaster called. VitalId={request.VitalId}, VitalName={request.VitalName}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for vital master insert/update.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _adminRepository.CreateUpdateVitalMaster(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"VitalMaster operation completed: {serviceResult.Message}");
+            else
+                _log.Warn($"VitalMaster operation failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getVitalMasterList")]
+        [Authorize]
+        public IActionResult GetVitalMasterList([FromQuery] int? isActive = null)
+        {
+            _log.Info($"GetVitalMasterList called. IsActive={isActive?.ToString() ?? "All"}");
+
+            if (isActive.HasValue && isActive.Value != 0 && isActive.Value != 1)
+            {
+                _log.Warn($"Invalid IsActive parameter: {isActive.Value}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "IsActive must be 0 (Inactive), 1 (Active), or null (All)",
+                    errors = new { isActive }
+                });
+            }
+
+            var serviceResult = _adminRepository.GetVitalMasterList(isActive);
+
+            if (serviceResult.Result)
+                _log.Info($"VitalMaster fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"VitalMaster fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPost("createUpdateVitalUnitMaster")]
+        [Authorize]
+        public IActionResult CreateUpdateVitalUnitMaster([FromBody] CreateUpdateVitalUnitMasterRequest request)
+        {
+            _log.Info($"CreateUpdateVitalUnitMaster called. Id={request.Id}, UnitName={request.UnitName}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for vital unit master insert/update.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _adminRepository.CreateUpdateVitalUnitMaster(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"VitalUnitMaster operation completed: {serviceResult.Message}");
+            else
+                _log.Warn($"VitalUnitMaster operation failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getVitalUnitMasterList")]
+        [Authorize]
+        public IActionResult GetVitalUnitMasterList()
+        {
+            _log.Info("GetVitalUnitMasterList called.");
+
+            var serviceResult = _adminRepository.GetVitalUnitMasterList();
+
+            if (serviceResult.Result)
+                _log.Info($"VitalUnitMaster fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"VitalUnitMaster fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+
+        [HttpGet("getVitalDepartmentMapping")]
+        [Authorize]
+        public IActionResult GetVitalDepartmentMapping(
+    [FromQuery] int typeId,
+    [FromQuery] int relatedToId)
+        {
+            _log.Info($"GetVitalDepartmentMapping called. TypeId={typeId}, RelatedToId={relatedToId}");
+
+            if (typeId <= 0)
+            {
+                _log.Warn("Invalid TypeId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "TypeId must be greater than 0",
+                    errors = new { typeId }
+                });
+            }
+
+            if (relatedToId <= 0)
+            {
+                _log.Warn("Invalid RelatedToId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "RelatedToId must be greater than 0",
+                    errors = new { relatedToId }
+                });
+            }
+
+            var serviceResult = _adminRepository.GetVitalDepartmentMapping(typeId, relatedToId);
+
+            if (serviceResult.Result)
+                _log.Info($"VitalDepartmentMapping fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"VitalDepartmentMapping fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPost("saveVitalDepartmentMapping")]
+        [Authorize]
+        public IActionResult SaveVitalDepartmentMapping([FromBody] SaveVitalDepartmentMappingRequest request)
+        {
+            _log.Info($"SaveVitalDepartmentMapping called. TypeId={request.TypeId}, RelatedToId={request.RelatedToId}, Items={request.HeaderMappingData?.Count ?? 0}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SaveVitalDepartmentMapping.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.HeaderMappingData != null && request.HeaderMappingData.Any())
+            {
+                var invalidRows = request.HeaderMappingData
+                    .Where(x => x.vitalId <= 0 )
+                    .ToList();
+
+                if (invalidRows.Any())
+                {
+                    _log.Warn($"{invalidRows.Count} row(s) have invalid TypeId, VitalId, or RelatedToId.");
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "Every mapping row must have VitalId > 0 "
+                    });
+                }
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _adminRepository.SaveVitalDepartmentMapping(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"SaveVitalDepartmentMapping completed: {serviceResult.Message}");
+            else
+                _log.Warn($"SaveVitalDepartmentMapping failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
     }
 }

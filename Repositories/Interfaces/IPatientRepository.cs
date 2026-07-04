@@ -52,9 +52,17 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<object> GetVisitWisePatientDocumentMapping(int documentCategoryId, int visitId, int patientId);
         ServiceResult<SaveOPDBookingResponse> SaveOPDBooking(SaveOPDBookingRequest request, AllGlobalValues globalValues);
 
-        ServiceResult<object> GetOPDBookingDetailsForPaymentCollection(string fromDate, string toDate);
-        ServiceResult<object> GetOPDBookingDetailsForDiscountApproval(string fromDate, string toDate);
+        ServiceResult<object> GetOPDBookingDetailsForPaymentCollection(int branchId, int corporateId, string fromDate, string toDate);
+        ServiceResult<object> GetOPDBookingDetailsForDiscountApproval(int branchId, int corporateId, string fromDate, string toDate, AllGlobalValues globalValues);
         ServiceResult<object> GetOPDBookingDetailsByBookingId(int bookingId);
+
+        ServiceResult<string> CancelOPDBooking(CancelOPDBookingRequest request, AllGlobalValues globalValues);
+        ServiceResult<string> PaymentCollectedForOPDBooking(int bookingId, AllGlobalValues globalValues);
+        ServiceResult<string> ApproveOPDBookingDiscount(ApproveOPDBookingDiscountRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetOPDBookingApprovalDetails(long bookingId);
+        ServiceResult<SavePatientAdvanceResponse> SavePatientAdvance(SavePatientAdvanceRequest request, AllGlobalValues globalValues);
+        ServiceResult<IEnumerable<Dictionary<string, object>>> GetPatientLedgerReceiptDetails(int receiptId, int patientId, int ledgerId);
+        ServiceResult<IEnumerable<Dictionary<string, object>>> GetPatientAdvanceReceiptList(int patientId);
 
 
     }

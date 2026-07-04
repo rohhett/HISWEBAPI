@@ -2853,5 +2853,61 @@ namespace HISWEBAPI.Repositories.Implementations
             }
         }
 
+
+        public ServiceResult<IEnumerable<Dictionary<string, object>>> GetPatientLedgerBill(int patientId)
+        {
+            try
+            {
+                _log.Info($"GetPatientLedgerBill called. PatientId={patientId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetPatientLedgerBill",
+                    CommandType.StoredProcedure,
+                    new { @patientId = patientId }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No ledger bill found for PatientId={patientId}");
+                    return ServiceResult<IEnumerable<Dictionary<string, object>>>.Failure(
+                        alert.Type,
+                        "No ledger bill found for this patient",
+                        404
+                    );
+                }
+
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetPatientLedgerBill retrieved {result.Count} record(s) for PatientId={patientId}");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<IEnumerable<Dictionary<string, object>>>.Success(
+                    result,
+                    alert1.Type,
+                    $"{result.Count} ledger bill record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<IEnumerable<Dictionary<string, object>>>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+
+
+
     }
 }

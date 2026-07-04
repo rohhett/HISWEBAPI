@@ -30,6 +30,7 @@ namespace HISWEBAPI.Domain
         public decimal TotalCorporatePayableAmount { get; set; }
         public decimal TotalPatientPaidAmount { get; set; }
         public decimal TotalCorporatePaidAmount { get; set; }
+        public decimal TotalAmountSettledWithPatientAdvance { get; set; }
         public int UserId { get; set; }
         public string IpAddress { get; set; }
         public string UniqueId { get; set; }
@@ -93,6 +94,7 @@ namespace HISWEBAPI.Domain
                 @totalCorporatePayableAmount = TotalCorporatePayableAmount,
                 @totalPatientPaidAmount = TotalPatientPaidAmount,
                 @totalCorporatePaidAmount = TotalCorporatePaidAmount,
+                @totalAmountSettledWithPatientAdvance = TotalAmountSettledWithPatientAdvance,
                 @userId = UserId,
                 @IpAddress = IpAddress,
                 @uniqueId = UniqueId,
