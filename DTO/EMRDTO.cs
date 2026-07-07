@@ -152,4 +152,30 @@ namespace HISWEBAPI.DTO
 
         public int SequenceNo { get; set; } = 0;
     }
+    public class SaveEMRSectionDepartmentMappingRequest
+    {
+        [Required(ErrorMessage = "TypeId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "TypeId must be greater than 0")]
+        public int TypeId { get; set; }
+
+        [StringLength(100)]
+        public string TypeName { get; set; }
+
+        [Required(ErrorMessage = "RelatedToId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "RelatedToId must be greater than 0")]
+        public int RelatedToId { get; set; }
+
+        public List<EMRSectionDepartmentMappingItemRequest> HeaderMappingData { get; set; }
+    }
+
+    public class EMRSectionDepartmentMappingItemRequest
+    {
+
+
+
+        [Required(ErrorMessage = "EMRSectionId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "EMRSectionId must be greater than 0")]
+        public int SectionId { get; set; }
+        public int SequenceNo { get; set; } = 0;
+    }
 }

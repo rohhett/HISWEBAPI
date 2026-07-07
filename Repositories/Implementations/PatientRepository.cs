@@ -2929,7 +2929,8 @@ namespace HISWEBAPI.Repositories.Implementations
             "IsLevel3Approve", "Level3ApproveId", "Level3ApproveOn",
             "IsLevel4Approve", "Level4ApproveId", "Level4ApproveOn",
             "IsCancel", "CancelBy", "CancelOn", "CancelReason",
-            "CreatedBy", "CreatedOn", "LastModifiedBy", "LastModifiedOn"
+            "CreatedBy", "CreatedOn", "LastModifiedBy", "LastModifiedOn",
+            "DiscountApprovedID", "DiscountApprovedName", "DiscountReason", "Remark"
         };
 
                 // OBID item columns

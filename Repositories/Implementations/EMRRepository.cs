@@ -1077,5 +1077,133 @@ namespace HISWEBAPI.Repositories.Implementations
                 return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
             }
         }
+
+        public ServiceResult<object> GetEMRSectionDepartmentMapping(int typeId, int relatedToId)
+        {
+            try
+            {
+                _log.Info($"GetEMRSectionDepartmentMapping called. TypeId={typeId}, RelatedToId={relatedToId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetEMRSectionDepartmentMapping",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @typeId = typeId,
+                        @relatedToId = relatedToId
+                    });
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var notFoundAlert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No EMRSection department mapping found for TypeId={typeId}, RelatedToId={relatedToId}");
+                    return ServiceResult<object>.Failure(
+                        notFoundAlert.Type,
+                        "No EMRSection department mapping found",
+                        404
+                    );
+                }
+
+                var rawData = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>()
+                        .ToDictionary(
+                            col => col.ColumnName,
+                            col => row[col] == DBNull.Value ? null : row[col]
+                        )
+                ).ToList();
+
+                _log.Info($"GetEMRSectionDepartmentMapping retrieved {rawData.Count} record(s)");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    rawData,
+                    alert.Type,
+                    $"{rawData.Count} record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<string> SaveEMRSectionDepartmentMapping(
+            SaveEMRSectionDepartmentMappingRequest request,
+            AllGlobalValues globalValues)
+        {
+            SqlConnection con = null;
+            SqlTransaction tnx = null;
+            try
+            {
+                _log.Info($"SaveEMRSectionDepartmentMapping called. TypeId={request.TypeId}, RelatedToId={request.RelatedToId}, Items={request.HeaderMappingData?.Count ?? 0}");
+
+                var connectionString = _configuration.GetConnectionString("ConnectionString");
+                if (string.IsNullOrEmpty(connectionString))
+                    throw new InvalidOperationException("Connection string 'ConnectionString' not found.");
+
+                con = new SqlConnection(connectionString);
+                con.Open();
+                tnx = CustomSqlHelper.getSqlTransaction(con);
+
+                // Step 1 – Delete existing mappings
+                _sqlHelper.DML(tnx, "D_DeleteEMRSectionDepartmentMapping", CommandType.StoredProcedure, new
+                {
+                    @typeId = request.TypeId,
+                    @relatedToId = request.RelatedToId
+                });
+                _log.Info($"Deleted existing mappings for TypeId={request.TypeId}, RelatedToId={request.RelatedToId}");
+
+                // Step 2 – Insert new mappings
+                int insertedCount = 0;
+                if (request.HeaderMappingData != null && request.HeaderMappingData.Any())
+                {
+                    foreach (var item in request.HeaderMappingData)
+                    {
+                        _sqlHelper.DML(tnx, "I_EMRSectionDepartmentMapping", CommandType.StoredProcedure, new
+                        {
+                            @hospId = globalValues.hospId,
+                            @typeId = request.TypeId,
+                            @typeName = request.TypeName ?? string.Empty,
+                            @SectionId = item.SectionId,
+                            @retatedToId = request.RelatedToId,
+                            @sequenceNo = item.SequenceNo,
+                            @userId = globalValues.userId,
+                            @ipAddress = globalValues.ipAddress
+                        });
+                        insertedCount++;
+                    }
+                }
+
+                tnx.Commit();
+                _log.Info($"SaveEMRSectionDepartmentMapping committed. Inserted={insertedCount}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    $"{insertedCount} mapping(s) saved successfully",
+                    alert.Type,
+                    "Mapping Updated Successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                try { tnx?.Rollback(); } catch { /* swallow */ }
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(alert.Type, alert.Message, 500);
+            }
+            finally
+            {
+                tnx?.Dispose();
+                if (con != null)
+                {
+                    if (con.State == System.Data.ConnectionState.Open) con.Close();
+                    con.Dispose();
+                }
+            }
+        }
     }
 }

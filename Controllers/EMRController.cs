@@ -543,5 +543,110 @@ namespace HISWEBAPI.Controllers
                 data = serviceResult.Data
             });
         }
+
+        [HttpGet("getEMRSectionDepartmentMapping")]
+        [Authorize]
+        public IActionResult GetEMRSectionDepartmentMapping(
+[FromQuery] int typeId,
+[FromQuery] int relatedToId)
+        {
+            _log.Info($"GetEMRSectionDepartmentMapping called. TypeId={typeId}, RelatedToId={relatedToId}");
+
+            if (typeId <= 0)
+            {
+                _log.Warn("Invalid TypeId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "TypeId must be greater than 0",
+                    errors = new { typeId }
+                });
+            }
+
+            if (relatedToId <= 0)
+            {
+                _log.Warn("Invalid RelatedToId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "RelatedToId must be greater than 0",
+                    errors = new { relatedToId }
+                });
+            }
+
+            var serviceResult = _emrRepository.GetEMRSectionDepartmentMapping(typeId, relatedToId);
+
+            if (serviceResult.Result)
+                _log.Info($"EMRSectionDepartmentMapping fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"EMRSectionDepartmentMapping fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPost("saveEMRSectionDepartmentMapping")]
+        [Authorize]
+        public IActionResult SaveEMRSectionDepartmentMapping([FromBody] SaveEMRSectionDepartmentMappingRequest request)
+        {
+            _log.Info($"SaveEMRSectionDepartmentMapping called. TypeId={request.TypeId}, RelatedToId={request.RelatedToId}, Items={request.HeaderMappingData?.Count ?? 0}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SaveEMRSectionDepartmentMapping.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.HeaderMappingData != null && request.HeaderMappingData.Any())
+            {
+                var invalidRows = request.HeaderMappingData
+                    .Where(x => x.SectionId <= 0)
+                    .ToList();
+
+                if (invalidRows.Any())
+                {
+                    _log.Warn($"{invalidRows.Count} row(s) have invalid TypeId, SectionId, or RelatedToId.");
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "Every mapping row must have SectionId > 0 "
+                    });
+                }
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _emrRepository.SaveEMRSectionDepartmentMapping(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"SaveEMRSectionDepartmentMapping completed: {serviceResult.Message}");
+            else
+                _log.Warn($"SaveEMRSectionDepartmentMapping failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
     }
 }
