@@ -62,8 +62,42 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<object> GetOPDBookingApprovalDetails(long bookingId);
         ServiceResult<SavePatientAdvanceResponse> SavePatientAdvance(SavePatientAdvanceRequest request, AllGlobalValues globalValues);
         ServiceResult<IEnumerable<Dictionary<string, object>>> GetPatientLedgerReceiptDetails(int receiptId, int patientId, int ledgerId);
-        ServiceResult<IEnumerable<Dictionary<string, object>>> GetPatientAdvanceReceiptList(int patientId);
+        ServiceResult<IEnumerable<Dictionary<string, object>>> GetPatientAdvanceReceiptList(int patientId,int receiptId);
+        ServiceResult<object> GetBillToRefund(string receiptNo, string billNo, string uhid, string patientName);
+        ServiceResult<object> GetBillDetailsToRefund(int visitId);
+        ServiceResult<object> GetOPDPackageServicesForRefund(int visitId, int packageId);
+        ServiceResult<SaveOPDRefundBillingResponse> SaveOPDRefundBilling(SaveOPDRefundBillingRequest request, AllGlobalValues globalValues);
+        ServiceResult<SaveOPDRefundRequestApprovalResponse> SaveOPDRefundRequestApproval(SaveOPDRefundRequestApprovalRequest request, AllGlobalValues globalValues);
+        ServiceResult<string> ApproveOPDRefundRequest(ApproveOPDRefundRequestRequest request, AllGlobalValues globalValues);
+        ServiceResult<string> CancelOPDRefundRequest(CancelOPDRefundRequestRequest request, AllGlobalValues globalValues);
+        ServiceResult<string> paymentOPDRefundRequest(paymentOPDRefundRequestRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetOPDRefundRequestListForApproval(string fromDate, string toDate, int branchId, AllGlobalValues globalValues);
+        ServiceResult<object> GetOPDRefundRequestDetailsByRefundId(int refundId);
+        ServiceResult<object> GetOPDRefundRequestApprovalDetails(int refundId);
 
+        ServiceResult<object> GetBillReceiptReprintDetails(
+    string branchId, string uhid, string name, int type,
+    string billNo, string receiptNo, string fromDate, string toDate);
 
+        ServiceResult<object> GetBillForCreditNote(string fromDate, string toDate, string billNo, string uhid, string patientName, int typeId);
+        ServiceResult<object> GetBillDetailsForCreditNote(int visitId);
+
+        ServiceResult<SaveCreditNoteRequestApprovalResponse> SaveCreditNoteRequestApproval(SaveCreditNoteRequestApprovalRequest request, AllGlobalValues globalValues);
+        ServiceResult<string> ApproveCreditNoteRequest(ApproveCreditNoteRequestRequest request, AllGlobalValues globalValues);
+        ServiceResult<string> CancelCreditNoteRequest(CancelCreditNoteRequestRequest request, AllGlobalValues globalValues);
+        ServiceResult<string> CollectCreditNoteRequest(CollectCreditNoteRequestRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetCreditNoteRequestListForApproval(string fromDate, string toDate, int branchId, AllGlobalValues globalValues);
+        ServiceResult<object> GetCreditNoteRequestDetailsByCreditNoteId(int creditNoteId);
+        ServiceResult<object> GetCreditNoteRequestApprovalDetails(int creditNoteId);
+        ServiceResult<object> GetBillForWriteOff(string fromDate, string toDate, string billNo, string uhid, string patientName, int typeId);
+        ServiceResult<object> GetBillDetailsForWriteOff(int visitId);
+        ServiceResult<SaveWriteOffRequestApprovalResponse> SaveWriteOffRequestApproval(SaveWriteOffRequestApprovalRequest request, AllGlobalValues globalValues);
+        ServiceResult<string> ApproveWriteOffRequest(ApproveWriteOffRequestRequest request, AllGlobalValues globalValues);
+        ServiceResult<string> CancelWriteOffRequest(CancelWriteOffRequestRequest request, AllGlobalValues globalValues);
+        ServiceResult<string> CollectWriteOffRequest(CollectWriteOffRequestRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetWriteOffRequestListForApproval(string fromDate, string toDate, int branchId, AllGlobalValues globalValues);
+        ServiceResult<object> GetWriteOffRequestDetailsByWriteOffId(int writeOffId);
+        ServiceResult<object> GetWriteOffRequestApprovalDetails(int writeOffId);
+    
     }
 }

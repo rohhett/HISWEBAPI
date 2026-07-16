@@ -23,6 +23,15 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<object> GetEMRSectionDepartmentMapping(int typeId, int relatedToId);
         ServiceResult<string> SaveEMRSectionDepartmentMapping(SaveEMRSectionDepartmentMappingRequest request, AllGlobalValues globalValues);
 
-
+        ServiceResult<object> GetEMRSectionScoreFormula(int sectionId);
+        ServiceResult<object> SaveEMRSectionScoreFormula(SaveEMRSectionScoreFormulaRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetEMRSectionAttributeCondition(int sectionId);
+        ServiceResult<object> SaveEMRSectionAttributeCondition(SaveEMRSectionAttributeConditionRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> DeleteEMRSectionAttributeCondition(int id);
+        ServiceResult<object> GetEMRHeaderQueryResult(int headerId);
+        ServiceResult<string> SaveDoctorFavouriteEMRSections(SaveDoctorFavouriteEMRSectionsRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetDoctorFavouriteEMRSections(int doctorId);
+        ServiceResult<CreateUpdateChiefComplaintMasterResponse> CreateUpdateChiefComplaintMaster(CreateUpdateChiefComplaintMasterRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetChiefComplaintMasterList(int? isActive);
     }
 }

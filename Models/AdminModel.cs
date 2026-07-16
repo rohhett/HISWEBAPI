@@ -442,6 +442,8 @@ namespace HISWEBAPI.Models
         public int IsMandatory { get; set; }
         public string UsedForPatientTypeName { get; set; }
         public int IsActive { get; set; }
+        public string Queries { get; set; }
+
     }
 
     // ─── Doctor Header LOV ────────────────────────────────────────────────────────

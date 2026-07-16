@@ -648,5 +648,466 @@ namespace HISWEBAPI.Controllers
                 data = serviceResult.Data
             });
         }
+
+        [HttpPost("saveEMRSectionScoreFormula")]
+        [Authorize]
+        public IActionResult SaveEMRSectionScoreFormula([FromBody] SaveEMRSectionScoreFormulaRequest request)
+        {
+            _log.Info($"SaveEMRSectionScoreFormula called. SectionId={request.SectionId}, Items={request.FormulaItems?.Count ?? 0}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SaveEMRSectionScoreFormula.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.FormulaItems != null && request.FormulaItems.Any())
+            {
+                var invalidRows = request.FormulaItems
+                    .Where(x => x.HeaderId < 0)
+                    .ToList();
+
+                if (invalidRows.Any())
+                {
+                    _log.Warn($"{invalidRows.Count} row(s) have invalid HeaderId.");
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "Every formula row must have HeaderId greater than equal to 0",
+                        errors = new { invalidHeaderIds = invalidRows.Select(x => x.HeaderId).ToList() }
+                    });
+                }
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _emrRepository.SaveEMRSectionScoreFormula(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"SaveEMRSectionScoreFormula completed: {serviceResult.Message}");
+            else
+                _log.Warn($"SaveEMRSectionScoreFormula failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getEMRSectionScoreFormula")]
+        [Authorize]
+        public IActionResult GetEMRSectionScoreFormula([FromQuery] int sectionId)
+        {
+            _log.Info($"GetEMRSectionScoreFormula called. SectionId={sectionId}");
+
+            if (sectionId <= 0)
+            {
+                _log.Warn("Invalid SectionId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "SectionId must be greater than 0",
+                    errors = new { sectionId }
+                });
+            }
+
+            var serviceResult = _emrRepository.GetEMRSectionScoreFormula(sectionId);
+
+            if (serviceResult.Result)
+                _log.Info($"EMRSectionScoreFormula fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"EMRSectionScoreFormula fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPost("saveEMRSectionAttributeCondition")]
+        [Authorize]
+        public IActionResult SaveEMRSectionAttributeCondition(
+    [FromBody] SaveEMRSectionAttributeConditionRequest request)
+        {
+            _log.Info($"SaveEMRSectionAttributeCondition called. SectionId={request.SectionId}, Groups={request.AttributeConditions?.Count ?? 0}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SaveEMRSectionAttributeCondition.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.AttributeConditions != null && request.AttributeConditions.Any())
+            {
+                // Validate each group has at least one condition
+                var emptyGroups = request.AttributeConditions
+                    .Where(g => g.Conditions == null || !g.Conditions.Any())
+                    .Select(g => g.TargetHeaderId)
+                    .ToList();
+
+                if (emptyGroups.Any())
+                {
+                    _log.Warn($"Groups with no conditions found. TargetHeaderIds={string.Join(",", emptyGroups)}");
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "Each attribute condition group must have at least one condition",
+                        errors = new { emptyGroupTargetHeaderIds = emptyGroups }
+                    });
+                }
+
+                // Validate all HeaderIds in conditions
+                var invalidConditions = request.AttributeConditions
+                    .SelectMany(g => g.Conditions)
+                    .Where(c => c.HeaderId <= 0)
+                    .Select(c => c.HeaderId)
+                    .ToList();
+
+                if (invalidConditions.Any())
+                {
+                    _log.Warn($"{invalidConditions.Count} condition(s) have invalid HeaderId.");
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "Every condition must have HeaderId greater than 0",
+                        errors = new { invalidHeaderIds = invalidConditions }
+                    });
+                }
+
+                // Validate Operator is not empty
+                var missingOperators = request.AttributeConditions
+                    .SelectMany(g => g.Conditions)
+                    .Where(c => string.IsNullOrWhiteSpace(c.Operator))
+                    .ToList();
+
+                if (missingOperators.Any())
+                {
+                    _log.Warn("One or more conditions are missing Operator.");
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "Operator is required for every condition"
+                    });
+                }
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _emrRepository.SaveEMRSectionAttributeCondition(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"SaveEMRSectionAttributeCondition completed: {serviceResult.Message}");
+            else
+                _log.Warn($"SaveEMRSectionAttributeCondition failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getEMRSectionAttributeCondition")]
+        [Authorize]
+        public IActionResult GetEMRSectionAttributeCondition([FromQuery] int sectionId)
+        {
+            _log.Info($"GetEMRSectionAttributeCondition called. SectionId={sectionId}");
+
+            if (sectionId <= 0)
+            {
+                _log.Warn("Invalid SectionId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "SectionId must be greater than 0",
+                    errors = new { sectionId }
+                });
+            }
+
+            var serviceResult = _emrRepository.GetEMRSectionAttributeCondition(sectionId);
+
+            if (serviceResult.Result)
+                _log.Info($"EMRSectionAttributeCondition fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"EMRSectionAttributeCondition fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("deleteEMRSectionAttributeCondition")]
+        [Authorize]
+        public IActionResult DeleteEMRSectionAttributeCondition([FromQuery] int id)
+        {
+            _log.Info($"DeleteEMRSectionAttributeCondition called. Id={id}");
+
+            if (id <= 0)
+            {
+                _log.Warn("Invalid Id provided for attribute condition deletion.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "Id must be greater than 0",
+                    errors = new { id }
+                });
+            }
+
+            var serviceResult = _emrRepository.DeleteEMRSectionAttributeCondition(id);
+
+            if (serviceResult.Result)
+                _log.Info($"EMRSectionAttributeCondition deleted successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"EMRSectionAttributeCondition deletion failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getEMRHeaderQueryResult")]
+        [Authorize]
+        public IActionResult GetEMRHeaderQueryResult([FromQuery] int headerId)
+        {
+            _log.Info($"GetEMRHeaderQueryResult called. HeaderId={headerId}");
+
+            if (headerId <= 0)
+            {
+                _log.Warn("Invalid HeaderId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "HeaderId must be greater than 0",
+                    errors = new { headerId }
+                });
+            }
+
+            var serviceResult = _emrRepository.GetEMRHeaderQueryResult(headerId);
+
+            if (serviceResult.Result)
+                _log.Info($"EMRSectionHeaderDoctorOptions fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"EMRSectionHeaderDoctorOptions fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPost("saveDoctorFavouriteEMRSections")]
+        [Authorize]
+        public IActionResult SaveDoctorFavouriteEMRSections([FromBody] SaveDoctorFavouriteEMRSectionsRequest request)
+        {
+            _log.Info($"SaveDoctorFavouriteEMRSections called. DoctorId={request?.DoctorId}, SectionCount={request?.SectionIds?.Count ?? 0}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SaveDoctorFavouriteEMRSections.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.SectionIds != null && request.SectionIds.Any(id => id <= 0))
+            {
+                _log.Warn("Invalid SectionId(s) provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "All SectionIds must be greater than 0",
+                    errors = new { invalidSectionIds = request.SectionIds.Where(id => id <= 0).ToList() }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _emrRepository.SaveDoctorFavouriteEMRSections(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"SaveDoctorFavouriteEMRSections completed: {serviceResult.Message}");
+            else
+                _log.Warn($"SaveDoctorFavouriteEMRSections failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getDoctorFavouriteEMRSections")]
+        [Authorize]
+        public IActionResult GetDoctorFavouriteEMRSections([FromQuery] int doctorId)
+        {
+            _log.Info($"GetDoctorFavouriteEMRSections called. DoctorId={doctorId}");
+
+            if (doctorId <= 0)
+            {
+                _log.Warn("Invalid DoctorId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "DoctorId must be greater than 0",
+                    errors = new { doctorId }
+                });
+            }
+
+            var serviceResult = _emrRepository.GetDoctorFavouriteEMRSections(doctorId);
+
+            if (serviceResult.Result)
+                _log.Info($"DoctorFavouriteEMRSections fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"DoctorFavouriteEMRSections fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPost("createUpdateChiefComplaintMaster")]
+        [Authorize]
+        public IActionResult CreateUpdateChiefComplaintMaster([FromBody] CreateUpdateChiefComplaintMasterRequest request)
+        {
+            _log.Info($"CreateUpdateChiefComplaintMaster called. ComplaintId={request.ComplaintId}, ComplaintName={request.ComplaintName}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for chief complaint insert/update.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.IsActive != 0 && request.IsActive != 1)
+            {
+                _log.Warn("Invalid IsActive value provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "IsActive must be 0 or 1",
+                    errors = new { isActive = request.IsActive }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _emrRepository.CreateUpdateChiefComplaintMaster(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"ChiefComplaint operation completed: {serviceResult.Message}");
+            else
+                _log.Warn($"ChiefComplaint operation failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getChiefComplaintMasterList")]
+        [Authorize]
+        public IActionResult GetChiefComplaintMasterList([FromQuery] int? isActive = null)
+        {
+            _log.Info($"GetChiefComplaintMasterList called. IsActive={isActive?.ToString() ?? "All"}");
+
+            if (isActive.HasValue && isActive.Value != 0 && isActive.Value != 1)
+            {
+                _log.Warn($"Invalid IsActive parameter: {isActive.Value}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "IsActive must be 0 (Inactive), 1 (Active), or null (All)",
+                    errors = new { isActive }
+                });
+            }
+
+            var serviceResult = _emrRepository.GetChiefComplaintMasterList(isActive);
+
+            if (serviceResult.Result)
+                _log.Info($"Chief complaints fetched successfully from cache: {serviceResult.Message}");
+            else
+                _log.Warn($"No chief complaints found: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
     }
 }

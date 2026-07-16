@@ -2019,7 +2019,7 @@ namespace HISWEBAPI.Controllers
 
         [HttpGet("getPatientAdvanceReceiptList")]
         [Authorize]
-        public IActionResult GetPatientAdvanceReceiptList([FromQuery] int patientId)
+        public IActionResult GetPatientAdvanceReceiptList([FromQuery] int patientId, [FromQuery] int receiptId)
         {
             _log.Info($"GetPatientAdvanceReceiptList called. PatientId={patientId}");
 
@@ -2036,7 +2036,20 @@ namespace HISWEBAPI.Controllers
                 });
             }
 
-            var serviceResult = _patientRepository.GetPatientAdvanceReceiptList(patientId);
+            if (receiptId <= 0)
+            {
+                _log.Warn("Invalid receiptId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "receiptId must be greater than 0",
+                    errors = new { receiptId }
+                });
+            }
+
+            var serviceResult = _patientRepository.GetPatientAdvanceReceiptList(patientId, receiptId);
 
             if (serviceResult.Result)
                 _log.Info($"PatientAdvanceReceiptList fetched successfully: {serviceResult.Message}");
@@ -2051,6 +2064,1433 @@ namespace HISWEBAPI.Controllers
                 data = serviceResult.Data
             });
         }
+
+        [HttpGet("getBillToRefund")]
+        [Authorize]
+        public IActionResult GetBillToRefund(
+      [FromQuery] string receiptNo = null,
+      [FromQuery] string billNo = null,
+      [FromQuery] string uhid = null,
+      [FromQuery] string patientName = null)
+        {
+            _log.Info($"GetBillToRefund called. ReceiptNo={receiptNo}, BillNo={billNo}, UHID={uhid}, PatientName={patientName}");
+
+            if (string.IsNullOrWhiteSpace(receiptNo) && string.IsNullOrWhiteSpace(billNo)
+                && string.IsNullOrWhiteSpace(uhid) && string.IsNullOrWhiteSpace(patientName))
+            {
+                _log.Warn("No filters provided for GetBillToRefund.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "At least one of receiptNo, billNo, uhid, or patientName is required",
+                    errors = new { receiptNo, billNo, uhid, patientName }
+                });
+            }
+
+            var serviceResult = _patientRepository.GetBillToRefund(receiptNo, billNo, uhid, patientName);
+
+            if (serviceResult.Result)
+                _log.Info($"GetBillToRefund fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetBillToRefund failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getBillDetailsToRefund")]
+        [Authorize]
+        public IActionResult GetBillDetailsToRefund([FromQuery] int visitId)
+        {
+            _log.Info($"GetBillDetailsToRefund called. VisitId={visitId}");
+
+            if (visitId <= 0)
+            {
+                _log.Warn("Invalid VisitId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "VisitId must be greater than 0",
+                    errors = new { visitId }
+                });
+            }
+
+            var serviceResult = _patientRepository.GetBillDetailsToRefund(visitId);
+
+            if (serviceResult.Result)
+                _log.Info($"GetBillDetailsToRefund fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetBillDetailsToRefund failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getOPDPackageServicesForRefund")]
+        [Authorize]
+        public IActionResult GetOPDPackageServicesForRefund(
+            [FromQuery] int visitId,
+            [FromQuery] int packageId)
+        {
+            _log.Info($"GetOPDPackageServicesForRefund called. VisitId={visitId}, PackageId={packageId}");
+
+            if (visitId <= 0)
+            {
+                _log.Warn("Invalid VisitId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "VisitId must be greater than 0",
+                    errors = new { visitId }
+                });
+            }
+
+            if (packageId <= 0)
+            {
+                _log.Warn("Invalid PackageId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "PackageId must be greater than 0",
+                    errors = new { packageId }
+                });
+            }
+
+            var serviceResult = _patientRepository.GetOPDPackageServicesForRefund(visitId, packageId);
+
+            if (serviceResult.Result)
+                _log.Info($"GetOPDPackageServicesForRefund fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetOPDPackageServicesForRefund failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPost("saveOPDRefundBilling")]
+        [Authorize]
+        public IActionResult SaveOPDRefundBilling([FromBody] SaveOPDRefundBillingRequest request)
+        {
+            _log.Info($"SaveOPDRefundBilling called. PatientId={request?.VisitDetails?.PatientId}, BranchId={request?.VisitDetails?.BranchId}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SaveOPDRefundBilling.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.RefundItems == null || request.RefundItems.Count == 0)
+            {
+                _log.Warn("No refund items provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "At least one refund item is required",
+                    errors = new[] { "RefundItems cannot be empty" }
+                });
+            }
+
+            if (request.VisitDetails.PatientId <= 0)
+            {
+                _log.Warn("Invalid PatientId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "PatientId must be greater than 0",
+                    errors = new { patientId = request.VisitDetails.PatientId }
+                });
+            }
+
+            if (request.VisitDetails.BranchId <= 0)
+            {
+                _log.Warn("Invalid BranchId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BranchId must be greater than 0",
+                    errors = new { branchId = request.VisitDetails.BranchId }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.SaveOPDRefundBilling(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"SaveOPDRefundBilling succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"SaveOPDRefundBilling failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPost("saveOPDRefundRequestApproval")]
+        [Authorize]
+        public IActionResult SaveOPDRefundRequestApproval([FromBody] SaveOPDRefundRequestApprovalRequest request)
+        {
+            _log.Info($"SaveOPDRefundRequestApproval called. PatientId={request?.VisitDetails?.PatientId}, BranchId={request?.VisitDetails?.BranchId}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SaveOPDRefundRequestApproval.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.BillingItems == null || request.BillingItems.Count == 0)
+            {
+                _log.Warn("No refund items provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "At least one refund item is required",
+                    errors = new[] { "BillingItems cannot be empty" }
+                });
+            }
+
+            if (request.VisitDetails.PatientId <= 0)
+            {
+                _log.Warn("Invalid PatientId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "PatientId must be greater than 0",
+                    errors = new { patientId = request.VisitDetails.PatientId }
+                });
+            }
+
+            if (request.VisitDetails.BranchId <= 0)
+            {
+                _log.Warn("Invalid BranchId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BranchId must be greater than 0",
+                    errors = new { branchId = request.VisitDetails.BranchId }
+                });
+            }
+
+            if (request.VisitDetails.VisitId <= 0)
+            {
+                _log.Warn("Invalid VisitId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "VisitId must be greater than 0",
+                    errors = new { visitId = request.VisitDetails.VisitId }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.SaveOPDRefundRequestApproval(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"SaveOPDRefundRequestApproval succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"SaveOPDRefundRequestApproval failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("approveOPDRefundRequest")]
+        [Authorize]
+        public IActionResult ApproveOPDRefundRequest([FromBody] ApproveOPDRefundRequestRequest request)
+        {
+            _log.Info($"ApproveOPDRefundRequest called. RefundId={request?.RefundId}, Flag={request?.Flag}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for ApproveOPDRefundRequest.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.ApproveOPDRefundRequest(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"ApproveOPDRefundRequest succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"ApproveOPDRefundRequest failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("cancelOPDRefundRequest")]
+        [Authorize]
+        public IActionResult CancelOPDRefundRequest([FromBody] CancelOPDRefundRequestRequest request)
+        {
+            _log.Info($"CancelOPDRefundRequest called. RefundId={request?.RefundId}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for CancelOPDRefundRequest.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.CancelOPDRefundRequest(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"CancelOPDRefundRequest succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"CancelOPDRefundRequest failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("paymentOPDRefundRequest")]
+        [Authorize]
+        public IActionResult paymentOPDRefundRequest([FromBody] paymentOPDRefundRequestRequest request)
+        {
+            _log.Info($"paymentOPDRefundRequest called. RefundId={request?.RefundId}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for paymentOPDRefundRequest.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.paymentOPDRefundRequest(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"paymentOPDRefundRequest succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"paymentOPDRefundRequest failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getOPDRefundRequestListForApproval")]
+        [Authorize]
+        public IActionResult GetOPDRefundRequestListForApproval(
+            [FromQuery] string fromDate,
+            [FromQuery] string toDate,
+            [FromQuery] int branchId)
+        {
+            _log.Info($"GetOPDRefundRequestListForApproval called. FromDate={fromDate}, ToDate={toDate}, BranchId={branchId}");
+
+            if (string.IsNullOrWhiteSpace(fromDate))
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "FromDate is required" });
+            }
+
+            if (string.IsNullOrWhiteSpace(toDate))
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "ToDate is required" });
+            }
+
+            if (branchId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "BranchId must be greater than 0", errors = new { branchId } });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.GetOPDRefundRequestListForApproval(fromDate, toDate, branchId, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"GetOPDRefundRequestListForApproval fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetOPDRefundRequestListForApproval failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getOPDRefundRequestDetailsByRefundId")]
+        [Authorize]
+        public IActionResult GetOPDRefundRequestDetailsByRefundId([FromQuery] int refundId)
+        {
+            _log.Info($"GetOPDRefundRequestDetailsByRefundId called. RefundId={refundId}");
+
+            if (refundId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "RefundId must be greater than 0",
+                    errors = new { refundId }
+                });
+            }
+
+            var serviceResult = _patientRepository.GetOPDRefundRequestDetailsByRefundId(refundId);
+
+            if (serviceResult.Result)
+                _log.Info($"GetOPDRefundRequestDetailsByRefundId fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetOPDRefundRequestDetailsByRefundId failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getOPDRefundRequestApprovalDetails")]
+        [Authorize]
+        public IActionResult GetOPDRefundRequestApprovalDetails([FromQuery] int refundId)
+        {
+            _log.Info($"GetOPDRefundRequestApprovalDetails called. RefundId={refundId}");
+
+            if (refundId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "RefundId must be greater than 0",
+                    errors = new { refundId }
+                });
+            }
+
+            var serviceResult = _patientRepository.GetOPDRefundRequestApprovalDetails(refundId);
+
+            if (serviceResult.Result)
+                _log.Info($"GetOPDRefundRequestApprovalDetails fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetOPDRefundRequestApprovalDetails failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+        [HttpGet("getBillReceiptReprintDetails")]
+        [Authorize]
+        public IActionResult GetBillReceiptReprintDetails(
+    [FromQuery] string branchId,
+    [FromQuery] string fromDate,
+    [FromQuery] string toDate,
+    [FromQuery] string uhid = null,
+    [FromQuery] string name = null,
+    [FromQuery] int type = 0,
+    [FromQuery] string billNo = null,
+    [FromQuery] string receiptNo = null)
+        {
+            _log.Info($"GetBillReceiptReprintDetails called. BranchId={branchId}, Type={type}, FromDate={fromDate}, ToDate={toDate}");
+
+            if (string.IsNullOrWhiteSpace(branchId))
+            {
+                _log.Warn("BranchId is missing.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BranchId is required",
+                    errors = new { branchId }
+                });
+            }
+
+            if (type < 0 || type > 2)
+            {
+                _log.Warn($"Invalid Type: {type}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "Type must be 0 (All), 1 (OPD), or 2 (IPD)",
+                    errors = new { type }
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(fromDate))
+            {
+                _log.Warn("FromDate is missing.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "FromDate is required",
+                    errors = new { fromDate }
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(toDate))
+            {
+                _log.Warn("ToDate is missing.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "ToDate is required",
+                    errors = new { toDate }
+                });
+            }
+
+            var serviceResult = _patientRepository.GetBillReceiptReprintDetails(
+                branchId, uhid, name, type, billNo, receiptNo, fromDate, toDate);
+
+            if (serviceResult.Result)
+                _log.Info($"GetBillReceiptReprintDetails fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetBillReceiptReprintDetails failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+        [HttpGet("getBillForCreditNote")]
+        [Authorize]
+        public IActionResult GetBillForCreditNote(
+    [FromQuery] string fromDate = null,
+    [FromQuery] string toDate = null,
+    [FromQuery] string billNo = null,
+    [FromQuery] string uhid = null,
+    [FromQuery] string patientName = null,
+    [FromQuery] int typeId = 0)
+        {
+            _log.Info($"GetBillForCreditNote called. FromDate={fromDate}, ToDate={toDate}, BillNo={billNo}, Uhid={uhid}, PatientName={patientName}, TypeId={typeId}");
+
+            // SP logic: when both uhid and billNo are empty, fromDate/toDate are used as the WHERE filter,
+            // so they are required in that case.
+            if (string.IsNullOrWhiteSpace(uhid) && string.IsNullOrWhiteSpace(billNo))
+            {
+                if (string.IsNullOrWhiteSpace(fromDate))
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "FromDate is required when Uhid and BillNo are not provided"
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(toDate))
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "ToDate is required when Uhid and BillNo are not provided"
+                    });
+                }
+            }
+
+            if (typeId < 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "TypeId must be greater than or equal to 0",
+                    errors = new { typeId }
+                });
+            }
+
+            var serviceResult = _patientRepository.GetBillForCreditNote(fromDate, toDate, billNo, uhid, patientName, typeId);
+
+            if (serviceResult.Result)
+                _log.Info($"GetBillForCreditNote fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetBillForCreditNote failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getBillDetailsForCreditNote")]
+        [Authorize]
+        public IActionResult GetBillDetailsForCreditNote([FromQuery] int visitId)
+        {
+            _log.Info($"GetBillDetailsForCreditNote called. VisitId={visitId}");
+
+            if (visitId <= 0)
+            {
+                _log.Warn("Invalid VisitId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "VisitId must be greater than 0",
+                    errors = new { visitId }
+                });
+            }
+
+            var serviceResult = _patientRepository.GetBillDetailsForCreditNote(visitId);
+
+            if (serviceResult.Result)
+                _log.Info($"GetBillDetailsForCreditNote fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetBillDetailsForCreditNote failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+
+
+
+
+        [HttpPost("saveCreditNoteRequestApproval")]
+        [Authorize]
+        public IActionResult SaveCreditNoteRequestApproval([FromBody] SaveCreditNoteRequestApprovalRequest request)
+        {
+            _log.Info($"SaveCreditNoteRequestApproval called. PatientId={request?.VisitDetails?.PatientId}, BranchId={request?.VisitDetails?.BranchId}, BillId={request?.VisitDetails?.BillId}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SaveCreditNoteRequestApproval.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.BillingItems == null || request.BillingItems.Count == 0)
+            {
+                _log.Warn("No credit note items provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "At least one credit note item is required",
+                    errors = new[] { "BillingItems cannot be empty" }
+                });
+            }
+
+            if (request.VisitDetails.PatientId <= 0)
+            {
+                _log.Warn("Invalid PatientId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "PatientId must be greater than 0",
+                    errors = new { patientId = request.VisitDetails.PatientId }
+                });
+            }
+
+            if (request.VisitDetails.BranchId <= 0)
+            {
+                _log.Warn("Invalid BranchId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BranchId must be greater than 0",
+                    errors = new { branchId = request.VisitDetails.BranchId }
+                });
+            }
+
+            if (request.VisitDetails.VisitId <= 0)
+            {
+                _log.Warn("Invalid VisitId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "VisitId must be greater than 0",
+                    errors = new { visitId = request.VisitDetails.VisitId }
+                });
+            }
+
+            if (request.VisitDetails.BillId <= 0)
+            {
+                _log.Warn("Invalid BillId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BillId must be greater than 0",
+                    errors = new { billId = request.VisitDetails.BillId }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.SaveCreditNoteRequestApproval(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"SaveCreditNoteRequestApproval succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"SaveCreditNoteRequestApproval failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("approveCreditNoteRequest")]
+        [Authorize]
+        public IActionResult ApproveCreditNoteRequest([FromBody] ApproveCreditNoteRequestRequest request)
+        {
+            _log.Info($"ApproveCreditNoteRequest called. CreditNoteId={request?.CreditNoteId}, Flag={request?.Flag}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for ApproveCreditNoteRequest.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.ApproveCreditNoteRequest(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"ApproveCreditNoteRequest succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"ApproveCreditNoteRequest failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("cancelCreditNoteRequest")]
+        [Authorize]
+        public IActionResult CancelCreditNoteRequest([FromBody] CancelCreditNoteRequestRequest request)
+        {
+            _log.Info($"CancelCreditNoteRequest called. CreditNoteId={request?.CreditNoteId}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for CancelCreditNoteRequest.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.CancelCreditNoteRequest(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"CancelCreditNoteRequest succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"CancelCreditNoteRequest failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("collectCreditNoteRequest")]
+        [Authorize]
+        public IActionResult CollectCreditNoteRequest([FromBody] CollectCreditNoteRequestRequest request)
+        {
+            _log.Info($"CollectCreditNoteRequest called. CreditNoteId={request?.CreditNoteId}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for CollectCreditNoteRequest.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.CollectCreditNoteRequest(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"CollectCreditNoteRequest succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"CollectCreditNoteRequest failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getCreditNoteRequestListForApproval")]
+        [Authorize]
+        public IActionResult GetCreditNoteRequestListForApproval(
+            [FromQuery] string fromDate,
+            [FromQuery] string toDate,
+            [FromQuery] int branchId)
+        {
+            _log.Info($"GetCreditNoteRequestListForApproval called. FromDate={fromDate}, ToDate={toDate}, BranchId={branchId}");
+
+            if (string.IsNullOrWhiteSpace(fromDate))
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "FromDate is required" });
+            }
+
+            if (string.IsNullOrWhiteSpace(toDate))
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "ToDate is required" });
+            }
+
+            if (branchId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "BranchId must be greater than 0", errors = new { branchId } });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.GetCreditNoteRequestListForApproval(fromDate, toDate, branchId, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"GetCreditNoteRequestListForApproval fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetCreditNoteRequestListForApproval failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getCreditNoteRequestDetailsByCreditNoteId")]
+        [Authorize]
+        public IActionResult GetCreditNoteRequestDetailsByCreditNoteId([FromQuery] int creditNoteId)
+        {
+            _log.Info($"GetCreditNoteRequestDetailsByCreditNoteId called. CreditNoteId={creditNoteId}");
+
+            if (creditNoteId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "CreditNoteId must be greater than 0",
+                    errors = new { creditNoteId }
+                });
+            }
+
+            var serviceResult = _patientRepository.GetCreditNoteRequestDetailsByCreditNoteId(creditNoteId);
+
+            if (serviceResult.Result)
+                _log.Info($"GetCreditNoteRequestDetailsByCreditNoteId fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetCreditNoteRequestDetailsByCreditNoteId failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getCreditNoteRequestApprovalDetails")]
+        [Authorize]
+        public IActionResult GetCreditNoteRequestApprovalDetails([FromQuery] int creditNoteId)
+        {
+            _log.Info($"GetCreditNoteRequestApprovalDetails called. CreditNoteId={creditNoteId}");
+
+            if (creditNoteId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "CreditNoteId must be greater than 0",
+                    errors = new { creditNoteId }
+                });
+            }
+
+            var serviceResult = _patientRepository.GetCreditNoteRequestApprovalDetails(creditNoteId);
+
+            if (serviceResult.Result)
+                _log.Info($"GetCreditNoteRequestApprovalDetails fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetCreditNoteRequestApprovalDetails failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getBillForWriteOff")]
+        [Authorize]
+        public IActionResult GetBillForWriteOff(
+    [FromQuery] string fromDate = null,
+    [FromQuery] string toDate = null,
+    [FromQuery] string billNo = null,
+    [FromQuery] string uhid = null,
+    [FromQuery] string patientName = null,
+    [FromQuery] int typeId = 0)
+        {
+            _log.Info($"GetBillForWriteOff called. FromDate={fromDate}, ToDate={toDate}, BillNo={billNo}, Uhid={uhid}, PatientName={patientName}, TypeId={typeId}");
+
+            // SP logic: when both uhid and billNo are empty, fromDate/toDate are used as the WHERE filter,
+            // so they are required in that case.
+            if (string.IsNullOrWhiteSpace(uhid) && string.IsNullOrWhiteSpace(billNo))
+            {
+                if (string.IsNullOrWhiteSpace(fromDate))
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "FromDate is required when Uhid and BillNo are not provided"
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(toDate))
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "ToDate is required when Uhid and BillNo are not provided"
+                    });
+                }
+            }
+
+            if (typeId < 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "TypeId must be greater than or equal to 0",
+                    errors = new { typeId }
+                });
+            }
+
+            var serviceResult = _patientRepository.GetBillForWriteOff(fromDate, toDate, billNo, uhid, patientName, typeId);
+
+            if (serviceResult.Result)
+                _log.Info($"GetBillForWriteOff fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetBillForWriteOff failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getBillDetailsForWriteOff")]
+        [Authorize]
+        public IActionResult GetBillDetailsForWriteOff([FromQuery] int visitId)
+        {
+            _log.Info($"GetBillDetailsForWriteOff called. VisitId={visitId}");
+
+            if (visitId <= 0)
+            {
+                _log.Warn("Invalid VisitId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "VisitId must be greater than 0",
+                    errors = new { visitId }
+                });
+            }
+
+            var serviceResult = _patientRepository.GetBillDetailsForWriteOff(visitId);
+
+            if (serviceResult.Result)
+                _log.Info($"GetBillDetailsForWriteOff fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetBillDetailsForWriteOff failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPost("saveWriteOffRequestApproval")]
+        [Authorize]
+        public IActionResult SaveWriteOffRequestApproval([FromBody] SaveWriteOffRequestApprovalRequest request)
+        {
+            _log.Info($"SaveWriteOffRequestApproval called. PatientId={request?.PatientId}, BranchId={request?.BranchId}, BillId={request?.BillId}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SaveWriteOffRequestApproval.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.PatientId <= 0)
+            {
+                _log.Warn("Invalid PatientId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "PatientId must be greater than 0",
+                    errors = new { patientId = request.PatientId }
+                });
+            }
+
+            if (request.BranchId <= 0)
+            {
+                _log.Warn("Invalid BranchId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BranchId must be greater than 0",
+                    errors = new { branchId = request.BranchId }
+                });
+            }
+
+            if (request.VisitId <= 0)
+            {
+                _log.Warn("Invalid VisitId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "VisitId must be greater than 0",
+                    errors = new { visitId = request.VisitId }
+                });
+            }
+
+            if (request.BillId <= 0)
+            {
+                _log.Warn("Invalid BillId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BillId must be greater than 0",
+                    errors = new { billId = request.BillId }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.SaveWriteOffRequestApproval(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"SaveWriteOffRequestApproval succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"SaveWriteOffRequestApproval failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("approveWriteOffRequest")]
+        [Authorize]
+        public IActionResult ApproveWriteOffRequest([FromBody] ApproveWriteOffRequestRequest request)
+        {
+            _log.Info($"ApproveWriteOffRequest called. WriteOffId={request?.WriteOffId}, Flag={request?.Flag}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for ApproveWriteOffRequest.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.ApproveWriteOffRequest(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"ApproveWriteOffRequest succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"ApproveWriteOffRequest failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("cancelWriteOffRequest")]
+        [Authorize]
+        public IActionResult CancelWriteOffRequest([FromBody] CancelWriteOffRequestRequest request)
+        {
+            _log.Info($"CancelWriteOffRequest called. WriteOffId={request?.WriteOffId}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for CancelWriteOffRequest.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.CancelWriteOffRequest(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"CancelWriteOffRequest succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"CancelWriteOffRequest failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("collectWriteOffRequest")]
+        [Authorize]
+        public IActionResult CollectWriteOffRequest([FromBody] CollectWriteOffRequestRequest request)
+        {
+            _log.Info($"CollectWriteOffRequest called. WriteOffId={request?.WriteOffId}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for CollectWriteOffRequest.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.CollectWriteOffRequest(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"CollectWriteOffRequest succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"CollectWriteOffRequest failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getWriteOffRequestListForApproval")]
+        [Authorize]
+        public IActionResult GetWriteOffRequestListForApproval(
+            [FromQuery] string fromDate,
+            [FromQuery] string toDate,
+            [FromQuery] int branchId)
+        {
+            _log.Info($"GetWriteOffRequestListForApproval called. FromDate={fromDate}, ToDate={toDate}, BranchId={branchId}");
+
+            if (string.IsNullOrWhiteSpace(fromDate))
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "FromDate is required" });
+            }
+
+            if (string.IsNullOrWhiteSpace(toDate))
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "ToDate is required" });
+            }
+
+            if (branchId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "BranchId must be greater than 0", errors = new { branchId } });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.GetWriteOffRequestListForApproval(fromDate, toDate, branchId, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"GetWriteOffRequestListForApproval fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetWriteOffRequestListForApproval failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getWriteOffRequestDetailsByWriteOffId")]
+        [Authorize]
+        public IActionResult GetWriteOffRequestDetailsByWriteOffId([FromQuery] int writeOffId)
+        {
+            _log.Info($"GetWriteOffRequestDetailsByWriteOffId called. WriteOffId={writeOffId}");
+
+            if (writeOffId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "WriteOffId must be greater than 0",
+                    errors = new { writeOffId }
+                });
+            }
+
+            var serviceResult = _patientRepository.GetWriteOffRequestDetailsByWriteOffId(writeOffId);
+
+            if (serviceResult.Result)
+                _log.Info($"GetWriteOffRequestDetailsByWriteOffId fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetWriteOffRequestDetailsByWriteOffId failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getWriteOffRequestApprovalDetails")]
+        [Authorize]
+        public IActionResult GetWriteOffRequestApprovalDetails([FromQuery] int writeOffId)
+        {
+            _log.Info($"GetWriteOffRequestApprovalDetails called. WriteOffId={writeOffId}");
+
+            if (writeOffId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "WriteOffId must be greater than 0",
+                    errors = new { writeOffId }
+                });
+            }
+
+            var serviceResult = _patientRepository.GetWriteOffRequestApprovalDetails(writeOffId);
+
+            if (serviceResult.Result)
+                _log.Info($"GetWriteOffRequestApprovalDetails fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetWriteOffRequestApprovalDetails failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
 
     }
 }

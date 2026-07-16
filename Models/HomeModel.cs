@@ -118,6 +118,9 @@
         public string PaymentModeName { get; set; }
         public string PayModeType { get; set; }
         public int PayModeTypeId { get; set; }
+        public int ShowBankField { get; set; }
+        public int ShowReferenceNumberField { get; set; }
+        public int IsExcludedFromPaymentList { get; set; }
     }
 
     public class DiscountApprovalModel

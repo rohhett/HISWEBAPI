@@ -7077,7 +7077,9 @@ namespace HISWEBAPI.Repositories.Implementations
                     @isMandatory = request.IsMandatory,
                     @isActive = request.IsActive,
                     @userId = globalValues.userId,
-                    @IpAddress = globalValues.ipAddress
+                    @IpAddress = globalValues.ipAddress,
+                    @queries = request.Queries ?? string.Empty
+
                 },
                 new { result = 0 });
 
@@ -7217,7 +7219,9 @@ namespace HISWEBAPI.Repositories.Implementations
                         IsMandatory = row.Field<int>("IsMandatory"),
                         UsedForPatientType = row.Field<int>("UsedForPatientType"),
                         UsedForPatientTypeName = row.Field<string>("UsedForPatientTypeName"),
-                        IsActive = row.Field<int>("IsActive")
+                        IsActive = row.Field<int>("IsActive"),
+                        Queries = row.Field<string>("Queries") ?? string.Empty
+
                     }).ToList() ?? new List<DoctorHeaderMasterModel>();
 
                     if (allHeaders.Any())

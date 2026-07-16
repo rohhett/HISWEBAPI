@@ -2468,7 +2468,10 @@ namespace HISWEBAPI.Repositories.Implementations
                     PaymentModeId = row["PaymentModeId"] != DBNull.Value ? Convert.ToInt32(row["PaymentModeId"]) : 0,
                     PaymentModeName = row["PaymentModeName"]?.ToString() ?? string.Empty,
                     PayModeType = row["PayModeType"]?.ToString() ?? string.Empty,
-                    PayModeTypeId = row["PayModeTypeId"] != DBNull.Value ? Convert.ToInt32(row["PayModeTypeId"]) : 0
+                    PayModeTypeId = row["PayModeTypeId"] != DBNull.Value ? Convert.ToInt32(row["PayModeTypeId"]) : 0,
+                    ShowBankField = row["ShowBankField"] != DBNull.Value ? Convert.ToInt32(row["ShowBankField"]) : 0,
+                    ShowReferenceNumberField = row["ShowReferenceNumberField"] != DBNull.Value ? Convert.ToInt32(row["ShowReferenceNumberField"]) : 0,
+                    IsExcludedFromPaymentList = row["IsExcludedFromPaymentList"] != DBNull.Value ? Convert.ToInt32(row["IsExcludedFromPaymentList"]) : 0
                 }).ToList();
 
                 _log.Info($"Retrieved {paymentModes.Count} payment mode(s) for CorporateId={corporateId}");

@@ -1,4 +1,7 @@
-﻿namespace HISWEBAPI.Models
+﻿using MimeKit.Encodings;
+using System.Web;
+
+namespace HISWEBAPI.Models
 {
   
     public class SMSAPIConfiguration
@@ -22,9 +25,23 @@
         /// </summary>
         public string BuildSmsUrl(string contactNumber, string message)
         {
-            string url = $"{BaseUrl}?apikey={ApiKey}&senderid={SenderId}&format={Format}";
-            url += $"&number={contactNumber}";
-            url += $"&message={System.Web.HttpUtility.UrlEncode(message)}";
+        //string url = $"{BaseUrl}?apikey={ApiKey}&senderid={SenderId}&format={Format}";
+        //url += $"&number={contactNumber}";
+        //url += $"&message={System.Web.HttpUtility.UrlEncode(message)}";
+        //return url;
+
+
+            // this is new SMS CONFIGARATION
+            string url = $"https://msg.smsguruonline.com/fe/api/v1/send" +
+                           $"?username=gravity.trans" +
+                           $"&password=ROaJt" +
+                           $"&unicode=false" +
+                           $"&from=GRAVTT" +
+                           $"&to={contactNumber}" +
+                           $"&dltPrincipalEntityId=1701173156606119060" +
+                           $"&dltContentId=1707176171295497152" +
+                           $"&text={HttpUtility.UrlEncode(message)}";
+
             return url;
         }
     }

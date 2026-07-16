@@ -634,5 +634,289 @@ namespace HISWEBAPI.DTO
         public int ReceiptId { get; set; }
     }
 
+    public class SaveOPDRefundBillingRequest
+    {
+        [Required(ErrorMessage = "Visit details are required")]
+        public PatientOPDVisitDetailsRequest VisitDetails { get; set; }
 
+        [Required(ErrorMessage = "Refund items are required")]
+        [MinLength(1, ErrorMessage = "At least one refund item is required")]
+        public List<OPDRefundBillingItemRequest> RefundItems { get; set; }
+
+        public List<PaymentDetailRequest> PaymentDetails { get; set; } = new();
+    }
+
+    public class OPDRefundBillingItemRequest
+    {
+        /// <summary>FTDId of the original FinancialTransactionDetails row being refunded</summary>
+        [Required(ErrorMessage = "FTDId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "FTDId must be greater than 0")]
+        public int FTDId { get; set; }
+
+        [Required(ErrorMessage = "ServiceItemId is required")]
+        public int ServiceItemId { get; set; }
+
+        public int SubSubCategoryId { get; set; }
+
+        /// <summary>SubCategoryId: 1=Pathology, 2=Radiology, 3=Cardiology</summary>
+        public int SubCategoryId { get; set; }
+
+        /// <summary>CategoryId: 1=Consultation, 3=Investigation</summary>
+        public int CategoryId { get; set; }
+
+        [Required(ErrorMessage = "ServiceName is required")]
+        public string ServiceName { get; set; }
+
+        public string Code { get; set; }
+        public string CorporateAlias { get; set; }
+        public string CorporateCode { get; set; }
+
+        public int IsNonPayable { get; set; }
+        public int RateListId { get; set; }
+        public int DoctorId { get; set; }
+
+        [Required(ErrorMessage = "Qty is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "Qty must be greater than 0")]
+        public decimal Qty { get; set; }
+
+        public decimal Rate { get; set; }
+        public decimal DiscPer { get; set; }
+        public decimal DiscAmt { get; set; }
+        public decimal GrossAmt { get; set; }
+        public decimal NetAmt { get; set; }
+
+        public int IsUnderPackage { get; set; }
+    }
+
+    public class SaveOPDRefundBillingResponse
+    {
+        public int VisitId { get; set; }
+        public int FTID { get; set; }
+        public int ReceiptId { get; set; }
+    }
+
+
+
+
+        public class SaveOPDRefundRequestApprovalRequest
+        {
+            [Required(ErrorMessage = "Visit details are required")]
+            public OPDRefundVisitDetailsRequest VisitDetails { get; set; }
+
+            [Required(ErrorMessage = "Billing items are required")]
+            [MinLength(1, ErrorMessage = "At least one refund item is required")]
+            public List<OPDRefundItemRequest> BillingItems { get; set; }
+        }
+
+        public class OPDRefundVisitDetailsRequest
+        {
+            [Required(ErrorMessage = "BranchId is required")]
+            public int BranchId { get; set; }
+
+            public int RoleId { get; set; } = 0;
+
+            [Required(ErrorMessage = "PatientId is required")]
+            public int PatientId { get; set; }
+
+            [Required(ErrorMessage = "VisitId is required")]
+            public int VisitId { get; set; }
+
+            public decimal GrossBillAmount { get; set; }
+            public decimal TotalDiscPerOnBill { get; set; }
+            public decimal TotalDiscAmtOnBill { get; set; }
+            public decimal RoundOff { get; set; }
+            public decimal NetAmount { get; set; }
+
+            public int RefundApprovedID { get; set; } = 0;
+            public string? RefundApprovedName { get; set; }
+            public string? RefundReason { get; set; }
+            public string? RefundRemark { get; set; }
+        }
+
+        public class OPDRefundItemRequest
+        {
+            [Required(ErrorMessage = "FTDId is required")]
+            [Range(1, int.MaxValue, ErrorMessage = "FTDId must be greater than 0")]
+            public int FTDId { get; set; }
+
+            [Required(ErrorMessage = "RefundQty is required")]
+            public decimal RefundQty { get; set; }
+        }
+
+        public class SaveOPDRefundRequestApprovalResponse
+        {
+            public int RefundId { get; set; }
+        }
+
+        public class ApproveOPDRefundRequestRequest
+        {
+            [Required(ErrorMessage = "RefundId is required")]
+            [Range(1, int.MaxValue, ErrorMessage = "RefundId must be greater than 0")]
+            public int RefundId { get; set; }
+
+            [Required(ErrorMessage = "Flag is required")]
+            [Range(1, 4, ErrorMessage = "Flag must be between 1 and 4")]
+            public int Flag { get; set; }
+
+
+            [StringLength(256, ErrorMessage = "ApprovalRemarks cannot exceed 256 characters")]
+            public string? ApprovalRemarks { get; set; }
+        }
+
+        public class CancelOPDRefundRequestRequest
+        {
+            [Required(ErrorMessage = "RefundId is required")]
+            [Range(1, int.MaxValue, ErrorMessage = "RefundId must be greater than 0")]
+            public int RefundId { get; set; }
+
+            [StringLength(256, ErrorMessage = "CancelReason cannot exceed 256 characters")]
+            public string? CancelReason { get; set; }
+        }
+
+        public class paymentOPDRefundRequestRequest
+        {
+            [Required(ErrorMessage = "RefundId is required")]
+            [Range(1, int.MaxValue, ErrorMessage = "RefundId must be greater than 0")]
+            public int RefundId { get; set; }
+        }
+
+    public class SaveCreditNoteRequestApprovalRequest
+    {
+        [Required(ErrorMessage = "Visit details are required")]
+        public CreditNoteVisitDetailsRequest VisitDetails { get; set; }
+
+        [Required(ErrorMessage = "Billing items are required")]
+        [MinLength(1, ErrorMessage = "At least one credit note item is required")]
+        public List<CreditNoteItemRequest> BillingItems { get; set; }
+    }
+
+    public class CreditNoteVisitDetailsRequest
+    {
+        [Required(ErrorMessage = "BranchId is required")]
+        public int BranchId { get; set; }
+
+        public int RoleId { get; set; } = 0;
+
+        [Required(ErrorMessage = "PatientId is required")]
+        public int PatientId { get; set; }
+
+        [Required(ErrorMessage = "VisitId is required")]
+        public int VisitId { get; set; }
+
+        [Required(ErrorMessage = "BillId is required")]
+        public int BillId { get; set; }
+
+        public decimal TotalCreditNoteAmount { get; set; }
+
+        public int CreditNoteApprovedID { get; set; } = 0;
+        public string? CreditNoteApprovedName { get; set; }
+        public string? CreditNoteReason { get; set; }
+        public string? CreditNoteRemark { get; set; }
+    }
+
+    public class CreditNoteItemRequest
+    {
+        [Required(ErrorMessage = "FTDId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "FTDId must be greater than 0")]
+        public int FTDId { get; set; }
+
+        public decimal CreditNotePer { get; set; } = 0;
+        public decimal CreditNoteAmt { get; set; } = 0;
+    }
+
+    public class SaveCreditNoteRequestApprovalResponse
+    {
+        public int CreditNoteId { get; set; }
+    }
+
+    public class ApproveCreditNoteRequestRequest
+    {
+        [Required(ErrorMessage = "CreditNoteId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "CreditNoteId must be greater than 0")]
+        public int CreditNoteId { get; set; }
+
+        [Required(ErrorMessage = "Flag is required")]
+        [Range(1, 4, ErrorMessage = "Flag must be between 1 and 4")]
+        public int Flag { get; set; }
+
+        [StringLength(256, ErrorMessage = "ApprovalRemarks cannot exceed 256 characters")]
+        public string? ApprovalRemarks { get; set; }
+    }
+
+    public class CancelCreditNoteRequestRequest
+    {
+        [Required(ErrorMessage = "CreditNoteId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "CreditNoteId must be greater than 0")]
+        public int CreditNoteId { get; set; }
+
+        [StringLength(256, ErrorMessage = "CancelReason cannot exceed 256 characters")]
+        public string? CancelReason { get; set; }
+    }
+
+    public class CollectCreditNoteRequestRequest
+    {
+        [Required(ErrorMessage = "CreditNoteId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "CreditNoteId must be greater than 0")]
+        public int CreditNoteId { get; set; }
+    }
+
+    public class SaveWriteOffRequestApprovalRequest
+    {
+        [Required(ErrorMessage = "BranchId is required")]
+        public int BranchId { get; set; }
+
+        public int RoleId { get; set; } = 0;
+
+        [Required(ErrorMessage = "PatientId is required")]
+        public int PatientId { get; set; }
+
+        [Required(ErrorMessage = "VisitId is required")]
+        public int VisitId { get; set; }
+
+        [Required(ErrorMessage = "BillId is required")]
+        public int BillId { get; set; }
+
+        public decimal TotalWriteOffAmount { get; set; }
+
+        public int WriteOffApprovedID { get; set; } = 0;
+        public string? WriteOffApprovedName { get; set; }
+        public string? WriteOffReason { get; set; }
+        public string? WriteOffRemark { get; set; }
+    }
+
+    public class SaveWriteOffRequestApprovalResponse
+    {
+        public int WriteOffId { get; set; }
+    }
+
+    public class ApproveWriteOffRequestRequest
+    {
+        [Required(ErrorMessage = "WriteOffId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "WriteOffId must be greater than 0")]
+        public int WriteOffId { get; set; }
+
+        [Required(ErrorMessage = "Flag is required")]
+        [Range(1, 4, ErrorMessage = "Flag must be between 1 and 4")]
+        public int Flag { get; set; }
+
+        [StringLength(256, ErrorMessage = "ApprovalRemarks cannot exceed 256 characters")]
+        public string? ApprovalRemarks { get; set; }
+    }
+
+    public class CancelWriteOffRequestRequest
+    {
+        [Required(ErrorMessage = "WriteOffId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "WriteOffId must be greater than 0")]
+        public int WriteOffId { get; set; }
+
+        [StringLength(256, ErrorMessage = "CancelReason cannot exceed 256 characters")]
+        public string? CancelReason { get; set; }
+    }
+
+    public class CollectWriteOffRequestRequest
+    {
+        [Required(ErrorMessage = "WriteOffId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "WriteOffId must be greater than 0")]
+        public int WriteOffId { get; set; }
+    }
 }

@@ -205,7 +205,7 @@ namespace HISWEBAPI.Repositories.Implementations
 
                 if (resultValue > 0)
                 {
-                   
+
 
                     var responseData = new CreateUpdatePatientMasterResponse
                     {
@@ -508,7 +508,7 @@ namespace HISWEBAPI.Repositories.Implementations
                         DialysisNo = row.Field<string>("DialysisNo"),
                         EmergencyNo = row.Field<string>("EmergencyNo"),
 
-                       
+
                     }).ToList() ?? new List<PatientMasterModel>();
 
                     // Store ALL patients in cache (no expiration)
@@ -725,7 +725,7 @@ namespace HISWEBAPI.Repositories.Implementations
                         .Where(p => p.IPDNo != null && p.IPDNo.Contains(ipdNo, StringComparison.OrdinalIgnoreCase))
                         .ToList();
 
-              
+
 
                 if (branchId.HasValue)
                     filtered = filtered.Where(p => p.BranchId == branchId.Value).ToList();
@@ -876,7 +876,7 @@ namespace HISWEBAPI.Repositories.Implementations
                         if (adv.IsPatientAdvanceAmount == 1)
                         {
                             totalAmountSettledWithPatientAdvance = adv.Amount;
-                            break; 
+                            break;
                         }
                     }
                 }
@@ -904,7 +904,7 @@ namespace HISWEBAPI.Repositories.Implementations
                     TotalPatientPayableAmount = v.NetAmount,
                     TotalPaidAmount = totalPaidAmount,
                     TotalBalanceAmount = v.NetAmount - totalPaidAmount,
-                    TotalAmountSettledWithPatientAdvance= totalAmountSettledWithPatientAdvance,
+                    TotalAmountSettledWithPatientAdvance = totalAmountSettledWithPatientAdvance,
                     UserId = globalValues.userId,
                     IpAddress = globalValues.ipAddress,
                     UniqueId = v.UniqueId,
@@ -1155,8 +1155,8 @@ namespace HISWEBAPI.Repositories.Implementations
                         FTID = ftid,
                         VisitId = visitId,
                         PatientId = v.PatientId,
-                        Amount = totalPaidAmount-totalAmountSettledWithPatientAdvance,
-                        IsCopaymentReceipt= request.PaymentDetails[0].IsCopaymentReceipt,
+                        Amount = totalPaidAmount - totalAmountSettledWithPatientAdvance,
+                        IsCopaymentReceipt = request.PaymentDetails[0].IsCopaymentReceipt,
                         PlutusTransactionReferenceID = request.PaymentDetails[0].PlutusTransactionReferenceID,
                         TransactionLogId = request.PaymentDetails[0].TransactionLogId,
                         UserId = globalValues.userId,
@@ -1198,7 +1198,7 @@ namespace HISWEBAPI.Repositories.Implementations
 
                 if (totalAmountSettledWithPatientAdvance > 0)
                 {
-                  
+
                     // ── PatientLedgerBill (insert or update running balance) ─────────
                     var ledgerBill = new PatientLedgerBill
                     {
@@ -1229,7 +1229,7 @@ namespace HISWEBAPI.Repositories.Implementations
 
                     ledgerDetails.Create(_sqlHelper, tnx);
                 }
-                
+
 
                 tnx.Commit();
                 _log.Info($"SaveOPDBilling committed. VisitId={visitId}, FTID={ftid}, ReceiptId={receiptId}");
@@ -2183,7 +2183,7 @@ namespace HISWEBAPI.Repositories.Implementations
                             : request.VitalDateTime,
                         @Id = request.Id,
                         @userId = globalValues.userId,
-                        @ipAddress= globalValues.ipAddress
+                        @ipAddress = globalValues.ipAddress
                     }
                 );
 
@@ -2198,7 +2198,7 @@ namespace HISWEBAPI.Repositories.Implementations
                     return ServiceResult<string>.Failure(failAlert.Type, failAlert.Message, 500);
                 }
 
-              
+
 
                 var alert = _messageService.GetMessageAndTypeByAlertCode(
                     request.Id > 0 ? "DATA_UPDATED_SUCCESSFULLY" : "DATA_SAVED_SUCCESSFULLY"
@@ -2255,7 +2255,7 @@ namespace HISWEBAPI.Repositories.Implementations
                           col => row[col] == DBNull.Value ? null : row[col]
                       )
                   ).ToList<object>();
-                  
+
                 var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
                 _log.Info($"Retrieved {data.Count} observation trend record(s) for PatientId={patientId}");
 
@@ -2336,7 +2336,7 @@ namespace HISWEBAPI.Repositories.Implementations
                     PatientId = request.PatientId,
                     VisitId = visitId,
                     TypeId = 2,                                // 1 = IPD
-                    TotalBillAmount =0,
+                    TotalBillAmount = 0,
                     TotalDiscountPerOnBill = 0,
                     TotalDiscountAmountOnBill = 0,
                     DiscountApprovedById = null,
@@ -2780,7 +2780,7 @@ namespace HISWEBAPI.Repositories.Implementations
         }
 
 
-        public ServiceResult<object> GetOPDBookingDetailsForPaymentCollection(int branchId,int corporateId, string fromDate, string toDate)
+        public ServiceResult<object> GetOPDBookingDetailsForPaymentCollection(int branchId, int corporateId, string fromDate, string toDate)
         {
             try
             {
@@ -2805,8 +2805,8 @@ namespace HISWEBAPI.Repositories.Implementations
                     {
                         @fromDate = parsedFromDate.ToString("yyyy-MM-dd"),
                         @toDate = parsedToDate.ToString("yyyy-MM-dd"),
-                        @branchId= branchId,
-                        @corporateId= corporateId
+                        @branchId = branchId,
+                        @corporateId = corporateId
                     }
                 );
 
@@ -2923,7 +2923,7 @@ namespace HISWEBAPI.Repositories.Implementations
             "RoundOff", "TotalPatientPayableAmount",
             "PolicyNo", "PolicyCardNo", "ExpiryDate", "CardHolder",
             "ReferalNo", "ReferalDate",
-            "IsPaymentCollected", "IsDiscountApprovalRequired", "IsDiscountApproved",
+            "IsPaymentCollected", "IsDiscountApprovalRequired", "IsDiscountApproved","TotalApprovedDiscountPerOnBill",
             "IsLevel1Approve", "Level1ApproveId", "Level1ApproveOn",
             "IsLevel2Approve", "Level2ApproveId", "Level2ApproveOn",
             "IsLevel3Approve", "Level3ApproveId", "Level3ApproveOn",
@@ -3058,7 +3058,7 @@ namespace HISWEBAPI.Repositories.Implementations
             {
                 _log.Info($"ApproveOPDBookingDiscount called. BookingId={request.BookingId}, Flag={request.Flag}, ApprovedPer={request.ApprovedPer}");
 
-       
+
 
                 _sqlHelper.DML(
                     "U_ApproveOPDBookingDiscount",
@@ -3066,7 +3066,7 @@ namespace HISWEBAPI.Repositories.Implementations
                     new
                     {
                         @BookingId = request.BookingId,
-                        @flag= request.Flag,
+                        @flag = request.Flag,
                         @approvedPer = request.ApprovedPer,
                         @ApprovalRemarks = request.ApprovalRemarks,
                         @UserId = globalValues.userId,
@@ -3331,7 +3331,7 @@ namespace HISWEBAPI.Repositories.Implementations
             }
         }
 
-        public ServiceResult<IEnumerable<Dictionary<string, object>>> GetPatientAdvanceReceiptList(int patientId)
+        public ServiceResult<IEnumerable<Dictionary<string, object>>> GetPatientAdvanceReceiptList(int patientId, int receiptId)
         {
             try
             {
@@ -3340,7 +3340,11 @@ namespace HISWEBAPI.Repositories.Implementations
                 var dataTable = _sqlHelper.GetDataTable(
                     "S_GetPatientAdvanceReceiptList",
                     CommandType.StoredProcedure,
-                    new { @patientId = patientId }
+                    new
+                    {
+                        @patientId = patientId,
+                        @receiptId = receiptId
+                    }
                 );
 
                 if (dataTable == null || dataTable.Rows.Count == 0)
@@ -3383,5 +3387,1615 @@ namespace HISWEBAPI.Repositories.Implementations
             }
         }
 
+        public ServiceResult<object> GetBillToRefund(string receiptNo, string billNo, string uhid, string patientName)
+        {
+            try
+            {
+                _log.Info($"GetBillToRefund called. ReceiptNo={receiptNo}, BillNo={billNo}, UHID={uhid}, PatientName={patientName}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetOPDBillForRefund",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @receiptNo = string.IsNullOrWhiteSpace(receiptNo) ? (object)DBNull.Value : receiptNo,
+                        @billNo = string.IsNullOrWhiteSpace(billNo) ? (object)DBNull.Value : billNo,
+                        @uhid = string.IsNullOrWhiteSpace(uhid) ? (object)DBNull.Value : uhid,
+                        @patientName = string.IsNullOrWhiteSpace(patientName) ? (object)DBNull.Value : patientName
+                    }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info("No bills found for refund with the given filters");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        "No bills found for refund",
+                        404
+                    );
+                }
+
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetBillToRefund retrieved {result.Count} record(s)");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    result,
+                    alert1.Type,
+                    $"{result.Count} bill(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+        public ServiceResult<object> GetBillDetailsToRefund(int visitId)
+        {
+            try
+            {
+                _log.Info($"GetBillDetailsToRefund called. VisitId={visitId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetOPDBillDetailsForRefund",
+                    CommandType.StoredProcedure,
+                    new { @visitId = visitId }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No bill details found for refund. VisitId={visitId}");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        "No bill details found for refund",
+                        404
+                    );
+                }
+
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetBillDetailsToRefund retrieved {result.Count} record(s) for VisitId={visitId}");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    result,
+                    alert1.Type,
+                    $"{result.Count} bill detail(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetOPDPackageServicesForRefund(int visitId, int packageId)
+        {
+            try
+            {
+                _log.Info($"GetOPDPackageServicesForRefund called. VisitId={visitId}, PackageId={packageId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetOPDPackageServicesforRefund",
+                    CommandType.StoredProcedure,
+                    new { @visitId = visitId, @packageId = packageId }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No package services found for refund. VisitId={visitId}, PackageId={packageId}");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        "No package services found for refund",
+                        404
+                    );
+                }
+
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetOPDPackageServicesForRefund retrieved {result.Count} record(s)");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    result,
+                    alert1.Type,
+                    $"{result.Count} package service(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<SaveOPDRefundBillingResponse> SaveOPDRefundBilling(
+    SaveOPDRefundBillingRequest request,
+    AllGlobalValues globalValues)
+        {
+            var connectionString = _configuration.GetConnectionString("ConnectionString");
+            SqlConnection con = new SqlConnection(connectionString);
+            con.Open();
+            var tnx = CustomSqlHelper.getSqlTransaction(con);
+
+            try
+            {
+                _log.Info($"SaveOPDRefundBilling called. PatientId={request.VisitDetails.PatientId}, BranchId={request.VisitDetails.BranchId}");
+
+                var v = request.VisitDetails;
+                decimal totalPaidAmount = 0;
+                if (request.PaymentDetails?.Count > 0)
+                    totalPaidAmount = request.PaymentDetails.Sum(p => p.Amount);
+
+                // ── 1. PatientVisitDetails ───────────────────────────────────────────
+                var pvd = new PatientVisitDetails
+                {
+                    HospId = globalValues.hospId,
+                    BranchId = v.BranchId,
+                    PatientId = v.PatientId,
+                    Uhid = v.Uhid,
+                    Type = "OPD",
+                    TypeId = 1,
+                    CurrentAge = v.CurrentAge,
+                    DoctorId = 0,
+                    CorporateId = v.CorporateId,
+                    InsuranceCompanyId = v.InsuranceCompanyId,
+                    ReferDoctorId = v.ReferDoctorId > 0 ? v.ReferDoctorId : (int?)null,
+                    TotalBillAmount = v.GrossBillAmount,
+                    TotalDiscountPerOnBill = v.TotalDiscPerOnBill,
+                    TotalDiscountAmountOnBill = v.TotalDiscAmtOnBill,
+                    DiscountApprovedById = v.DiscApprovedById > 0 ? v.DiscApprovedById : (int?)null,
+                    DiscountReason = v.DiscountReason,
+                    RoundOff = v.RoundOff,
+                    TotalPatientPayableAmount = v.NetAmount,
+                    TotalPaidAmount = totalPaidAmount,
+                    TotalBalanceAmount = v.NetAmount - totalPaidAmount,
+                    UserId = globalValues.userId,
+                    IpAddress = globalValues.ipAddress,
+                    UniqueId = v.UniqueId,
+                    Mlc = v.Mlc,
+                    Pi = v.Pi,
+                    Remark = v.Remark,
+                    PolicyNo = v.PolicyNo,
+                    PolicyCardNo = v.PolicyCardNo,
+                    ExpiryDate = v.ExpiryDate,
+                    CardHolder = v.CardHolder,
+                    ReferalNo = v.ReferalNo,
+                    ReferalDate = v.ReferalDate,
+                    ProId = v.ProId,
+                    ProName = v.ProName,
+                    IsSendMRD = v.IsSendMRD
+                };
+
+                int visitId = Convert.ToInt32(pvd.Create(_sqlHelper, tnx));
+                _log.Info($"PatientVisitDetails created for refund. VisitId={visitId}");
+
+
+                var pbd = new PatientBillDetails
+                {
+                    HospId = globalValues.hospId,
+                    BranchId = v.BranchId,
+                    RoleId = v.RoleId,
+                    PatientId = v.PatientId,
+                    VisitId = visitId,
+                    TypeId = 1,
+                    TotalBillAmount = v.GrossBillAmount,
+                    TotalDiscountPerOnBill = v.TotalDiscPerOnBill,
+                    TotalDiscountAmountOnBill = v.TotalDiscAmtOnBill,
+                    DiscountApprovedById = v.DiscApprovedById > 0 ? v.DiscApprovedById : (int?)null,
+                    DiscountReason = v.DiscountReason,
+                    RoundOff = v.RoundOff,
+                    TotalPayableAmount = v.NetAmount,
+                    TotalPaidAmount = totalPaidAmount,
+                    TotalBalanceAmount = v.NetAmount - totalPaidAmount,
+                    TotalPatientPayableAmount = v.NetAmount,
+                    TotalCorporatePayableAmount = 0,
+                    TotalPatientPaidAmount = totalPaidAmount,
+                    TotalCorporatePaidAmount = 0,
+                    UserId = globalValues.userId,
+                    IpAddress = globalValues.ipAddress
+                };
+
+                long billId = pbd.Create(_sqlHelper, tnx);
+                _log.Info($"PatientBillDetails created. BillId={billId}");
+
+                // ── 2. FinancialTransactions ─────────────────────────────────────────
+                var ft = new FinancialTransactions
+                {
+                    HospId = globalValues.hospId,
+                    BranchId = v.BranchId,
+                    VisitId = visitId,
+                    PatientId = v.PatientId,
+                    TnxType = "OPDRefund",
+                    TnxTypeId = 1,
+                    GrossAmount = v.GrossBillAmount,
+                    DiscountPercentage = v.TotalDiscPerOnBill,
+                    DiscountAmount = v.TotalDiscAmtOnBill,
+                    RoundOff = v.RoundOff,
+                    NetAmount = v.NetAmount,
+                    Remarks = v.Remarks,
+                    UserId = globalValues.userId,
+                    IpAddress = globalValues.ipAddress,
+                    UniqueId = v.UniqueId
+                };
+
+                int ftid = Convert.ToInt32(ft.Create(_sqlHelper, tnx));
+                _log.Info($"FinancialTransactions created for refund. FTID={ftid}");
+
+                // ── 3. Process refund items ──────────────────────────────────────────
+                foreach (var item in request.RefundItems)
+                {
+                    var ftd = new FinancialTransactionDetails
+                    {
+                        HospId = globalValues.hospId,
+                        BranchId = v.BranchId,
+                        FTID = ftid,
+                        VisitId = visitId,
+                        PatientId = v.PatientId,
+                        ServiceItemId = item.ServiceItemId,
+                        SubSubCategoryId = item.SubSubCategoryId,
+                        ServiceName = item.ServiceName,
+                        ServiceCode = item.Code,
+                        CorporateAlias = item.CorporateAlias,
+                        CorporateCode = item.CorporateCode,
+                        DoctorId = item.DoctorId > 0 ? item.DoctorId : (int?)null,
+                        CorporateId = v.CorporateId > 0 ? v.CorporateId : (int?)null,
+                        Rate = item.Rate,
+                        Qty = (-1) * item.Qty,                 // negative qty for refund
+                        GrossAmt = item.GrossAmt,
+                        DiscPer = item.DiscPer,
+                        DiscAmt = item.DiscAmt,
+                        NetAmt = item.NetAmt,
+                        IsCorporateNonPayable = item.IsNonPayable,
+                        IsUnderPackage = item.IsUnderPackage,
+                        RateListId = item.RateListId,
+                        UserId = globalValues.userId,
+                        IpAddress = globalValues.ipAddress,
+                        FromFTDID = item.FTDId
+                    };
+
+                    int newFtdId = Convert.ToInt32(ftd.Create(_sqlHelper, tnx));
+                    _log.Info($"FinancialTransactionDetails (refund) created. NewFTDId={newFtdId}, OriginalFTDId={item.FTDId}");
+
+                    // ── 3a. Consultation refund validation/cancel ────────────────────
+                    if (item.CategoryId == 1)
+                    {
+                        if (ValidateDoctorVisitForRefund(tnx, item.FTDId))
+                        {
+                            _sqlHelper.DML(tnx, "U_CancelDoctorAppointment", CommandType.StoredProcedure, new
+                            {
+                                @UserId = globalValues.userId,
+                                @FTDID = item.FTDId
+                            });
+                        }
+                        else
+                        {
+                            tnx.Rollback();
+                            var alertBusy = _messageService.GetMessageAndTypeByAlertCode("OPERATION_FAILED");
+                            return ServiceResult<SaveOPDRefundBillingResponse>.Failure(
+                                alertBusy.Type,
+                                $"Patient is either out from Temperature Room or Doctor Appointment is done for '{item.ServiceName}'. Cannot refund now.",
+                                409
+                            );
+                        }
+                    }
+                    // ── 3b. Investigation refund validation/cancel ───────────────────
+                    else if (item.CategoryId == 3)
+                    {
+                        if (ValidatePatientInvestigationForRefund(tnx, item.FTDId))
+                        {
+                            _sqlHelper.DML(tnx, "U_CancelPatientInvestigationDetails", CommandType.StoredProcedure, new
+                            {
+                                @UserId = globalValues.userId,
+                                @FTDID = item.FTDId
+                            });
+                        }
+                        else
+                        {
+                            tnx.Rollback();
+                            var alertBusy = _messageService.GetMessageAndTypeByAlertCode("OPERATION_FAILED");
+                            return ServiceResult<SaveOPDRefundBillingResponse>.Failure(
+                                alertBusy.Type,
+                                $"Lab processing already started for '{item.ServiceName}'. Cannot refund now.",
+                                409
+                            );
+                        }
+                    }
+
+                    // ── 3c. Update refunded quantity on the original FTD row ─────────
+                    _sqlHelper.DML(tnx, "U_UpdateFTDRefundQTY", CommandType.StoredProcedure, new
+                    {
+                        @FTDId = item.FTDId,
+                        @refundQty = Convert.ToInt32(item.Qty),
+                        @userId = globalValues.userId
+                    });
+                }
+
+                // ── 4. Receipt (negative amount for refund) ─────────────────────────
+                int receiptId = 0;
+                if (totalPaidAmount > 0)
+                {
+                    var receipt = new Receipts
+                    {
+                        HospId = globalValues.hospId,
+                        BranchId = v.BranchId,
+                        FTID = ftid,
+                        VisitId = visitId,
+                        PatientId = v.PatientId,
+                        Amount = (-1) * totalPaidAmount,
+                        PlutusTransactionReferenceID = request.PaymentDetails[0].PlutusTransactionReferenceID,
+                        TransactionLogId = request.PaymentDetails[0].TransactionLogId,
+                        UserId = globalValues.userId,
+                        IpAddress = globalValues.ipAddress,
+                        UniqueId = v.UniqueId
+                    };
+
+                    receiptId = Convert.ToInt32(receipt.Create(_sqlHelper, tnx));
+                    _log.Info($"Refund Receipt created. ReceiptId={receiptId}");
+
+                    foreach (var p in request.PaymentDetails)
+                    {
+                        // PaymentModeTypeId 4 = Credit → skip
+                        if (p.PaymentModeTypeId == 4)
+                            continue;
+
+                        var rpmd = new ReceiptsPaymentModeDetails
+                        {
+                            HospId = globalValues.hospId,
+                            BranchId = v.BranchId,
+                            ReceiptID = receiptId,
+                            Amount = p.Amount,
+                            PaymentModeId = p.PaymentModeId,
+                            BankId = p.BankId > 0 ? p.BankId : (int?)null,
+                            ReferenceNo = p.RefNo,
+                            UserId = globalValues.userId,
+                            IpAddress = globalValues.ipAddress
+                        };
+
+                        rpmd.Create(_sqlHelper, tnx);
+                    }
+                }
+
+                tnx.Commit();
+                _log.Info($"SaveOPDRefundBilling committed. VisitId={visitId}, FTID={ftid}, ReceiptId={receiptId}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<SaveOPDRefundBillingResponse>.Success(
+                    new SaveOPDRefundBillingResponse
+                    {
+                        VisitId = visitId,
+                        FTID = ftid,
+                        ReceiptId = receiptId
+                    },
+                    alert.Type,
+                    "OPD Refund saved successfully",
+                    201
+                );
+            }
+            catch (Exception ex)
+            {
+                try { tnx.Rollback(); } catch { /* swallow rollback exception */ }
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<SaveOPDRefundBillingResponse>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+            finally
+            {
+                tnx.Dispose();
+                if (con.State == ConnectionState.Open)
+                    con.Close();
+            }
+        }
+
+        /// <summary>
+        /// Returns true if the doctor appointment (FTDId) is still eligible for refund
+        /// (patient not yet out of temperature room AND consultation not done)
+        /// </summary>
+        private bool ValidateDoctorVisitForRefund(SqlTransaction tnx, int ftdId)
+        {
+            object result = _sqlHelper.ExecuteScalar(
+                tnx,
+                "S_ValidateDoctorVisitforRefund",
+                CommandType.StoredProcedure,
+                new { @FTDId = ftdId }
+            );
+
+            int resultValue = (result == null || Convert.IsDBNull(result)) ? 0 : Convert.ToInt32(result);
+            return resultValue <= 0;
+        }
+
+        /// <summary>
+        /// Returns true if the patient investigation (FTDId) is still eligible for refund
+        /// (no sample collected/segregated/received/result/approval yet)
+        /// </summary>
+        private bool ValidatePatientInvestigationForRefund(SqlTransaction tnx, int ftdId)
+        {
+            object result = _sqlHelper.ExecuteScalar(
+                tnx,
+                "S_ValidatePatientInvestigationforRefund",
+                CommandType.StoredProcedure,
+                new { @FTDId = ftdId }
+            );
+
+            int resultValue = (result == null || Convert.IsDBNull(result)) ? 0 : Convert.ToInt32(result);
+            return resultValue <= 0;
+        }
+
+        public ServiceResult<SaveOPDRefundRequestApprovalResponse> SaveOPDRefundRequestApproval(
+            SaveOPDRefundRequestApprovalRequest request,
+            AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"SaveOPDRefundRequestApproval called. PatientId={request.VisitDetails.PatientId}, BranchId={request.VisitDetails.BranchId}");
+
+                var v = request.VisitDetails;
+
+                // I_OPDRefundRequestDetails uses a true OUTPUT parameter (no trailing SELECT @Result;),
+                // so RunProcedureInsert is required here (reads the OUTPUT param value directly).
+                long refundIdResult = _sqlHelper.RunProcedureInsert(
+                    "I_OPDRefundRequestDetails",
+                    new IDataParameter[]
+                    {
+                new SqlParameter("@BranchId", v.BranchId),
+                new SqlParameter("@RoleId", v.RoleId),
+                new SqlParameter("@PatientId", v.PatientId),
+                new SqlParameter("@VisitId", v.VisitId),
+                new SqlParameter("@TotalBillAmount", v.GrossBillAmount),
+                new SqlParameter("@TotalDiscountPerOnBill", v.TotalDiscPerOnBill),
+                new SqlParameter("@TotalDiscountAmountOnBill", v.TotalDiscAmtOnBill),
+                new SqlParameter("@RoundOff", v.RoundOff),
+                new SqlParameter("@TotalRefundAmount", v.NetAmount),
+                new SqlParameter("@RefundApprovedID", v.RefundApprovedID),
+                new SqlParameter("@RefundApprovedName", (object)v.RefundApprovedName ?? DBNull.Value),
+                new SqlParameter("@RefundReason", (object)v.RefundReason ?? DBNull.Value),
+                new SqlParameter("@RefundRemark", (object)v.RefundRemark ?? DBNull.Value),
+                new SqlParameter("@UserId", globalValues.userId),
+                new SqlParameter("@IpAddress", (object)globalValues.ipAddress ?? DBNull.Value),
+                new SqlParameter("@Result", SqlDbType.Int) { Direction = ParameterDirection.Output }
+                    });
+
+                int refundId = Convert.ToInt32(refundIdResult);
+                _log.Info($"OPDRefundRequestDetails created. RefundId={refundId}");
+
+                // ── Insert refund item rows ──────────────────────────────────────────────
+                foreach (var item in request.BillingItems)
+                {
+                    _sqlHelper.DML(
+                        "I_OPDRefundRequestItemDetails",
+                        CommandType.StoredProcedure,
+                        new
+                        {
+                            @RefundId = refundId,
+                            @FTDId = item.FTDId,
+                            @RefundQty = item.RefundQty,
+                            @UserId = globalValues.userId,
+                            @IpAddress = globalValues.ipAddress
+                        });
+                }
+
+                _log.Info($"SaveOPDRefundRequestApproval completed. RefundId={refundId}, ItemCount={request.BillingItems.Count}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<SaveOPDRefundRequestApprovalResponse>.Success(
+                    new SaveOPDRefundRequestApprovalResponse { RefundId = refundId },
+                    alert.Type,
+                    "OPD Refund request saved successfully",
+                    201
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<SaveOPDRefundRequestApprovalResponse>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<string> ApproveOPDRefundRequest(ApproveOPDRefundRequestRequest request, AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"ApproveOPDRefundRequest called. RefundId={request.RefundId}, Flag={request.Flag}");
+
+                _sqlHelper.DML(
+                    "U_ApproveOPDRefundRequest",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @RefundId = request.RefundId,
+                        @flag = request.Flag,
+                        @ApprovalRemarks = (object)request.ApprovalRemarks ?? DBNull.Value,
+                        @UserId = globalValues.userId,
+                        @IpAddress = globalValues.ipAddress
+                    });
+
+                _log.Info($"ApproveOPDRefundRequest completed. RefundId={request.RefundId}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    "OPD Refund request approval updated successfully",
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<string> CancelOPDRefundRequest(CancelOPDRefundRequestRequest request, AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CancelOPDRefundRequest called. RefundId={request.RefundId}");
+
+                _sqlHelper.DML(
+                    "U_CancelOPDRefundRequest",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @RefundId = request.RefundId,
+                        @CancelReason = (object)request.CancelReason ?? DBNull.Value,
+                        @UserId = globalValues.userId,
+                        @IpAddress = globalValues.ipAddress
+                    });
+
+                _log.Info($"CancelOPDRefundRequest completed. RefundId={request.RefundId}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    "OPD Refund request cancelled successfully",
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<string> paymentOPDRefundRequest(paymentOPDRefundRequestRequest request, AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"paymentOPDRefundRequest called. RefundId={request.RefundId}");
+
+                _sqlHelper.DML(
+                    "U_PaymentOPDRefundRequest",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @RefundId = request.RefundId,
+                        @UserId = globalValues.userId,
+                        @IpAddress = globalValues.ipAddress
+                    });
+
+                _log.Info($"paymentOPDRefundRequest completed. RefundId={request.RefundId}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    "OPD Refund marked as collected successfully",
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetOPDRefundRequestListForApproval(string fromDate, string toDate, int branchId, AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"GetOPDRefundRequestListForApproval called. FromDate={fromDate}, ToDate={toDate}, BranchId={branchId}");
+
+                if (!DateTime.TryParse(fromDate, out DateTime parsedFromDate))
+                {
+                    var alertDate = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return ServiceResult<object>.Failure(alertDate.Type, "Invalid FromDate format", 400);
+                }
+
+                if (!DateTime.TryParse(toDate, out DateTime parsedToDate))
+                {
+                    var alertDate = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return ServiceResult<object>.Failure(alertDate.Type, "Invalid ToDate format", 400);
+                }
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_OPDRefundRequestDetailsForDiscountApproval",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @fromDate = parsedFromDate.ToString("yyyy-MM-dd"),
+                        @toDate = parsedToDate.ToString("yyyy-MM-dd"),
+                        @branchId = branchId,
+                        @userId = globalValues.userId
+                    });
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info("GetOPDRefundRequestListForApproval: no records found");
+                    return ServiceResult<object>.Failure(alert.Type, "No refund requests found", 404);
+                }
+
+                var rows = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetOPDRefundRequestListForApproval retrieved {rows.Count} record(s)");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(rows, alert1.Type, $"{rows.Count} refund request(s) retrieved successfully", 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetOPDRefundRequestDetailsByRefundId(int refundId)
+        {
+            try
+            {
+                _log.Info($"GetOPDRefundRequestDetailsByRefundId called. RefundId={refundId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_OPDRefundRequestDetailsByRefundId",
+                    CommandType.StoredProcedure,
+                    new { @RefundId = refundId });
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No refund details found for RefundId={refundId}");
+                    return ServiceResult<object>.Failure(alert.Type, "No refund details found", 404);
+                }
+
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"Refund details retrieved successfully for RefundId={refundId}. Rows={result.Count}");
+
+                return ServiceResult<object>.Success(result, "Info", "Refund details retrieved successfully", 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetOPDRefundRequestApprovalDetails(int refundId)
+        {
+            try
+            {
+                _log.Info($"GetOPDRefundRequestApprovalDetails called. RefundId={refundId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetOPDRefundRequestApprovalDetails",
+                    CommandType.StoredProcedure,
+                    new { @RefundId = refundId });
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No approval details found for RefundId={refundId}");
+                    return ServiceResult<object>.Failure(alert.Type, "No approval details found", 404);
+                }
+
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"Approval details retrieved successfully for RefundId={refundId}");
+
+                return ServiceResult<object>.Success(result, "Info", "Approval details retrieved successfully", 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetBillReceiptReprintDetails(
+    string branchId, string uhid, string name, int type,
+    string billNo, string receiptNo, string fromDate, string toDate)
+        {
+            try
+            {
+                _log.Info($"GetBillReceiptReprintDetails called. BranchId={branchId}, UHID={uhid}, Name={name}, Type={type}, BillNo={billNo}, ReceiptNo={receiptNo}, FromDate={fromDate}, ToDate={toDate}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetBillReceiptReprintDetails",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @branchId = branchId,
+                        @UHID = uhid ?? string.Empty,
+                        @Name = name ?? string.Empty,
+                        @Type = type,
+                        @BillNo = billNo ?? string.Empty,
+                        @ReceiptNo = receiptNo ?? string.Empty,
+                        @FromDate = fromDate,
+                        @Todate = toDate
+                    }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No bill/receipt reprint details found for BranchId={branchId}");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        "No bill/receipt reprint details found",
+                        404
+                    );
+                }
+
+                // Return raw DataTable as list of dictionaries without model mapping
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"Bill/receipt reprint details retrieved successfully. Rows={result.Count}");
+
+                return ServiceResult<object>.Success(
+                    result,
+                    "Info",
+                    $"Bill/receipt reprint details retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<object> GetBillForCreditNote(
+    string fromDate,
+    string toDate,
+    string billNo,
+    string uhid,
+    string patientName,
+    int typeId)
+        {
+            try
+            {
+                _log.Info($"GetBillForCreditNote called. FromDate={fromDate}, ToDate={toDate}, BillNo={billNo}, Uhid={uhid}, PatientName={patientName}, TypeId={typeId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetBillForCreditNote",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @fromDate = string.IsNullOrWhiteSpace(fromDate) ? (object)DBNull.Value : fromDate,
+                        @toDate = string.IsNullOrWhiteSpace(toDate) ? (object)DBNull.Value : toDate,
+                        @billNo = string.IsNullOrWhiteSpace(billNo) ? (object)DBNull.Value : billNo,
+                        @uhid = string.IsNullOrWhiteSpace(uhid) ? (object)DBNull.Value : uhid,
+                        @patientName = string.IsNullOrWhiteSpace(patientName) ? (object)DBNull.Value : patientName,
+                        @typeId = typeId
+                    });
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info("GetBillForCreditNote: no records found");
+                    return ServiceResult<object>.Failure(alert.Type, "No bills found for credit note", 404);
+                }
+
+                var rows = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetBillForCreditNote retrieved {rows.Count} record(s)");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(rows, alert1.Type, $"{rows.Count} bill(s) retrieved successfully", 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetBillDetailsForCreditNote(int visitId)
+        {
+            try
+            {
+                _log.Info($"GetBillDetailsForCreditNote called. VisitId={visitId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetBillDetailsForCreditNote",
+                    CommandType.StoredProcedure,
+                    new { @visitId = visitId });
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No bill details found for VisitId={visitId}");
+                    return ServiceResult<object>.Failure(alert.Type, "No bill details found for credit note", 404);
+                }
+
+                var rows = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetBillDetailsForCreditNote retrieved {rows.Count} record(s) for VisitId={visitId}");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(rows, alert1.Type, $"{rows.Count} item(s) retrieved successfully", 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+        public ServiceResult<SaveCreditNoteRequestApprovalResponse> SaveCreditNoteRequestApproval(
+    SaveCreditNoteRequestApprovalRequest request,
+    AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"SaveCreditNoteRequestApproval called. PatientId={request.VisitDetails.PatientId}, BranchId={request.VisitDetails.BranchId}, BillId={request.VisitDetails.BillId}");
+
+                var v = request.VisitDetails;
+
+                // I_CreditNoteRequestDetails uses a true OUTPUT parameter (no trailing SELECT @Result;),
+                // so RunProcedureInsert is required here (reads the OUTPUT param value directly).
+                long creditNoteIdResult = _sqlHelper.RunProcedureInsert(
+                    "I_CreditNoteRequestDetails",
+                    new IDataParameter[]
+                    {
+                new SqlParameter("@BranchId", v.BranchId),
+                new SqlParameter("@RoleId", v.RoleId),
+                new SqlParameter("@PatientId", v.PatientId),
+                new SqlParameter("@VisitId", v.VisitId),
+                new SqlParameter("@BillId", v.BillId),
+                new SqlParameter("@TotalCreditNoteAmount", v.TotalCreditNoteAmount),
+                new SqlParameter("@CreditNoteApprovedID", v.CreditNoteApprovedID),
+                new SqlParameter("@CreditNoteApprovedName", (object)v.CreditNoteApprovedName ?? DBNull.Value),
+                new SqlParameter("@CreditNoteReason", (object)v.CreditNoteReason ?? DBNull.Value),
+                new SqlParameter("@CreditNoteRemark", (object)v.CreditNoteRemark ?? DBNull.Value),
+                new SqlParameter("@UserId", globalValues.userId),
+                new SqlParameter("@IpAddress", (object)globalValues.ipAddress ?? DBNull.Value),
+                new SqlParameter("@Result", SqlDbType.Int) { Direction = ParameterDirection.Output }
+                    });
+
+                int creditNoteId = Convert.ToInt32(creditNoteIdResult);
+                _log.Info($"CreditNoteRequestDetails created. CreditNoteId={creditNoteId}");
+
+                // ── Insert credit note item rows ─────────────────────────────────────────
+                foreach (var item in request.BillingItems)
+                {
+                    _sqlHelper.DML(
+                        "I_CreditNoteRequestItemDetails",
+                        CommandType.StoredProcedure,
+                        new
+                        {
+                            @CreditNoteId = creditNoteId,
+                            @FTDId = item.FTDId,
+                            @CreditNotePer = item.CreditNotePer,
+                            @CreditNoteAmt = item.CreditNoteAmt,
+                            @UserId = globalValues.userId,
+                            @IpAddress = globalValues.ipAddress
+                        });
+                }
+
+                _log.Info($"SaveCreditNoteRequestApproval completed. CreditNoteId={creditNoteId}, ItemCount={request.BillingItems.Count}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<SaveCreditNoteRequestApprovalResponse>.Success(
+                    new SaveCreditNoteRequestApprovalResponse { CreditNoteId = creditNoteId },
+                    alert.Type,
+                    "Credit note request saved successfully",
+                    201
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<SaveCreditNoteRequestApprovalResponse>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<string> ApproveCreditNoteRequest(ApproveCreditNoteRequestRequest request, AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"ApproveCreditNoteRequest called. CreditNoteId={request.CreditNoteId}, Flag={request.Flag}");
+
+                _sqlHelper.DML(
+                    "U_ApproveCreditNoteRequest",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @CreditNoteId = request.CreditNoteId,
+                        @flag = request.Flag,
+                        @ApprovalRemarks = (object)request.ApprovalRemarks ?? DBNull.Value,
+                        @UserId = globalValues.userId,
+                        @IpAddress = globalValues.ipAddress
+                    });
+
+                _log.Info($"ApproveCreditNoteRequest completed. CreditNoteId={request.CreditNoteId}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    "Credit note request approval updated successfully",
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<string> CancelCreditNoteRequest(CancelCreditNoteRequestRequest request, AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CancelCreditNoteRequest called. CreditNoteId={request.CreditNoteId}");
+
+                _sqlHelper.DML(
+                    "U_CancelCreditNoteRequest",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @CreditNoteId = request.CreditNoteId,
+                        @CancelReason = (object)request.CancelReason ?? DBNull.Value,
+                        @UserId = globalValues.userId,
+                        @IpAddress = globalValues.ipAddress
+                    });
+
+                _log.Info($"CancelCreditNoteRequest completed. CreditNoteId={request.CreditNoteId}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    "Credit note request cancelled successfully",
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<string> CollectCreditNoteRequest(CollectCreditNoteRequestRequest request, AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CollectCreditNoteRequest called. CreditNoteId={request.CreditNoteId}");
+
+                _sqlHelper.DML(
+                    "U_CollectCreditNoteRequest",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @CreditNoteId = request.CreditNoteId,
+                        @UserId = globalValues.userId,
+                        @IpAddress = globalValues.ipAddress
+                    });
+
+                _log.Info($"CollectCreditNoteRequest completed. CreditNoteId={request.CreditNoteId}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    "Credit note marked as created successfully",
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetCreditNoteRequestListForApproval(string fromDate, string toDate, int branchId, AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"GetCreditNoteRequestListForApproval called. FromDate={fromDate}, ToDate={toDate}, BranchId={branchId}");
+
+                if (!DateTime.TryParse(fromDate, out DateTime parsedFromDate))
+                {
+                    var alertDate = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return ServiceResult<object>.Failure(alertDate.Type, "Invalid FromDate format", 400);
+                }
+
+                if (!DateTime.TryParse(toDate, out DateTime parsedToDate))
+                {
+                    var alertDate = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return ServiceResult<object>.Failure(alertDate.Type, "Invalid ToDate format", 400);
+                }
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_CreditNoteRequestDetailsForDiscountApproval",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @fromDate = parsedFromDate.ToString("yyyy-MM-dd"),
+                        @toDate = parsedToDate.ToString("yyyy-MM-dd"),
+                        @branchId = branchId,
+                        @userId = globalValues.userId
+                    });
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info("GetCreditNoteRequestListForApproval: no records found");
+                    return ServiceResult<object>.Failure(alert.Type, "No credit note requests found", 404);
+                }
+
+                var rows = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetCreditNoteRequestListForApproval retrieved {rows.Count} record(s)");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(rows, alert1.Type, $"{rows.Count} credit note request(s) retrieved successfully", 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetCreditNoteRequestDetailsByCreditNoteId(int creditNoteId)
+        {
+            try
+            {
+                _log.Info($"GetCreditNoteRequestDetailsByCreditNoteId called. CreditNoteId={creditNoteId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_CreditNoteRequestDetailsByCreditNoteId",
+                    CommandType.StoredProcedure,
+                    new { @CreditNoteId = creditNoteId });
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No credit note details found for CreditNoteId={creditNoteId}");
+                    return ServiceResult<object>.Failure(alert.Type, "No credit note details found", 404);
+                }
+
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"Credit note details retrieved successfully for CreditNoteId={creditNoteId}. Rows={result.Count}");
+
+                return ServiceResult<object>.Success(result, "Info", "Credit note details retrieved successfully", 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetCreditNoteRequestApprovalDetails(int creditNoteId)
+        {
+            try
+            {
+                _log.Info($"GetCreditNoteRequestApprovalDetails called. CreditNoteId={creditNoteId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetCreditNoteRequestApprovalDetails",
+                    CommandType.StoredProcedure,
+                    new { @CreditNoteId = creditNoteId });
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No approval details found for CreditNoteId={creditNoteId}");
+                    return ServiceResult<object>.Failure(alert.Type, "No approval details found", 404);
+                }
+
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"Approval details retrieved successfully for CreditNoteId={creditNoteId}");
+
+                return ServiceResult<object>.Success(result, "Info", "Approval details retrieved successfully", 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+
+
+
+
+
+
+        public ServiceResult<object> GetBillForWriteOff(
+      string fromDate,
+      string toDate,
+      string billNo,
+      string uhid,
+      string patientName,
+      int typeId)
+        {
+            try
+            {
+                _log.Info($"GetBillForWriteOff called. FromDate={fromDate}, ToDate={toDate}, BillNo={billNo}, Uhid={uhid}, PatientName={patientName}, TypeId={typeId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetBillForWriteOff",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @fromDate = string.IsNullOrWhiteSpace(fromDate) ? (object)DBNull.Value : fromDate,
+                        @toDate = string.IsNullOrWhiteSpace(toDate) ? (object)DBNull.Value : toDate,
+                        @billNo = string.IsNullOrWhiteSpace(billNo) ? (object)DBNull.Value : billNo,
+                        @uhid = string.IsNullOrWhiteSpace(uhid) ? (object)DBNull.Value : uhid,
+                        @patientName = string.IsNullOrWhiteSpace(patientName) ? (object)DBNull.Value : patientName,
+                        @typeId = typeId
+                    });
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info("GetBillForWriteOff: no records found");
+                    return ServiceResult<object>.Failure(alert.Type, "No bills found for writeoff", 404);
+                }
+
+                var rows = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetBillForWriteOff retrieved {rows.Count} record(s)");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(rows, alert1.Type, $"{rows.Count} bill(s) retrieved successfully", 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetBillDetailsForWriteOff(int visitId)
+        {
+            try
+            {
+                _log.Info($"GetBillDetailsForWriteOff called. VisitId={visitId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetBillDetailsForWriteOff",
+                    CommandType.StoredProcedure,
+                    new { @visitId = visitId });
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No bill details found for VisitId={visitId}");
+                    return ServiceResult<object>.Failure(alert.Type, "No bill details found for writeoff", 404);
+                }
+
+                var rows = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetBillDetailsForWriteOff retrieved {rows.Count} record(s) for VisitId={visitId}");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(rows, alert1.Type, $"{rows.Count} item(s) retrieved successfully", 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+
+
+        public ServiceResult<SaveWriteOffRequestApprovalResponse> SaveWriteOffRequestApproval(
+    SaveWriteOffRequestApprovalRequest request,
+    AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"SaveWriteOffRequestApproval called. PatientId={request.PatientId}, BranchId={request.BranchId}, BillId={request.BillId}");
+
+                // I_WriteOffRequestDetails uses a true OUTPUT parameter (no trailing SELECT @Result;),
+                // so RunProcedureInsert is required here. No item table exists for WriteOff — header only.
+                long writeOffIdResult = _sqlHelper.RunProcedureInsert(
+                    "I_WriteOffRequestDetails",
+                    new IDataParameter[]
+                    {
+                new SqlParameter("@BranchId", request.BranchId),
+                new SqlParameter("@RoleId", request.RoleId),
+                new SqlParameter("@PatientId", request.PatientId),
+                new SqlParameter("@VisitId", request.VisitId),
+                new SqlParameter("@BillId", request.BillId),
+                new SqlParameter("@TotalWriteOffAmount", request.TotalWriteOffAmount),
+                new SqlParameter("@WriteOffApprovedID", request.WriteOffApprovedID),
+                new SqlParameter("@WriteOffApprovedName", (object)request.WriteOffApprovedName ?? DBNull.Value),
+                new SqlParameter("@WriteOffReason", (object)request.WriteOffReason ?? DBNull.Value),
+                new SqlParameter("@WriteOffRemark", (object)request.WriteOffRemark ?? DBNull.Value),
+                new SqlParameter("@UserId", globalValues.userId),
+                new SqlParameter("@IpAddress", (object)globalValues.ipAddress ?? DBNull.Value),
+                new SqlParameter("@Result", SqlDbType.Int) { Direction = ParameterDirection.Output }
+                    });
+
+                int writeOffId = Convert.ToInt32(writeOffIdResult);
+                _log.Info($"SaveWriteOffRequestApproval completed. WriteOffId={writeOffId}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<SaveWriteOffRequestApprovalResponse>.Success(
+                    new SaveWriteOffRequestApprovalResponse { WriteOffId = writeOffId },
+                    alert.Type,
+                    "WriteOff request saved successfully",
+                    201
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<SaveWriteOffRequestApprovalResponse>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<string> ApproveWriteOffRequest(ApproveWriteOffRequestRequest request, AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"ApproveWriteOffRequest called. WriteOffId={request.WriteOffId}, Flag={request.Flag}");
+
+                _sqlHelper.DML(
+                    "U_ApproveWriteOffRequest",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @WriteOffId = request.WriteOffId,
+                        @flag = request.Flag,
+                        @ApprovalRemarks = (object)request.ApprovalRemarks ?? DBNull.Value,
+                        @UserId = globalValues.userId,
+                        @IpAddress = globalValues.ipAddress
+                    });
+
+                _log.Info($"ApproveWriteOffRequest completed. WriteOffId={request.WriteOffId}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    "WriteOff request approval updated successfully",
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<string> CancelWriteOffRequest(CancelWriteOffRequestRequest request, AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CancelWriteOffRequest called. WriteOffId={request.WriteOffId}");
+
+                _sqlHelper.DML(
+                    "U_CancelWriteOffRequest",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @WriteOffId = request.WriteOffId,
+                        @CancelReason = (object)request.CancelReason ?? DBNull.Value,
+                        @UserId = globalValues.userId,
+                        @IpAddress = globalValues.ipAddress
+                    });
+
+                _log.Info($"CancelWriteOffRequest completed. WriteOffId={request.WriteOffId}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    "WriteOff request cancelled successfully",
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<string> CollectWriteOffRequest(CollectWriteOffRequestRequest request, AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CollectWriteOffRequest called. WriteOffId={request.WriteOffId}");
+
+                _sqlHelper.DML(
+                    "U_CollectWriteOffRequest",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @WriteOffId = request.WriteOffId,
+                        @UserId = globalValues.userId,
+                        @IpAddress = globalValues.ipAddress
+                    });
+
+                _log.Info($"CollectWriteOffRequest completed. WriteOffId={request.WriteOffId}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    "WriteOff marked as created successfully",
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetWriteOffRequestListForApproval(string fromDate, string toDate, int branchId, AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"GetWriteOffRequestListForApproval called. FromDate={fromDate}, ToDate={toDate}, BranchId={branchId}");
+
+                if (!DateTime.TryParse(fromDate, out DateTime parsedFromDate))
+                {
+                    var alertDate = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return ServiceResult<object>.Failure(alertDate.Type, "Invalid FromDate format", 400);
+                }
+
+                if (!DateTime.TryParse(toDate, out DateTime parsedToDate))
+                {
+                    var alertDate = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return ServiceResult<object>.Failure(alertDate.Type, "Invalid ToDate format", 400);
+                }
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_WriteOffRequestDetailsForDiscountApproval",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @fromDate = parsedFromDate.ToString("yyyy-MM-dd"),
+                        @toDate = parsedToDate.ToString("yyyy-MM-dd"),
+                        @branchId = branchId,
+                        @userId = globalValues.userId
+                    });
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info("GetWriteOffRequestListForApproval: no records found");
+                    return ServiceResult<object>.Failure(alert.Type, "No writeoff requests found", 404);
+                }
+
+                var rows = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetWriteOffRequestListForApproval retrieved {rows.Count} record(s)");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(rows, alert1.Type, $"{rows.Count} writeoff request(s) retrieved successfully", 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetWriteOffRequestDetailsByWriteOffId(int writeOffId)
+        {
+            try
+            {
+                _log.Info($"GetWriteOffRequestDetailsByWriteOffId called. WriteOffId={writeOffId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_WriteOffRequestDetailsByWriteOffId",
+                    CommandType.StoredProcedure,
+                    new { @WriteOffId = writeOffId });
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No writeoff details found for WriteOffId={writeOffId}");
+                    return ServiceResult<object>.Failure(alert.Type, "No writeoff details found", 404);
+                }
+
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"WriteOff details retrieved successfully for WriteOffId={writeOffId}. Rows={result.Count}");
+
+                return ServiceResult<object>.Success(result, "Info", "WriteOff details retrieved successfully", 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetWriteOffRequestApprovalDetails(int writeOffId)
+        {
+            try
+            {
+                _log.Info($"GetWriteOffRequestApprovalDetails called. WriteOffId={writeOffId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetWriteOffRequestApprovalDetails",
+                    CommandType.StoredProcedure,
+                    new { @WriteOffId = writeOffId });
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No approval details found for WriteOffId={writeOffId}");
+                    return ServiceResult<object>.Failure(alert.Type, "No approval details found", 404);
+                }
+
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"Approval details retrieved successfully for WriteOffId={writeOffId}");
+
+                return ServiceResult<object>.Success(result, "Info", "Approval details retrieved successfully", 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+  
     }
 }

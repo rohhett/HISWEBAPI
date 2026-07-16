@@ -1190,6 +1190,8 @@ namespace HISWEBAPI.DTO
         [Required(ErrorMessage = "IsActive is required")]
         public int IsActive { get; set; }
         public int IsMandatory { get; set; } = 0;
+        public string Queries { get; set; }
+
 
 
         public List<DoctorHeaderLOVRequest> ListOfValues { get; set; }

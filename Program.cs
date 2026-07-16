@@ -1,4 +1,5 @@
 using HISWEBAPI.Configuration;
+using HISWEBAPI.Middleware;
 using log4net;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -28,6 +29,8 @@ app.UseHttpsRedirection();
 app.UseCors("_myAllowSpecificOrigins");
 
 // Authentication & Authorization (ORDER MATTERS!)
+app.UseMiddleware<ClientTypeMiddleware>();
+
 app.UseAuthentication();
 app.UseAuthorization();
 

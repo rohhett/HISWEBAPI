@@ -1205,5 +1205,728 @@ namespace HISWEBAPI.Repositories.Implementations
                 }
             }
         }
+        private const string CACHE_KEY_EMRSectionScoreFormula = "_EMRSectionScoreFormula_Section{0}";
+
+        public ServiceResult<object> GetEMRSectionScoreFormula(int sectionId)
+        {
+            try
+            {
+                _log.Info($"GetEMRSectionScoreFormula called. SectionId={sectionId}");
+
+                string cacheKey = string.Format(CACHE_KEY_EMRSectionScoreFormula, sectionId);
+
+                var cachedData = _distributedCache.GetString(cacheKey);
+                List<Dictionary<string, object>> allItems;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"EMRSectionScoreFormula data retrieved from cache. Key={cacheKey}");
+                    allItems = System.Text.Json.JsonSerializer
+                        .Deserialize<List<Dictionary<string, object>>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"EMRSectionScoreFormula cache miss. Fetching from database. Key={cacheKey}");
+
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_GetEMRSectionScoreFormula",
+                        CommandType.StoredProcedure,
+                        new { @sectionId = sectionId }
+                    );
+
+                    allItems = dataTable?.AsEnumerable().Select(row =>
+                        dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                            col => col.ColumnName,
+                            col => row[col] == DBNull.Value ? null : row[col]
+                        )
+                    ).ToList() ?? new List<Dictionary<string, object>>();
+
+                    if (allItems.Any())
+                    {
+                        var serialized = System.Text.Json.JsonSerializer.Serialize(allItems);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                        _log.Info($"EMRSectionScoreFormula cached permanently. Key={cacheKey}, Count={allItems.Count}");
+                    }
+                }
+
+                if (!allItems.Any())
+                {
+                    var notFoundAlert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No score formula found for SectionId={sectionId}");
+                    return ServiceResult<object>.Failure(
+                        notFoundAlert.Type,
+                        "No score formula found for this section",
+                        404
+                    );
+                }
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    allItems,
+                    alert.Type,
+                    $"{allItems.Count} score formula record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> SaveEMRSectionScoreFormula(
+            SaveEMRSectionScoreFormulaRequest request,
+            AllGlobalValues globalValues)
+        {
+            SqlConnection con = null;
+            SqlTransaction tnx = null;
+            try
+            {
+                _log.Info($"SaveEMRSectionScoreFormula called. SectionId={request.SectionId}, Items={request.FormulaItems?.Count ?? 0}");
+
+                var connectionString = _configuration.GetConnectionString("ConnectionString");
+                if (string.IsNullOrEmpty(connectionString))
+                    throw new InvalidOperationException("Connection string 'ConnectionString' not found.");
+
+                con = new SqlConnection(connectionString);
+                con.Open();
+                tnx = CustomSqlHelper.getSqlTransaction(con);
+
+                // Step 1 – Delete existing formula rows for this section
+                _sqlHelper.DML(tnx, "D_EMRSectionScoreFormula", CommandType.StoredProcedure, new
+                {
+                    @sectionId = request.SectionId
+                });
+                _log.Info($"Deleted existing EMRSectionScoreFormula for SectionId={request.SectionId}");
+
+                // Step 2 – Insert new formula rows
+                int insertedCount = 0;
+                if (request.FormulaItems != null && request.FormulaItems.Any())
+                {
+                    foreach (var item in request.FormulaItems)
+                    {
+                        _sqlHelper.DML(tnx, "I_EMRSectionScoreFormula", CommandType.StoredProcedure, new
+                        {
+                            @SectionId = request.SectionId,
+                            @HeaderId = item.HeaderId,
+                            @ReferenceName = item.ReferenceName ?? (object)DBNull.Value,
+                            @FormulaDefinition = item.FormulaDefinition ?? (object)DBNull.Value,
+                            @userId = globalValues.userId,
+                            @ipAddress = globalValues.ipAddress
+                        });
+                        insertedCount++;
+                    }
+                }
+
+                tnx.Commit();
+                _log.Info($"SaveEMRSectionScoreFormula committed. SectionId={request.SectionId}, Inserted={insertedCount}");
+
+                // Invalidate per-section cache after successful write
+                string cacheKey = string.Format(CACHE_KEY_EMRSectionScoreFormula, request.SectionId);
+                _distributedCache.Remove(cacheKey);
+                _log.Info($"Cleared EMRSectionScoreFormula cache. Key={cacheKey}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    new { SectionId = request.SectionId, InsertedCount = insertedCount },
+                    alert.Type,
+                    "Score formula saved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                try { tnx?.Rollback(); } catch { /* swallow */ }
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+            finally
+            {
+                tnx?.Dispose();
+                if (con != null)
+                {
+                    if (con.State == System.Data.ConnectionState.Open) con.Close();
+                    con.Dispose();
+                }
+            }
+        }
+
+        private const string CACHE_KEY_EMRSectionAttributeCondition = "_EMRSectionAttributeCondition_Section{0}";
+
+        public ServiceResult<object> GetEMRSectionAttributeCondition(int sectionId)
+        {
+            try
+            {
+                _log.Info($"GetEMRSectionAttributeCondition called. SectionId={sectionId}");
+
+                string cacheKey = string.Format(CACHE_KEY_EMRSectionAttributeCondition, sectionId);
+
+                var cachedData = _distributedCache.GetString(cacheKey);
+                List<Dictionary<string, object>> allItems;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"EMRSectionAttributeCondition data retrieved from cache. Key={cacheKey}");
+                    allItems = System.Text.Json.JsonSerializer
+                        .Deserialize<List<Dictionary<string, object>>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"EMRSectionAttributeCondition cache miss. Fetching from database. Key={cacheKey}");
+
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_GetEMRSectionAttributeCondition",
+                        CommandType.StoredProcedure,
+                        new { @sectionId = sectionId }
+                    );
+
+                    allItems = dataTable?.AsEnumerable().Select(row =>
+                        dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                            col => col.ColumnName,
+                            col => row[col] == DBNull.Value ? null : row[col]
+                        )
+                    ).ToList() ?? new List<Dictionary<string, object>>();
+
+                    if (allItems.Any())
+                    {
+                        var serialized = System.Text.Json.JsonSerializer.Serialize(allItems);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                        _log.Info($"EMRSectionAttributeCondition cached permanently. Key={cacheKey}, Count={allItems.Count}");
+                    }
+                }
+
+                if (!allItems.Any())
+                {
+                    var notFoundAlert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No attribute conditions found for SectionId={sectionId}");
+                    return ServiceResult<object>.Failure(
+                        notFoundAlert.Type,
+                        "No attribute conditions found for this section",
+                        404
+                    );
+                }
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    allItems,
+                    alert.Type,
+                    $"{allItems.Count} attribute condition record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> SaveEMRSectionAttributeCondition(
+            SaveEMRSectionAttributeConditionRequest request,
+            AllGlobalValues globalValues)
+        {
+            SqlConnection con = null;
+            SqlTransaction tnx = null;
+            try
+            {
+                _log.Info($"SaveEMRSectionAttributeCondition called. SectionId={request.SectionId}, Groups={request.AttributeConditions?.Count ?? 0}");
+
+                var connectionString = _configuration.GetConnectionString("ConnectionString");
+                if (string.IsNullOrEmpty(connectionString))
+                    throw new InvalidOperationException("Connection string 'ConnectionString' not found.");
+
+                con = new SqlConnection(connectionString);
+                con.Open();
+                tnx = CustomSqlHelper.getSqlTransaction(con);
+
+                // Step 1 – Delete existing conditions for this section
+                _sqlHelper.DML(tnx, "D_EMRSectionAttributeCondition", CommandType.StoredProcedure, new
+                {
+                    @sectionId = request.SectionId
+                });
+                _log.Info($"Deleted existing EMRSectionAttributeCondition for SectionId={request.SectionId}");
+
+                // Step 2 – Flatten groups and insert each condition row
+                int insertedCount = 0;
+                if (request.AttributeConditions != null && request.AttributeConditions.Any())
+                {
+                    foreach (var group in request.AttributeConditions)
+                    {
+                        if (group.Conditions == null || !group.Conditions.Any())
+                            continue;
+
+                        foreach (var item in group.Conditions)
+                        {
+                            _sqlHelper.DML(tnx, "I_EMRSectionAttributeCondition", CommandType.StoredProcedure, new
+                            {
+                                @sectionId = request.SectionId,
+                                @targetHeaderId = group.TargetHeaderId,
+                                @headerId = item.HeaderId,
+                                @operator = item.Operator,
+                                @value = item.Value ?? (object)DBNull.Value,
+                                @connector = item.Connector ?? (object)DBNull.Value,
+                                @userId = globalValues.userId,
+                                @ipAddress = globalValues.ipAddress
+                            });
+                            insertedCount++;
+                        }
+                    }
+                }
+
+                tnx.Commit();
+                _log.Info($"SaveEMRSectionAttributeCondition committed. SectionId={request.SectionId}, Inserted={insertedCount}");
+
+                // Invalidate per-section cache after successful write
+                string cacheKey = string.Format(CACHE_KEY_EMRSectionAttributeCondition, request.SectionId);
+                _distributedCache.Remove(cacheKey);
+                _log.Info($"Cleared EMRSectionAttributeCondition cache. Key={cacheKey}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    new { SectionId = request.SectionId, InsertedCount = insertedCount },
+                    alert.Type,
+                    "Attribute conditions saved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                try { tnx?.Rollback(); } catch { /* swallow */ }
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+            finally
+            {
+                tnx?.Dispose();
+                if (con != null)
+                {
+                    if (con.State == System.Data.ConnectionState.Open) con.Close();
+                    con.Dispose();
+                }
+            }
+        }
+
+        public ServiceResult<object> DeleteEMRSectionAttributeCondition(int id)
+        {
+            try
+            {
+                _log.Info($"DeleteEMRSectionAttributeCondition called. Id={id}");
+
+                // Fetch SectionId before delete so we can clear the correct cache key
+                var dataTable = _sqlHelper.GetDataTable(
+                    "SELECT SectionId FROM EMRSectionAttributeCondition WHERE Id = @id",
+                    CommandType.Text,
+                    new { @id = id }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var notFoundAlert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Warn($"EMRSectionAttributeCondition not found for Id={id}");
+                    return ServiceResult<object>.Failure(
+                        notFoundAlert.Type,
+                        "Attribute condition not found",
+                        404
+                    );
+                }
+
+                int sectionId = Convert.ToInt32(dataTable.Rows[0]["SectionId"]);
+
+                var result = _sqlHelper.DML(
+                    "D_EMRSectionAttributeConditionById",
+                    CommandType.StoredProcedure,
+                    new { @id = id }
+                );
+
+                if (result > 0)
+                {
+                    // Invalidate per-section cache after successful delete
+                    string cacheKey = string.Format(CACHE_KEY_EMRSectionAttributeCondition, sectionId);
+                    _distributedCache.Remove(cacheKey);
+                    _log.Info($"Cleared EMRSectionAttributeCondition cache. Key={cacheKey}");
+
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_DELETED_SUCCESSFULLY");
+                    return ServiceResult<object>.Success(
+                        new { Id = id, SectionId = sectionId },
+                        alert.Type,
+                        alert.Message,
+                        200
+                    );
+                }
+                else
+                {
+                    var failAlert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_FAILED");
+                    _log.Warn($"Delete operation returned 0 rows affected for Id={id}");
+                    return ServiceResult<object>.Failure(failAlert.Type, failAlert.Message, 500);
+                }
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetEMRHeaderQueryResult(int headerId)
+        {
+            try
+            {
+                _log.Info($"GetEMRHeaderQueryResult called. HeaderId={headerId}");
+
+                DataTable dataTable = null;
+
+                try
+                {
+                    dataTable = _sqlHelper.GetDataTable(
+                        "S_GetEMRHeaderQueryResult",
+                        CommandType.StoredProcedure,
+                        new { headerId }
+                    );
+                }
+                catch (IndexOutOfRangeException)
+                {
+                    // Stored procedure returned no result set
+                    dataTable = null;
+                }
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        "No options found for this header",
+                        404);
+                }
+
+                var result = dataTable.AsEnumerable()
+                    .Select(row => dataTable.Columns.Cast<DataColumn>()
+                    .ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]))
+                    .ToList();
+
+                var success = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+
+                return ServiceResult<object>.Success(
+                    result,
+                    success.Type,
+                    $"{result.Count} option(s) retrieved successfully",
+                    200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        private static string CacheKey(int doctorId) => $"_DoctorFavouriteEMRSections_{doctorId}";
+
+        public ServiceResult<string> SaveDoctorFavouriteEMRSections(
+            SaveDoctorFavouriteEMRSectionsRequest request,
+            AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"SaveDoctorFavouriteEMRSections called. DoctorId={request.DoctorId}, SectionCount={request.SectionIds?.Count ?? 0}");
+
+                // Delete-then-insert pattern
+                _sqlHelper.DML(
+                    "D_DoctorWiseFavouriteEMRSectionsMapping",
+                    CommandType.StoredProcedure,
+                    new { @DoctorId = request.DoctorId }
+                );
+
+                if (request.SectionIds != null)
+                {
+                    foreach (var sectionId in request.SectionIds)
+                    {
+                        _sqlHelper.DML(
+                            "I_DoctorWiseFavouriteEMRSectionsMapping",
+                            CommandType.StoredProcedure,
+                            new
+                            {
+                                @DoctorId = request.DoctorId,
+                                @SectionId = sectionId,
+                                @userId = globalValues.userId,
+                                @IpAddress = globalValues.ipAddress
+                            }
+                        );
+                    }
+                }
+
+                // Invalidate cache after successful commit
+                _distributedCache.Remove(CacheKey(request.DoctorId));
+                _log.Info($"Cleared DoctorFavouriteEMRSections cache. DoctorId={request.DoctorId}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    "Favourite EMR sections saved successfully",
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<object> GetDoctorFavouriteEMRSections(int doctorId)
+        {
+            try
+            {
+                _log.Info($"GetDoctorFavouriteEMRSections called. DoctorId={doctorId}");
+
+                string cacheKey = CacheKey(doctorId);
+                var cachedData = _distributedCache.GetString(cacheKey);
+                List<Dictionary<string, object>> rawData;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"DoctorFavouriteEMRSections retrieved from cache. Key={cacheKey}");
+                    rawData = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"DoctorFavouriteEMRSections cache miss. Fetching from database. Key={cacheKey}");
+
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_DoctorWiseFavouriteEMRSectionsMapping",
+                        CommandType.StoredProcedure,
+                        new { @DoctorId = doctorId }
+                    );
+
+                    // Raw DataTable -> List<Dictionary<string,object>>, no model mapping
+                    rawData = dataTable?.AsEnumerable().Select(row =>
+                        dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                            col => col.ColumnName,
+                            col => row[col] == DBNull.Value ? null : row[col]
+                        )
+                    ).ToList() ?? new List<Dictionary<string, object>>();
+
+                    if (rawData.Any())
+                    {
+                        var serialized = JsonSerializer.Serialize(rawData);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                        _log.Info($"DoctorFavouriteEMRSections cached permanently. Key={cacheKey}, Count={rawData.Count}");
+                    }
+                }
+
+                if (!rawData.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No favourite EMR sections found for DoctorId={doctorId}");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        "No favourite EMR sections found for this doctor",
+                        404
+                    );
+                }
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    rawData,
+                    alert1.Type,
+                    $"{rawData.Count} favourite EMR section(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<CreateUpdateChiefComplaintMasterResponse> CreateUpdateChiefComplaintMaster(
+    CreateUpdateChiefComplaintMasterRequest request,
+    AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CreateUpdateChiefComplaintMaster called. ComplaintId={request.ComplaintId}, ComplaintName={request.ComplaintName}");
+
+                // IU_ChiefComplaintMaster sets @Result via a true OUTPUT parameter with no trailing
+                // SELECT @Result;, so RunProcedureInsert is required here (reads the OUTPUT param directly).
+                long resultValue = _sqlHelper.RunProcedureInsert(
+                    "IU_ChiefComplaintMaster",
+                    new IDataParameter[]
+                    {
+                new SqlParameter("@complaintId", request.ComplaintId),
+                new SqlParameter("@complaintName", request.ComplaintName),
+                new SqlParameter("@snomedCode", (object)request.SnomedCode ?? DBNull.Value),
+                new SqlParameter("@isActive", request.IsActive),
+                new SqlParameter("@UserId", globalValues.userId),
+                new SqlParameter("@IpAddress", (object)globalValues.ipAddress ?? DBNull.Value),
+                new SqlParameter("@Result", SqlDbType.Int) { Direction = ParameterDirection.Output }
+                    });
+
+                int result = Convert.ToInt32(resultValue);
+
+                if (result == -1)
+                {
+                    var dupAlert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Duplicate ComplaintName: {request.ComplaintName}");
+                    return ServiceResult<CreateUpdateChiefComplaintMasterResponse>.Failure(
+                        dupAlert.Type,
+                        "Complaint Name already exists",
+                        409
+                    );
+                }
+
+                if (result > 0)
+                {
+                    // Clear cache so next GET re-fetches fresh data
+                    _distributedCache.Remove("_ChiefComplaintMaster_All");
+                    _log.Info($"Cleared ChiefComplaintMaster cache. ComplaintId={result}");
+
+                    var responseData = new CreateUpdateChiefComplaintMasterResponse { ComplaintId = result };
+                    var alert = _messageService.GetMessageAndTypeByAlertCode(
+                        request.ComplaintId == 0 ? "DATA_SAVED_SUCCESSFULLY" : "DATA_UPDATED_SUCCESSFULLY"
+                    );
+
+                    _log.Info($"ChiefComplaint {(request.ComplaintId == 0 ? "created" : "updated")} successfully. ComplaintId={result}");
+
+                    return ServiceResult<CreateUpdateChiefComplaintMasterResponse>.Success(
+                        responseData,
+                        alert.Type,
+                        alert.Message,
+                        request.ComplaintId == 0 ? 201 : 200
+                    );
+                }
+
+                var failAlert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_FAILED");
+                return ServiceResult<CreateUpdateChiefComplaintMasterResponse>.Failure(failAlert.Type, failAlert.Message, 500);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<CreateUpdateChiefComplaintMasterResponse>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetChiefComplaintMasterList(int? isActive)
+        {
+            try
+            {
+                _log.Info($"GetChiefComplaintMasterList called. IsActive={isActive?.ToString() ?? "All"}");
+
+                const string cacheKey = "_ChiefComplaintMaster_All";
+
+                var cachedData = _distributedCache.GetString(cacheKey);
+                List<Dictionary<string, object>> allComplaints;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"ChiefComplaintMaster data retrieved from cache. Key={cacheKey}");
+                    allComplaints = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object>>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"ChiefComplaintMaster cache miss. Fetching all data from database. Key={cacheKey}");
+
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_GetChiefComplaintMasterList",
+                        CommandType.StoredProcedure
+                    );
+
+                    allComplaints = dataTable?.AsEnumerable().Select(row =>
+                        dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                            col => col.ColumnName,
+                            col => row[col] == DBNull.Value ? null : row[col]
+                        )
+                    ).ToList() ?? new List<Dictionary<string, object>>();
+
+                    // Store ALL complaints in cache (no expiration)
+                    if (allComplaints.Any())
+                    {
+                        var serialized = System.Text.Json.JsonSerializer.Serialize(allComplaints);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                        _log.Info($"All ChiefComplaintMaster data cached permanently. Key={cacheKey}, Count={allComplaints.Count}");
+                    }
+                }
+
+                // Filter in memory based on isActive (always from cache)
+                List<Dictionary<string, object>> filteredComplaints = allComplaints;
+
+               
+
+                if (isActive.HasValue)
+                {
+                    filteredComplaints = filteredComplaints.Where(row =>
+                    {
+                        if (row.TryGetValue("isActive", out var val) && val != null)
+                            return val.ToString() == isActive.Value.ToString();
+                        return false;
+                    }).ToList();
+                    _log.Info($"Filtered by IsActive={isActive.Value}. Count={filteredComplaints.Count}");
+                }
+
+                if (!filteredComplaints.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No chief complaints found for IsActive: {isActive?.ToString() ?? "All"}");
+                    return ServiceResult<object>.Failure(alert.Type, "No chief complaints found", 404);
+                }
+
+                _log.Info($"Retrieved {filteredComplaints.Count} chief complaint(s) from cache");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    filteredComplaints,
+                    alert1.Type,
+                    $"{filteredComplaints.Count} chief complaint(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
     }
 }

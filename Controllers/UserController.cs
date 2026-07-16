@@ -16,6 +16,7 @@ using System.Reflection;
 namespace HISWEBAPI.Controllers
 {
     [Route("api/[controller]")]
+    //[Route("mob/[controller]")]
     [ApiController]
     public class UserController : ControllerBase
     {

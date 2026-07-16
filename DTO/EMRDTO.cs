@@ -173,9 +173,97 @@ namespace HISWEBAPI.DTO
 
 
 
-        [Required(ErrorMessage = "EMRSectionId is required")]
-        [Range(1, int.MaxValue, ErrorMessage = "EMRSectionId must be greater than 0")]
+        [Required(ErrorMessage = "SectionId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "SectionId must be greater than 0")]
         public int SectionId { get; set; }
         public int SequenceNo { get; set; } = 0;
+    }
+
+    public class SaveEMRSectionScoreFormulaRequest
+    {
+        [Required(ErrorMessage = "SectionId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "SectionId must be greater than 0")]
+        public int SectionId { get; set; }
+
+        public List<EMRSectionScoreFormulaItem> FormulaItems { get; set; } = new();
+    }
+
+    public class EMRSectionScoreFormulaItem
+    {
+        [Required(ErrorMessage = "HeaderId is required")]
+        [Range(0, int.MaxValue, ErrorMessage = "HeaderId must be greater than equal to 0")]
+        public int HeaderId { get; set; }
+
+        [StringLength(256, ErrorMessage = "ReferenceName cannot exceed 256 characters")]
+        public string? ReferenceName { get; set; }
+
+        [StringLength(512, ErrorMessage = "FormulaDefinition cannot exceed 512 characters")]
+        public string? FormulaDefinition { get; set; }
+    }
+
+    public class SaveEMRSectionAttributeConditionRequest
+    {
+        [Required(ErrorMessage = "SectionId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "SectionId must be greater than 0")]
+        public int SectionId { get; set; }
+
+        public List<AttributeConditionGroup> AttributeConditions { get; set; } = new();
+    }
+
+    public class AttributeConditionGroup
+    {
+        [Required(ErrorMessage = "TargetHeaderId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "TargetHeaderId must be greater than 0")]
+        public int TargetHeaderId { get; set; }
+
+        [Required(ErrorMessage = "Conditions are required")]
+        public List<AttributeConditionItem> Conditions { get; set; } = new();
+    }
+
+    public class AttributeConditionItem
+    {
+        [Required(ErrorMessage = "HeaderId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "HeaderId must be greater than 0")]
+        public int HeaderId { get; set; }
+
+        [Required(ErrorMessage = "Operator is required")]
+        [StringLength(10, ErrorMessage = "Operator cannot exceed 10 characters")]
+        public string Operator { get; set; }
+
+        [StringLength(256, ErrorMessage = "Value cannot exceed 256 characters")]
+        public string? Value { get; set; }
+
+        [StringLength(10, ErrorMessage = "Connector cannot exceed 10 characters")]
+        public string? Connector { get; set; }
+    }
+
+    public class SaveDoctorFavouriteEMRSectionsRequest
+    {
+        [Required(ErrorMessage = "DoctorId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "DoctorId must be greater than 0")]
+        public int DoctorId { get; set; }
+
+        [Required(ErrorMessage = "SectionIds is required")]
+        public List<int> SectionIds { get; set; } = new List<int>();
+    }
+
+    public class CreateUpdateChiefComplaintMasterRequest
+    {
+        public int ComplaintId { get; set; } = 0;
+
+        [Required(ErrorMessage = "ComplaintName is required")]
+        [StringLength(512, ErrorMessage = "ComplaintName cannot exceed 512 characters")]
+        public string ComplaintName { get; set; }
+
+        [StringLength(100, ErrorMessage = "SnomedCode cannot exceed 100 characters")]
+        public string? SnomedCode { get; set; }
+
+        [Required(ErrorMessage = "IsActive is required")]
+        public int IsActive { get; set; }
+    }
+
+    public class CreateUpdateChiefComplaintMasterResponse
+    {
+        public int ComplaintId { get; set; }
     }
 }
