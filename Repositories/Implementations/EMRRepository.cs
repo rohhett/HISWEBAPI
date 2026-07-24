@@ -1928,5 +1928,164 @@ namespace HISWEBAPI.Repositories.Implementations
                 return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
             }
         }
+
+        public ServiceResult<string> SaveDoctorFavouriteTableEntry(SaveDoctorFavouriteTableEntryRequest request, AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"SaveDoctorFavouriteTableEntry called. DoctorId={request.DoctorId}, EntityId={request.EntityId}, RecordId={request.RecordId}, IsFavorite={request.IsFavorite}");
+
+                // Entry arrives as a JSON object/element from the client — convert to its JSON string
+                // representation since the DB column (NVARCHAR(MAX)) stores JSON as text.
+                string entryJson = request.Entry.GetRawText();
+
+                // IU_DoctorFavouriteTableEntries has no @Result output parameter — plain DML is correct here.
+                _sqlHelper.DML(
+                    "IU_DoctorFavouriteTableEntries",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @DoctorId = request.DoctorId,
+                        @EntityId = request.EntityId,
+                        @RecordId = request.RecordId,
+                        @IsFavorite = request.IsFavorite,
+                        @Entry = entryJson,
+                        @UserId = globalValues.userId
+                    });
+
+                _log.Info($"SaveDoctorFavouriteTableEntry completed. DoctorId={request.DoctorId}, EntityId={request.EntityId}, RecordId={request.RecordId}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    "Doctor favourite entry saved successfully",
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetDoctorFavouriteTableEntries(int doctorId, int entityId, int recordId)
+        {
+            try
+            {
+                _log.Info($"GetDoctorFavouriteTableEntries called. DoctorId={doctorId}, EntityId={entityId}, RecordId={recordId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetDoctorFavouriteTableEntries",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @DoctorId = doctorId,
+                        @EntityId = entityId,
+                        @RecordId = recordId
+                    });
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No favourite entries found for DoctorId={doctorId}, EntityId={entityId}, RecordId={recordId}");
+                    return ServiceResult<object>.Failure(alert.Type, "No favourite entries found", 404);
+                }
+
+                var rows = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetDoctorFavouriteTableEntries retrieved {rows.Count} record(s)");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(rows, alert1.Type, $"{rows.Count} favourite entry(ies) retrieved successfully", 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<string> DeleteDoctorFavouriteTableEntry(int id)
+        {
+            try
+            {
+                _log.Info($"DeleteDoctorFavouriteTableEntry called. Id={id}");
+
+                _sqlHelper.DML(
+                    "D_DoctorFavouriteTableEntries",
+                    CommandType.StoredProcedure,
+                    new { @Id = id });
+
+                _log.Info($"DeleteDoctorFavouriteTableEntry completed. Id={id}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    "Doctor favourite entry deleted successfully",
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<string> DeleteRecordByTableName(int id, string tableName, AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"DeleteRecordByTableName called. Id={id}, TableName={tableName}");
+
+                _sqlHelper.DML(
+                    "D_DeleteRecordByTableName",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @Id = id,
+                        @TableName = tableName
+                    });
+
+                // Clear relevant master cache since the underlying table data has changed
+                if (tableName.Equals("ChiefComplaintMaster", StringComparison.OrdinalIgnoreCase))
+                {
+                    _distributedCache.Remove("_ChiefComplaintMaster_All");
+                    _log.Info("Cleared ChiefComplaintMaster cache after delete.");
+                }
+                else if (tableName.Equals("AllergyMaster", StringComparison.OrdinalIgnoreCase))
+                {
+                    _distributedCache.Remove("_AllergyMaster_All");
+                    _log.Info("Cleared AllergyMaster cache after delete.");
+                }
+
+                _log.Info($"DeleteRecordByTableName completed. Id={id}, TableName={tableName}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    $"Record deleted successfully from {tableName}",
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
     }
 }

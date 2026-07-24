@@ -2758,6 +2758,106 @@ namespace HISWEBAPI.Controllers
 
 
 
+        [HttpPost("saveCreditNote")]
+        [Authorize]
+        public IActionResult SaveCreditNote([FromBody] SaveCreditNoteRequest request)
+        {
+            _log.Info($"SaveCreditNote called. PatientId={request?.VisitDetails?.PatientId}, BranchId={request?.VisitDetails?.BranchId}, BillId={request?.VisitDetails?.BillId}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SaveCreditNote.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.BillingItems == null || request.BillingItems.Count == 0)
+            {
+                _log.Warn("No credit note items provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "At least one credit note item is required",
+                    errors = new[] { "BillingItems cannot be empty" }
+                });
+            }
+
+            if (request.VisitDetails.PatientId <= 0)
+            {
+                _log.Warn("Invalid PatientId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "PatientId must be greater than 0",
+                    errors = new { patientId = request.VisitDetails.PatientId }
+                });
+            }
+
+            if (request.VisitDetails.BranchId <= 0)
+            {
+                _log.Warn("Invalid BranchId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BranchId must be greater than 0",
+                    errors = new { branchId = request.VisitDetails.BranchId }
+                });
+            }
+
+            if (request.VisitDetails.VisitId <= 0)
+            {
+                _log.Warn("Invalid VisitId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "VisitId must be greater than 0",
+                    errors = new { visitId = request.VisitDetails.VisitId }
+                });
+            }
+
+            if (request.VisitDetails.BillId <= 0)
+            {
+                _log.Warn("Invalid BillId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BillId must be greater than 0",
+                    errors = new { billId = request.VisitDetails.BillId }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.SaveCreditNote(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"SaveCreditNote succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"SaveCreditNote failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
 
 
         [HttpPost("saveCreditNoteRequestApproval")]
@@ -3183,6 +3283,94 @@ namespace HISWEBAPI.Controllers
             });
         }
 
+        [HttpPost("saveWriteOff")]
+        [Authorize]
+        public IActionResult SaveWriteOff([FromBody] SaveWriteOffRequest request)
+        {
+            _log.Info($"SaveWriteOff called. PatientId={request?.PatientId}, BranchId={request?.BranchId}, BillId={request?.BillId}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SaveWriteOff.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.PatientId <= 0)
+            {
+                _log.Warn("Invalid PatientId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "PatientId must be greater than 0",
+                    errors = new { patientId = request.PatientId }
+                });
+            }
+
+            if (request.BranchId <= 0)
+            {
+                _log.Warn("Invalid BranchId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BranchId must be greater than 0",
+                    errors = new { branchId = request.BranchId }
+                });
+            }
+
+            if (request.VisitId <= 0)
+            {
+                _log.Warn("Invalid VisitId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "VisitId must be greater than 0",
+                    errors = new { visitId = request.VisitId }
+                });
+            }
+
+            if (request.BillId <= 0)
+            {
+                _log.Warn("Invalid BillId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BillId must be greater than 0",
+                    errors = new { billId = request.BillId }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.SaveWriteOff(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"SaveWriteOff succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"SaveWriteOff failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
         [HttpPost("saveWriteOffRequestApproval")]
         [Authorize]
         public IActionResult SaveWriteOffRequestApproval([FromBody] SaveWriteOffRequestApprovalRequest request)
@@ -3490,7 +3678,8 @@ namespace HISWEBAPI.Controllers
                 data = serviceResult.Data
             });
         }
-
+       
+     
 
     }
 }

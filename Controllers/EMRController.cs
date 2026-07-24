@@ -1109,5 +1109,177 @@ namespace HISWEBAPI.Controllers
                 data = serviceResult.Data
             });
         }
+
+        [HttpPost("saveDoctorFavouriteTableEntry")]
+        [Authorize]
+        public IActionResult SaveDoctorFavouriteTableEntry([FromBody] SaveDoctorFavouriteTableEntryRequest request)
+        {
+            _log.Info($"SaveDoctorFavouriteTableEntry called. DoctorId={request?.DoctorId}, EntityId={request?.EntityId}, RecordId={request?.RecordId}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SaveDoctorFavouriteTableEntry.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _emrRepository.SaveDoctorFavouriteTableEntry(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"SaveDoctorFavouriteTableEntry succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"SaveDoctorFavouriteTableEntry failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getDoctorFavouriteTableEntries")]
+        [Authorize]
+        public IActionResult GetDoctorFavouriteTableEntries(
+            [FromQuery] int doctorId,
+            [FromQuery] int entityId = 0,
+            [FromQuery] int recordId = 0)
+        {
+            _log.Info($"GetDoctorFavouriteTableEntries called. DoctorId={doctorId}, EntityId={entityId}, RecordId={recordId}");
+
+            if (doctorId <= 0)
+            {
+                _log.Warn("Invalid DoctorId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "DoctorId must be greater than 0",
+                    errors = new { doctorId }
+                });
+            }
+
+            var serviceResult = _emrRepository.GetDoctorFavouriteTableEntries(doctorId, entityId, recordId);
+
+            if (serviceResult.Result)
+                _log.Info($"GetDoctorFavouriteTableEntries fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetDoctorFavouriteTableEntries failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("deleteDoctorFavouriteTableEntry")]
+        [Authorize]
+        public IActionResult DeleteDoctorFavouriteTableEntry([FromQuery] int id)
+        {
+            _log.Info($"DeleteDoctorFavouriteTableEntry called. Id={id}");
+
+            if (id <= 0)
+            {
+                _log.Warn("Invalid Id provided for favourite entry deletion.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "Id must be greater than 0",
+                    errors = new { id }
+                });
+            }
+
+            var serviceResult = _emrRepository.DeleteDoctorFavouriteTableEntry(id);
+
+            if (serviceResult.Result)
+                _log.Info($"Doctor favourite entry deleted successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"Doctor favourite entry deletion failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("deleteRecordByTableName")]
+        [Authorize]
+        public IActionResult DeleteRecordByTableName([FromQuery] int id, [FromQuery] string tableName)
+        {
+            _log.Info($"DeleteRecordByTableName called. Id={id}, TableName={tableName}");
+
+            if (id <= 0)
+            {
+                _log.Warn("Invalid Id provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "Id must be greater than 0",
+                    errors = new { id }
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(tableName))
+            {
+                _log.Warn("TableName is missing or empty.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "TableName is required",
+                    errors = new { tableName }
+                });
+            }
+
+            var validTableNames = new[] { "ChiefComplaintMaster", "AllergyMaster" };
+            if (!validTableNames.Contains(tableName, StringComparer.OrdinalIgnoreCase))
+            {
+                _log.Warn($"Invalid TableName provided: {tableName}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = $"TableName must be one of: {string.Join(", ", validTableNames)}",
+                    errors = new { tableName }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _emrRepository.DeleteRecordByTableName(id, tableName, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"DeleteRecordByTableName succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"DeleteRecordByTableName failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
     }
 }

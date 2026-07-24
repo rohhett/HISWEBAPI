@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 
 namespace HISWEBAPI.DTO
 {
@@ -265,5 +266,34 @@ namespace HISWEBAPI.DTO
     public class CreateUpdateChiefComplaintMasterResponse
     {
         public int ComplaintId { get; set; }
+    }
+
+    public class SaveDoctorFavouriteTableEntryRequest
+    {
+        [Required(ErrorMessage = "DoctorId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "DoctorId must be greater than 0")]
+        public int DoctorId { get; set; }
+
+        [Required(ErrorMessage = "EntityId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "EntityId must be greater than 0")]
+        public int EntityId { get; set; }
+
+        [Required(ErrorMessage = "RecordId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "RecordId must be greater than 0")]
+        public int RecordId { get; set; }
+
+        [Required(ErrorMessage = "IsFavorite is required")]
+        public bool IsFavorite { get; set; }
+
+        // Accepts a raw JSON object (or array/string) from the client.
+        [Required(ErrorMessage = "Entry is required")]
+        public JsonElement Entry { get; set; }
+    }
+
+    public class DeleteDoctorFavouriteTableEntryRequest
+    {
+        [Required(ErrorMessage = "Id is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "Id must be greater than 0")]
+        public int Id { get; set; }
     }
 }

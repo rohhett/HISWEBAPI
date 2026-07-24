@@ -3634,7 +3634,7 @@ namespace HISWEBAPI.Repositories.Implementations
                     VisitId = visitId,
                     PatientId = v.PatientId,
                     TnxType = "OPDRefund",
-                    TnxTypeId = 1,
+                    TnxTypeId = 2,
                     GrossAmount = v.GrossBillAmount,
                     DiscountPercentage = v.TotalDiscPerOnBill,
                     DiscountAmount = v.TotalDiscAmtOnBill,
@@ -4311,6 +4311,76 @@ namespace HISWEBAPI.Repositories.Implementations
                 return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
             }
         }
+
+
+        public ServiceResult<SaveCreditNoteResponse> SaveCreditNote(
+ SaveCreditNoteRequest request,
+ AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"SaveCreditNote called. PatientId={request.VisitDetails.PatientId}, BranchId={request.VisitDetails.BranchId}, BillId={request.VisitDetails.BillId}");
+
+                var v = request.VisitDetails;
+
+                // I_CreditNoteDetails uses a true OUTPUT parameter (no trailing SELECT @Result;),
+                // so RunProcedureInsert is required here.
+                long creditNoteIdResult = _sqlHelper.RunProcedureInsert(
+                    "I_CreditNoteDetails",
+                    new IDataParameter[]
+                    {
+                new SqlParameter("@BranchId", v.BranchId),
+                new SqlParameter("@RoleId", v.RoleId),
+                new SqlParameter("@PatientId", v.PatientId),
+                new SqlParameter("@VisitId", v.VisitId),
+                new SqlParameter("@BillId", v.BillId),
+                new SqlParameter("@TotalCreditNoteAmount", v.TotalCreditNoteAmount),
+                new SqlParameter("@CreditNoteApprovedID", v.CreditNoteApprovedID),
+                new SqlParameter("@CreditNoteApprovedName", (object)v.CreditNoteApprovedName ?? DBNull.Value),
+                new SqlParameter("@CreditNoteReason", (object)v.CreditNoteReason ?? DBNull.Value),
+                new SqlParameter("@CreditNoteRemark", (object)v.CreditNoteRemark ?? DBNull.Value),
+                new SqlParameter("@UserId", globalValues.userId),
+                new SqlParameter("@IpAddress", (object)globalValues.ipAddress ?? DBNull.Value),
+                new SqlParameter("@Result", SqlDbType.Int) { Direction = ParameterDirection.Output }
+                    });
+
+                int creditNoteId = Convert.ToInt32(creditNoteIdResult);
+                _log.Info($"CreditNoteDetails created. CreditNoteId={creditNoteId}");
+
+                // ── Insert credit note item rows ─────────────────────────────────────────
+                foreach (var item in request.BillingItems)
+                {
+                    _sqlHelper.DML(
+                        "I_CreditNoteItemDetails",
+                        CommandType.StoredProcedure,
+                        new
+                        {
+                            @CreditNoteId = creditNoteId,
+                            @FTDId = item.FTDId,
+                            @CreditNotePer = item.CreditNotePer,
+                            @CreditNoteAmt = item.CreditNoteAmt,
+                            @UserId = globalValues.userId,
+                            @IpAddress = globalValues.ipAddress
+                        });
+                }
+
+                _log.Info($"SaveCreditNote completed. CreditNoteId={creditNoteId}, ItemCount={request.BillingItems.Count}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<SaveCreditNoteResponse>.Success(
+                    new SaveCreditNoteResponse { CreditNoteId = creditNoteId },
+                    alert.Type,
+                    "Credit note saved successfully",
+                    201
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<SaveCreditNoteResponse>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
         public ServiceResult<SaveCreditNoteRequestApprovalResponse> SaveCreditNoteRequestApproval(
     SaveCreditNoteRequestApprovalRequest request,
     AllGlobalValues globalValues)
@@ -4711,7 +4781,53 @@ namespace HISWEBAPI.Repositories.Implementations
             }
         }
 
+        public ServiceResult<SaveWriteOffResponse> SaveWriteOff(
+         SaveWriteOffRequest request,
+         AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"SaveWriteOff called. PatientId={request.PatientId}, BranchId={request.BranchId}, BillId={request.BillId}");
 
+                // I_WriteOffDetails uses a true OUTPUT parameter (no trailing SELECT @Result;),
+                // so RunProcedureInsert is required here. No item table for WriteOff — header only.
+                long writeOffIdResult = _sqlHelper.RunProcedureInsert(
+                    "I_WriteOffDetails",
+                    new IDataParameter[]
+                    {
+                new SqlParameter("@BranchId", request.BranchId),
+                new SqlParameter("@RoleId", request.RoleId),
+                new SqlParameter("@PatientId", request.PatientId),
+                new SqlParameter("@VisitId", request.VisitId),
+                new SqlParameter("@BillId", request.BillId),
+                new SqlParameter("@TotalWriteOffAmount", request.TotalWriteOffAmount),
+                new SqlParameter("@WriteOffApprovedID", request.WriteOffApprovedID),
+                new SqlParameter("@WriteOffApprovedName", (object)request.WriteOffApprovedName ?? DBNull.Value),
+                new SqlParameter("@WriteOffReason", (object)request.WriteOffReason ?? DBNull.Value),
+                new SqlParameter("@WriteOffRemark", (object)request.WriteOffRemark ?? DBNull.Value),
+                new SqlParameter("@UserId", globalValues.userId),
+                new SqlParameter("@IpAddress", (object)globalValues.ipAddress ?? DBNull.Value),
+                new SqlParameter("@Result", SqlDbType.Int) { Direction = ParameterDirection.Output }
+                    });
+
+                int writeOffId = Convert.ToInt32(writeOffIdResult);
+                _log.Info($"SaveWriteOff completed. WriteOffId={writeOffId}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<SaveWriteOffResponse>.Success(
+                    new SaveWriteOffResponse { WriteOffId = writeOffId },
+                    alert.Type,
+                    "Write-off saved successfully",
+                    201
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<SaveWriteOffResponse>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
 
         public ServiceResult<SaveWriteOffRequestApprovalResponse> SaveWriteOffRequestApproval(
     SaveWriteOffRequestApprovalRequest request,
@@ -4995,7 +5111,9 @@ namespace HISWEBAPI.Repositories.Implementations
                 return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
             }
         }
+     
 
-  
+     
+
     }
 }

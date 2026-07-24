@@ -919,4 +919,82 @@ namespace HISWEBAPI.DTO
         [Range(1, int.MaxValue, ErrorMessage = "WriteOffId must be greater than 0")]
         public int WriteOffId { get; set; }
     }
+
+    public class SaveCreditNoteRequest
+    {
+        [Required(ErrorMessage = "Visit details are required")]
+        public SaveCreditNoteVisitDetailsRequest VisitDetails { get; set; }
+
+        [Required(ErrorMessage = "Billing items are required")]
+        [MinLength(1, ErrorMessage = "At least one credit note item is required")]
+        public List<SaveCreditNoteItemRequest> BillingItems { get; set; }
+    }
+
+    public class SaveCreditNoteVisitDetailsRequest
+    {
+        [Required(ErrorMessage = "BranchId is required")]
+        public int BranchId { get; set; }
+
+        public int RoleId { get; set; } = 0;
+
+        [Required(ErrorMessage = "PatientId is required")]
+        public int PatientId { get; set; }
+
+        [Required(ErrorMessage = "VisitId is required")]
+        public int VisitId { get; set; }
+
+        [Required(ErrorMessage = "BillId is required")]
+        public int BillId { get; set; }
+
+        public decimal TotalCreditNoteAmount { get; set; }
+
+        public int CreditNoteApprovedID { get; set; } = 0;
+        public string? CreditNoteApprovedName { get; set; }
+        public string? CreditNoteReason { get; set; }
+        public string? CreditNoteRemark { get; set; }
+    }
+
+    public class SaveCreditNoteItemRequest
+    {
+        [Required(ErrorMessage = "FTDId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "FTDId must be greater than 0")]
+        public int FTDId { get; set; }
+
+        public decimal CreditNotePer { get; set; } = 0;
+        public decimal CreditNoteAmt { get; set; } = 0;
+    }
+
+    public class SaveCreditNoteResponse
+    {
+        public int CreditNoteId { get; set; }
+    }
+
+    public class SaveWriteOffRequest
+    {
+        [Required(ErrorMessage = "BranchId is required")]
+        public int BranchId { get; set; }
+
+        public int RoleId { get; set; } = 0;
+
+        [Required(ErrorMessage = "PatientId is required")]
+        public int PatientId { get; set; }
+
+        [Required(ErrorMessage = "VisitId is required")]
+        public int VisitId { get; set; }
+
+        [Required(ErrorMessage = "BillId is required")]
+        public int BillId { get; set; }
+
+        public decimal TotalWriteOffAmount { get; set; }
+
+        public int WriteOffApprovedID { get; set; } = 0;
+        public string? WriteOffApprovedName { get; set; }
+        public string? WriteOffReason { get; set; }
+        public string? WriteOffRemark { get; set; }
+    }
+
+    public class SaveWriteOffResponse
+    {
+        public int WriteOffId { get; set; }
+    }
 }

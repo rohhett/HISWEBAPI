@@ -81,6 +81,7 @@ namespace HISWEBAPI.Repositories.Interfaces
 
         ServiceResult<object> GetBillForCreditNote(string fromDate, string toDate, string billNo, string uhid, string patientName, int typeId);
         ServiceResult<object> GetBillDetailsForCreditNote(int visitId);
+        ServiceResult<SaveCreditNoteResponse> SaveCreditNote(SaveCreditNoteRequest request, AllGlobalValues globalValues);
 
         ServiceResult<SaveCreditNoteRequestApprovalResponse> SaveCreditNoteRequestApproval(SaveCreditNoteRequestApprovalRequest request, AllGlobalValues globalValues);
         ServiceResult<string> ApproveCreditNoteRequest(ApproveCreditNoteRequestRequest request, AllGlobalValues globalValues);
@@ -91,6 +92,8 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<object> GetCreditNoteRequestApprovalDetails(int creditNoteId);
         ServiceResult<object> GetBillForWriteOff(string fromDate, string toDate, string billNo, string uhid, string patientName, int typeId);
         ServiceResult<object> GetBillDetailsForWriteOff(int visitId);
+        ServiceResult<SaveWriteOffResponse> SaveWriteOff(SaveWriteOffRequest request, AllGlobalValues globalValues);
+
         ServiceResult<SaveWriteOffRequestApprovalResponse> SaveWriteOffRequestApproval(SaveWriteOffRequestApprovalRequest request, AllGlobalValues globalValues);
         ServiceResult<string> ApproveWriteOffRequest(ApproveWriteOffRequestRequest request, AllGlobalValues globalValues);
         ServiceResult<string> CancelWriteOffRequest(CancelWriteOffRequestRequest request, AllGlobalValues globalValues);
@@ -98,6 +101,6 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<object> GetWriteOffRequestListForApproval(string fromDate, string toDate, int branchId, AllGlobalValues globalValues);
         ServiceResult<object> GetWriteOffRequestDetailsByWriteOffId(int writeOffId);
         ServiceResult<object> GetWriteOffRequestApprovalDetails(int writeOffId);
-    
+
     }
 }

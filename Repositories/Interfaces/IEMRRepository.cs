@@ -33,5 +33,9 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<object> GetDoctorFavouriteEMRSections(int doctorId);
         ServiceResult<CreateUpdateChiefComplaintMasterResponse> CreateUpdateChiefComplaintMaster(CreateUpdateChiefComplaintMasterRequest request, AllGlobalValues globalValues);
         ServiceResult<object> GetChiefComplaintMasterList(int? isActive);
+        ServiceResult<string> SaveDoctorFavouriteTableEntry(SaveDoctorFavouriteTableEntryRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetDoctorFavouriteTableEntries(int doctorId, int entityId, int recordId);
+        ServiceResult<string> DeleteDoctorFavouriteTableEntry(int id);
+        ServiceResult<string> DeleteRecordByTableName(int id, string tableName, AllGlobalValues globalValues);
     }
 }
