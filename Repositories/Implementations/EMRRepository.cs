@@ -2087,5 +2087,137 @@ namespace HISWEBAPI.Repositories.Implementations
                 return ServiceResult<string>.Failure(alert.Type, alert.Message, 500);
             }
         }
+
+        //public ServiceResult<EMRVisitResponse> CreateUpdateEMRVisit(EMRVisitRequest request, AllGlobalValues globalValues)
+        //{
+        //    SqlConnection con = null;
+        //    SqlTransaction tnx = null;
+
+        //    try
+        //    {
+        //        _log.Info($"CreateUpdateEMRVisit called. PatientId={request.PatientId}, VisitId={request.VisitId}");
+
+        //        var visitId = request.Id;
+
+        //        var connectionString = _configuration.GetConnectionString("ConnectionString");
+        //        con = new SqlConnection(connectionString);
+        //        con.Open();
+        //        tnx = CustomSqlHelper.getSqlTransaction(con);
+
+        //        _sqlHelper.ExecuteScalar(tnx, "IU_EMRVisitMaster", CommandType.StoredProcedure, new
+        //        {
+        //            Id = visitId,
+        //            PatientId = request.PatientId,
+        //            PatientName = request.PatientName,
+        //            DoctorId = request.DoctorId,
+        //            DoctorName = request.DoctorName,
+        //            TypeId = request.TypeId,
+        //            TypeName = request.TypeName,
+        //            VisitId = request.VisitId,
+        //            UHID = request.Uhid,
+        //            AppointmentNo = request.AppointmentNo,
+        //            userId = globalValues.userId,
+        //            IPAddress = globalValues.ipAddress
+        //        });
+
+        //        var attributesJson = JsonSerializer.Serialize(request.Attributes);
+
+        //        _sqlHelper.ExecuteScalar(tnx, "IU_EMRVisitAttributeDetail", CommandType.StoredProcedure, new
+        //        {
+        //            EMRVisitId = visitId,
+        //            AttributesJson = attributesJson
+        //        });
+
+        //        tnx.Commit();
+        //        _log.Info($"EMR visit saved successfully. Id={visitId}");
+
+        //        var alert = _messageService.GetMessageAndTypeByAlertCode(
+        //            request.Id == null ? "DATA_SAVED_SUCCESSFULLY" : "DATA_UPDATED_SUCCESSFULLY"
+        //        );
+
+        //        return ServiceResult<EMRVisitResponse>.Success(
+        //            new EMRVisitResponse { Id = visitId },
+        //            alert.Type,
+        //            alert.Message,
+        //            request.Id == null ? 201 : 200
+        //        );
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        try { tnx?.Rollback(); } catch { /* ignore rollback errors */ }
+        //        LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+        //        var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+        //        return ServiceResult<EMRVisitResponse>.Failure(alert.Type, alert.Message, 500);
+        //    }
+        //    finally
+        //    {
+        //        tnx?.Dispose();
+        //        if (con != null)
+        //        {
+        //            if (con.State == ConnectionState.Open) con.Close();
+        //            con.Dispose();
+        //        }
+        //    }
+        //}
+
+        //public ServiceResult<object> GetEMRVisit(GetEMRVisitRequest request)
+        //{
+        //    try
+        //    {
+        //        _log.Info($"GetEMRVisit called. Id={request.Id}, VisitId={request.VisitId}, PatientId={request.PatientId}");
+
+        //        var dataSet = _sqlHelper.GetDataSet(
+        //            "S_GetEMRVisitById",
+        //            CommandType.StoredProcedure,
+        //            new
+        //            {
+        //                Id = (object)request.Id ?? DBNull.Value,
+        //                VisitId = (object)request.VisitId ?? DBNull.Value,
+        //                PatientId = (object)request.PatientId ?? DBNull.Value
+        //            }
+        //        );
+
+        //        if (dataSet == null || dataSet.Tables.Count < 1 || dataSet.Tables[0].Rows.Count == 0)
+        //        {
+        //            var alert404 = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+        //            return ServiceResult<object>.Failure(alert404.Type, "No EMR visit found", 404);
+        //        }
+
+        //        // Raw output - no model mapping. New SP columns flow through automatically.
+        //        var master = ToRawList(dataSet.Tables[0]).FirstOrDefault();
+        //        var attributes = dataSet.Tables.Count > 1
+        //            ? ToRawList(dataSet.Tables[1])
+        //            : new List<Dictionary<string, object>>();
+
+        //        var result = new { visit = master, attributes };
+
+        //        var alert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+        //        return ServiceResult<object>.Success(result, alert.Type, "EMR visit retrieved successfully", 200);
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+        //        var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+        //        return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+        //    }
+        //}
+
+        //public static List<Dictionary<string, object>> ToRawList(DataTable dt)
+        //{
+        //    var rows = new List<Dictionary<string, object>>();
+        //    if (dt == null) return rows;
+
+        //    foreach (DataRow row in dt.Rows)
+        //    {
+        //        var dict = new Dictionary<string, object>();
+        //        foreach (DataColumn col in dt.Columns)
+        //        {
+        //            var value = row[col];
+        //            dict[col.ColumnName] = value == DBNull.Value ? null : value;
+        //        }
+        //        rows.Add(dict);
+        //    }
+        //    return rows;
+        //}
     }
 }

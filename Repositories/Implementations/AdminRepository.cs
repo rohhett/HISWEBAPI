@@ -7450,14 +7450,43 @@ namespace HISWEBAPI.Repositories.Implementations
                 }
             }
         }
-
         public ServiceResult<object> CreateUpdateServiceItemMaster(
-    CreateUpdateServiceItemMasterRequest request,
-    AllGlobalValues globalValues)
+            CreateUpdateServiceItemMasterRequest request,
+            AllGlobalValues globalValues)
         {
             try
             {
                 _log.Info($"CreateUpdateServiceItemMaster called. ServiceItemId={request.ServiceItemId}, Name={request.Name}");
+
+                // ── Registration Charge duplicate check ──────────────────────────────
+                // Only one service item across the whole master can have IsRegistrationCharge = 1
+                if (request.IsRegistrationCharge == 1)
+                {
+                    var dupTable = _sqlHelper.GetDataTable(
+                        "S_CheckDuplicateRegistrationChargeInServiceItemMaster",
+                        CommandType.StoredProcedure,
+                        new { @ServiceItemId = request.ServiceItemId }
+                    );
+
+                    if (dupTable != null && dupTable.Rows.Count > 0)
+                    {
+                        int duplicateCount = Convert.ToInt32(dupTable.Rows[0]["DuplicateCount"]);
+
+                        if (duplicateCount > 0)
+                        {
+                            string existingServiceName = dupTable.Rows[0]["ServiceName"]?.ToString() ?? string.Empty;
+
+                            _log.Warn($"Registration charge service '{existingServiceName}' already exists. Blocking duplicate for ServiceItemId={request.ServiceItemId}");
+
+                            var dupAlert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                            return ServiceResult<object>.Failure(
+                                dupAlert.Type,
+                                $"Registration Charge is already assigned to service '{existingServiceName}'.",
+                                409
+                            );
+                        }
+                    }
+                }
 
                 SqlParameter[] parameters = new SqlParameter[]
                 {
@@ -7468,19 +7497,20 @@ namespace HISWEBAPI.Repositories.Implementations
             new SqlParameter("@subSubCategoryId", request.SubSubCategoryId),
             new SqlParameter("@name", request.Name),
             new SqlParameter("@code", (object?)request.Code ?? DBNull.Value),
-           
+
             new SqlParameter("@roomTypeId", (object?)request.RoomTypeId ?? DBNull.Value),
             new SqlParameter("@roomType", (object?)request.RoomType ?? DBNull.Value),
             new SqlParameter("@isICU", (object?)request.IsICU ?? DBNull.Value),
             new SqlParameter("@gstPer", request.GstPer),
 
-              new SqlParameter("@OPDConsultationTypeId", (object?)request.OPDConsultationTypeId ?? DBNull.Value),
+            new SqlParameter("@OPDConsultationTypeId", (object?)request.OPDConsultationTypeId ?? DBNull.Value),
             new SqlParameter("@OPDConsultationType", (object?)request.OPDConsultationType ?? DBNull.Value),
             new SqlParameter("@SNOMEDCode", (object?)request.SNOMEDCode ?? DBNull.Value),
             new SqlParameter("@isRequiredSeparatePerformingDoctor", request.IsRequiredSeparatePerformingDoctor),
             new SqlParameter("@doctorDepartmentIds", (object?)request.DoctorDepartmentIds ?? DBNull.Value),
             new SqlParameter("@isOnlineConsultationAllow", (object?)request.IsOnlineConsultationAllow ?? DBNull.Value),
             new SqlParameter("@isTeleConsultationService", (object?)request.IsTeleConsultationService ?? DBNull.Value),
+            new SqlParameter("@isRegistrationCharge", (object?)request.IsRegistrationCharge ?? DBNull.Value),
 
             new SqlParameter("@isActive", request.IsActive),
             new SqlParameter("@userId", globalValues.userId),
@@ -7490,12 +7520,10 @@ namespace HISWEBAPI.Repositories.Implementations
 
                 long result = _sqlHelper.RunProcedureInsert("IU_ServiceItemMaster", parameters);
 
-               
                 // Clear Redis cache so next GET re-fetches fresh data
                 _distributedCache.Remove("_ServiceItemMaster_All");
                 _distributedCache.Remove("_ServiceInvestigationItemMaster_All");
                 _distributedCache.Remove("_BedMaster_All");
-
 
                 if (result == -1)
                 {
@@ -7514,34 +7542,20 @@ namespace HISWEBAPI.Repositories.Implementations
                 {
                     var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
                     _log.Info($"Service item created successfully. ServiceItemId={result}");
-                    return ServiceResult<object>.Success(
-                        responseData,
-                        alert.Type,
-                        alert.Message,
-                        201
-                    );
+                    return ServiceResult<object>.Success(responseData, alert.Type, alert.Message, 201);
                 }
                 else
                 {
                     var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
                     _log.Info($"Service item updated successfully. ServiceItemId={result}");
-                    return ServiceResult<object>.Success(
-                        responseData,
-                        alert.Type,
-                        alert.Message,
-                        200
-                    );
+                    return ServiceResult<object>.Success(responseData, alert.Type, alert.Message, 200);
                 }
             }
             catch (Exception ex)
             {
                 LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
                 var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
-                return ServiceResult<object>.Failure(
-                    alert.Type,
-                    alert.Message,
-                    500
-                );
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
             }
         }
 

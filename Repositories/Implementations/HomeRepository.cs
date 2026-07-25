@@ -2102,7 +2102,8 @@ namespace HISWEBAPI.Repositories.Implementations
     int? subSubCategoryId,
     int? labTypeId,
     int? reportTypeId,
-    string serviceName)
+    string serviceName,
+    int? isRegistrationCharge)
         {
             try
             {
@@ -2173,6 +2174,7 @@ namespace HISWEBAPI.Repositories.Implementations
                         IsRequiredSeparatePerformingDoctor = row.Field<int?>("IsRequiredSeparatePerformingDoctor") ?? 0,
                         IsOnlineConsultationAllow = row.Field<int?>("isOnlineConsultationAllow") ?? 0,
                         IsTeleConsultationService = row.Field<int?>("isTeleConsultationService") ?? 0,
+                        IsRegistrationCharge = row.Field<int?>("IsRegistrationCharge") ?? 0,
                     }).ToList();
 
                     if (allItems.Any())
@@ -2249,6 +2251,12 @@ namespace HISWEBAPI.Repositories.Implementations
                 {
                     allItems = allItems.Where(s => s.ReportTypeId == reportTypeId.Value).ToList();
                     _log.Info($"Filtered by reportTypeId={reportTypeId}. Count={allItems.Count}");
+                }
+
+                if (isRegistrationCharge.HasValue && isRegistrationCharge.Value > 0)
+                {
+                    allItems = allItems.Where(s => s.IsRegistrationCharge == isRegistrationCharge.Value).ToList();
+                    _log.Info($"Filtered by reportTypeId={isRegistrationCharge}. Count={allItems.Count}");
                 }
 
 

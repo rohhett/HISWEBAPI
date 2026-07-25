@@ -1281,5 +1281,56 @@ namespace HISWEBAPI.Controllers
                 data = serviceResult.Data
             });
         }
+
+        //[HttpPost("createUpdateEMRVisit")]
+        //[Authorize]
+        //public IActionResult CreateUpdateEMRVisit([FromBody] EMRVisitRequest request)
+        //{
+        //    _log.Info($"CreateUpdateEMRVisit called. PatientId={request.PatientId}, VisitId={request.VisitId}");
+
+        //    if (!ModelState.IsValid)
+        //    {
+        //        var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+        //        return BadRequest(new
+        //        {
+        //            result = false,
+        //            messageType = alert.Type,
+        //            message = alert.Message,
+        //            errors = ModelState
+        //        });
+        //    }
+
+        //    var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+        //    var serviceResult = _emrRepository.CreateUpdateEMRVisit(request, globalValues);
+
+        //    return StatusCode(serviceResult.StatusCode, new
+        //    {
+        //        result = serviceResult.Result,
+        //        messageType = serviceResult.MessageType,
+        //        message = serviceResult.Message,
+        //        data = serviceResult.Data
+        //    });
+        //}
+
+        //[HttpGet("getEMRVisit")]
+        //[Authorize]
+        //public IActionResult GetEMRVisit(
+        //    [FromQuery] int id = 0,
+        //    [FromQuery] int? visitId = null,
+        //    [FromQuery] int? patientId = null)
+        //{
+        //    _log.Info($"GetEMRVisit called. Id={id}, VisitId={visitId}, PatientId={patientId}");
+
+        //    var request = new GetEMRVisitRequest { Id = id, VisitId = visitId, PatientId = patientId };
+        //    var serviceResult = _emrRepository.GetEMRVisit(request);
+
+        //    return StatusCode(serviceResult.StatusCode, new
+        //    {
+        //        result = serviceResult.Result,
+        //        messageType = serviceResult.MessageType,
+        //        message = serviceResult.Message,
+        //        data = serviceResult.Data
+        //    });
+        //}
     }
 }

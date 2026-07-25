@@ -296,4 +296,51 @@ namespace HISWEBAPI.DTO
         [Range(1, int.MaxValue, ErrorMessage = "Id must be greater than 0")]
         public int Id { get; set; }
     }
+
+
+
+    ////--------------------------------------------------------------------------------------------------------------
+    //public class EMRVisitRequest
+    //{
+    //    public int Id { get; set; }
+
+    //    [Required] public int PatientId { get; set; }
+    //    public string PatientName { get; set; }
+    //    [Required] public int DoctorId { get; set; }
+    //    public string DoctorName { get; set; }
+    //    public int TypeId { get; set; }
+    //    public string TypeName { get; set; }
+    //    public int? VisitId { get; set; }
+    //    public string Uhid { get; set; }
+    //    public int? AppointmentNo { get; set; }
+
+    //    [Required] public List<EMRAttributeRequest> Attributes { get; set; } = new();
+
+    //}
+
+    //public class EMRAttributeRequest
+    //{
+    //    [Required] public string AttributeType { get; set; }
+    //    public string AttributeCode { get; set; }
+    //    public string Label { get; set; }
+    //    public int? SectionId { get; set; }
+
+    //    // Shape varies per attributeType (array, object, etc.) - keep raw
+    //    [Required] public JsonElement Value { get; set; }
+    //}
+
+   
+
+    //public class EMRVisitResponse
+    //{
+    //    public int Id { get; set; }
+    //}
+
+    //public class GetEMRVisitRequest
+    //{
+    //    public int Id { get; set; }
+    //    public int? VisitId { get; set; }
+    //    public int? PatientId { get; set; }
+    //}
+    ////--------------------------------------------------------------------------------------------------------------
 }

@@ -1300,9 +1300,16 @@ namespace HISWEBAPI.DTO
         public string? OPDConsultationType { get; set; }
         public int? IsOnlineConsultationAllow  { get; set; }
         public int? IsTeleConsultationService  { get; set; }
+        public int? IsRegistrationCharge { get; set; }
 
         [Required(ErrorMessage = "IsActive is required")]
         public int IsActive { get; set; }
+    }
+
+    public class RegistrationChargeDuplicateResponse
+    {
+        public int DuplicateCount { get; set; }
+        public string ServiceName { get; set; }
     }
 
     public class CreateUpdateServiceItemMasterResponse

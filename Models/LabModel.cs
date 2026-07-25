@@ -97,6 +97,7 @@
         public string? OPDConsultationType { get; set; }
         public int? IsOnlineConsultationAllow { get; set; }
         public int? IsTeleConsultationService { get; set; }
+        public int? IsRegistrationCharge { get; set; }
 
     }
 

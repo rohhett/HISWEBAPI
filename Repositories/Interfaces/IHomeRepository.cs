@@ -37,7 +37,7 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<IEnumerable<SubSubCategoryModel>> GetSubSubCategoryList(string subCategoryIds);
         ServiceResult<CreateUpdateSubCategoryResponse> CreateUpdateSubCategory(CreateUpdateSubCategoryRequest request, AllGlobalValues globalValues);
         ServiceResult<CreateUpdateSubSubCategoryResponse> CreateUpdateSubSubCategory(CreateUpdateSubSubCategoryRequest request, AllGlobalValues globalValues);
-        ServiceResult<IEnumerable<ServiceItemMasterModel>> GetServiceItemList(int? serviceItemId, int? isActive,string categoryTypeId, string categoryId, int? subCategoryId, int? subSubCategoryId, int? labTypeId, int? reportTypeId, string serviceName);
+        ServiceResult<IEnumerable<ServiceItemMasterModel>> GetServiceItemList(int? serviceItemId, int? isActive,string categoryTypeId, string categoryId, int? subCategoryId, int? subSubCategoryId, int? labTypeId, int? reportTypeId, string serviceName, int? isRegistrationCharge);
         ServiceResult<IEnumerable<PaymentModeMasterModel>> GetPaymentModeMasterList(string paymentModeName = null, int? isActive = null);
         ServiceResult<string> UpdateServiceItemMasterStatus(int serviceItemId, int isActive, AllGlobalValues globalValues);
         ServiceResult<IEnumerable<CorporatePaymentModeModel>> GetCorporatePaymentModes(int corporateId, int isRefundPaymentModes);

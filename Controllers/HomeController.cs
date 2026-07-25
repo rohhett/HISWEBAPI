@@ -896,6 +896,7 @@ namespace HISWEBAPI.Controllers
    [FromQuery] int? reportTypeId = null,
    [FromQuery] int? serviceItemId = null,
    [FromQuery] string serviceName = null,
+   [FromQuery] int? isRegistrationCharge = null,
    [FromQuery] int? isActive = null)
         {
             _log.Info($"GetServiceItemList called. Id={serviceItemId}, IsActive={isActive}, CategoryId={categoryId}, SubCategoryId={subCategoryId}, SubSubCategoryId={subSubCategoryId}, ServiceName={serviceName}");
@@ -920,7 +921,8 @@ namespace HISWEBAPI.Controllers
                 subSubCategoryId,
                 labTypeId,
                 reportTypeId,
-                serviceName
+                serviceName,
+                isRegistrationCharge
             );
 
             return StatusCode(serviceResult.StatusCode, new

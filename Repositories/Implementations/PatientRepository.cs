@@ -4347,6 +4347,19 @@ namespace HISWEBAPI.Repositories.Implementations
                 int creditNoteId = Convert.ToInt32(creditNoteIdResult);
                 _log.Info($"CreditNoteDetails created. CreditNoteId={creditNoteId}");
 
+                _sqlHelper.DML(
+                "U_CreditNoteAmount",
+                CommandType.StoredProcedure,
+                new
+                {
+                    @VisitId = v.VisitId,
+                    @BillId = v.BillId,
+                    @TotalCreditNoteAmount = v.TotalCreditNoteAmount,
+                    @UserId = globalValues.userId,
+                    @IpAddress = globalValues.ipAddress
+                });
+
+
                 // ── Insert credit note item rows ─────────────────────────────────────────
                 foreach (var item in request.BillingItems)
                 {
@@ -4362,6 +4375,18 @@ namespace HISWEBAPI.Repositories.Implementations
                             @UserId = globalValues.userId,
                             @IpAddress = globalValues.ipAddress
                         });
+
+                    _sqlHelper.DML(
+                "U_CreditNoteAmountItemWise",
+                CommandType.StoredProcedure,
+                new
+                {
+                    @ftdId = item.FTDId,
+                    @CreditNoteAmt = item.CreditNoteAmt,
+                    @UserId = globalValues.userId,
+                    @IpAddress = globalValues.ipAddress
+                });
+
                 }
 
                 _log.Info($"SaveCreditNote completed. CreditNoteId={creditNoteId}, ItemCount={request.BillingItems.Count}");
@@ -4812,6 +4837,19 @@ namespace HISWEBAPI.Repositories.Implementations
 
                 int writeOffId = Convert.ToInt32(writeOffIdResult);
                 _log.Info($"SaveWriteOff completed. WriteOffId={writeOffId}");
+
+                _sqlHelper.DML(
+                  "U_WriteOffAmount",
+                  CommandType.StoredProcedure,
+                  new
+                  {
+                      @VisitId = request.VisitId,
+                      @BillId = request.BillId,
+                      @TotalWriteOffAmount = request.TotalWriteOffAmount,
+                      @UserId = globalValues.userId,
+                      @IpAddress = globalValues.ipAddress
+                  });
+
 
                 var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
                 return ServiceResult<SaveWriteOffResponse>.Success(

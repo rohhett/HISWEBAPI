@@ -973,7 +973,6 @@ namespace HISWEBAPI.DTO
     {
         [Required(ErrorMessage = "BranchId is required")]
         public int BranchId { get; set; }
-
         public int RoleId { get; set; } = 0;
 
         [Required(ErrorMessage = "PatientId is required")]
@@ -984,9 +983,7 @@ namespace HISWEBAPI.DTO
 
         [Required(ErrorMessage = "BillId is required")]
         public int BillId { get; set; }
-
         public decimal TotalWriteOffAmount { get; set; }
-
         public int WriteOffApprovedID { get; set; } = 0;
         public string? WriteOffApprovedName { get; set; }
         public string? WriteOffReason { get; set; }
