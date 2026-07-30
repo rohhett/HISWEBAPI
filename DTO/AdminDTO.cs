@@ -1301,6 +1301,7 @@ namespace HISWEBAPI.DTO
         public int? IsOnlineConsultationAllow  { get; set; }
         public int? IsTeleConsultationService  { get; set; }
         public int? IsRegistrationCharge { get; set; }
+        public int? RegistrationChargeValidityDays { get; set; }
 
         [Required(ErrorMessage = "IsActive is required")]
         public int IsActive { get; set; }
@@ -1714,6 +1715,62 @@ namespace HISWEBAPI.DTO
         [Range(1, int.MaxValue, ErrorMessage = "VitalId must be greater than 0")]
         public int vitalId { get; set; }
         public int SequenceNo { get; set; } = 0;
+    }
+
+    public class CreateUpdatePackageMasterRequest
+    {
+        public int PackageId { get; set; } = 0;
+
+        [Required(ErrorMessage = "CategoryId is required")]
+        public int CategoryId { get; set; }
+
+        [Required(ErrorMessage = "SubCategoryId is required")]
+        public int SubCategoryId { get; set; }
+
+        [Required(ErrorMessage = "SubSubCategoryId is required")]
+        public int SubSubCategoryId { get; set; }
+
+        [Required(ErrorMessage = "Name is required")]
+        [StringLength(256, ErrorMessage = "Name cannot exceed 256 characters")]
+        public string Name { get; set; }
+
+        [StringLength(50, ErrorMessage = "Code cannot exceed 50 characters")]
+        public string? Code { get; set; }
+
+        public int? IsMultipleVisitAllow { get; set; }
+        public int? VisitDuration { get; set; }
+
+        [StringLength(20, ErrorMessage = "VisitDurationType cannot exceed 20 characters")]
+        public string? VisitDurationType { get; set; }
+
+        [Required(ErrorMessage = "ValidityStartsFrom is required")]
+        public string ValidityStartsFrom { get; set; }   // e.g. dd-MM-yyyy or yyyy-MM-dd
+
+        [Required(ErrorMessage = "ValidityEndsOn is required")]
+        public string ValidityEndsOn { get; set; }
+
+        [Required(ErrorMessage = "IsActive is required")]
+        public int IsActive { get; set; }
+
+        [Required(ErrorMessage = "PackageServices is required")]
+        [MinLength(1, ErrorMessage = "At least one package service is required")]
+        public List<PackageServiceRequest> PackageServices { get; set; } = new List<PackageServiceRequest>();
+    }
+
+    public class PackageServiceRequest
+    {
+        [Required(ErrorMessage = "ServiceItemId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "ServiceItemId must be greater than 0")]
+        public int ServiceItemId { get; set; }
+
+        [Required(ErrorMessage = "Qty is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "Qty must be greater than 0")]
+        public int Qty { get; set; }
+    }
+
+    public class CreateUpdatePackageMasterResponse
+    {
+        public int PackageId { get; set; }
     }
 
 }

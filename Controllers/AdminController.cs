@@ -1,19 +1,19 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using HISWEBAPI.Configuration;
+using HISWEBAPI.DTO;
+using HISWEBAPI.Exceptions;
+using HISWEBAPI.Models;
+using HISWEBAPI.Repositories.Implementations;
+using HISWEBAPI.Repositories.Interfaces;
+using HISWEBAPI.Services;
+using log4net;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Distributed;
+using MimeKit;
 using System;
 using System.Linq;
-using System.Reflection;
-using log4net;
-using HISWEBAPI.Repositories.Interfaces;
-using HISWEBAPI.Exceptions;
-using HISWEBAPI.DTO;
-using HISWEBAPI.Models;
-using HISWEBAPI.Services;
-using Microsoft.AspNetCore.Authorization;
-using HISWEBAPI.Repositories.Implementations;
-using HISWEBAPI.Configuration;
-using MimeKit;
 using System.Net;
+using System.Reflection;
 
 namespace HISWEBAPI.Controllers
 {
@@ -5437,6 +5437,55 @@ namespace HISWEBAPI.Controllers
                 _log.Info($"SaveVitalDepartmentMapping completed: {serviceResult.Message}");
             else
                 _log.Warn($"SaveVitalDepartmentMapping failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPost("createUpdatePackageMaster")]
+        [Authorize]
+        public IActionResult CreateUpdatePackageMaster([FromBody] CreateUpdatePackageMasterRequest request)
+        {
+            _log.Info($"CreateUpdatePackageMaster called. PackageId={request?.PackageId}, Name={request?.Name}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for CreateUpdatePackageMaster.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.IsActive != 0 && request.IsActive != 1)
+            {
+                _log.Warn("Invalid IsActive value provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "IsActive must be 0 or 1",
+                    errors = new { isActive = request.IsActive }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _adminRepository.CreateUpdatePackageMaster(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"Package master operation completed: {serviceResult.Message}");
+            else
+                _log.Warn($"Package master operation failed: {serviceResult.Message}");
 
             return StatusCode(serviceResult.StatusCode, new
             {

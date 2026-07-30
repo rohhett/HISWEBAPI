@@ -124,6 +124,7 @@ namespace HISWEBAPI.DTO
         public string? IdentityMark2 { get; set; }
         public string? ReferenceType { get; set; }
         public string? Remarks { get; set; }
+
     }
 
     public class CreateUpdatePatientMasterResponse

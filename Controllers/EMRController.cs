@@ -1282,55 +1282,231 @@ namespace HISWEBAPI.Controllers
             });
         }
 
-        //[HttpPost("createUpdateEMRVisit")]
-        //[Authorize]
-        //public IActionResult CreateUpdateEMRVisit([FromBody] EMRVisitRequest request)
-        //{
-        //    _log.Info($"CreateUpdateEMRVisit called. PatientId={request.PatientId}, VisitId={request.VisitId}");
+        [HttpPost("uploadEMRControlDocument")]
+        [Authorize]
+        public IActionResult UploadEMRControlDocument([FromForm] UploadEMRControlDocumentRequest request)
+        {
+            _log.Info($"UploadEMRControlDocument called. HeaderId={request.HeaderId}, DocumentId={request.DocumentId}");
 
-        //    if (!ModelState.IsValid)
-        //    {
-        //        var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
-        //        return BadRequest(new
-        //        {
-        //            result = false,
-        //            messageType = alert.Type,
-        //            message = alert.Message,
-        //            errors = ModelState
-        //        });
-        //    }
+            if (!ModelState.IsValid)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
 
-        //    var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
-        //    var serviceResult = _emrRepository.CreateUpdateEMRVisit(request, globalValues);
+            if (request.HeaderId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "HeaderId must be greater than 0",
+                    errors = new { request.HeaderId }
+                });
+            }
 
-        //    return StatusCode(serviceResult.StatusCode, new
-        //    {
-        //        result = serviceResult.Result,
-        //        messageType = serviceResult.MessageType,
-        //        message = serviceResult.Message,
-        //        data = serviceResult.Data
-        //    });
-        //}
+            if (request.DocumentId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "DocumentId must be greater than 0",
+                    errors = new { request.DocumentId }
+                });
+            }
 
-        //[HttpGet("getEMRVisit")]
-        //[Authorize]
-        //public IActionResult GetEMRVisit(
-        //    [FromQuery] int id = 0,
-        //    [FromQuery] int? visitId = null,
-        //    [FromQuery] int? patientId = null)
-        //{
-        //    _log.Info($"GetEMRVisit called. Id={id}, VisitId={visitId}, PatientId={patientId}");
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _emrRepository.UploadEMRControlDocument(request, globalValues);
 
-        //    var request = new GetEMRVisitRequest { Id = id, VisitId = visitId, PatientId = patientId };
-        //    var serviceResult = _emrRepository.GetEMRVisit(request);
+            if (serviceResult.Result)
+                _log.Info($"EMR control document uploaded successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"EMR control document upload failed: {serviceResult.Message}");
 
-        //    return StatusCode(serviceResult.StatusCode, new
-        //    {
-        //        result = serviceResult.Result,
-        //        messageType = serviceResult.MessageType,
-        //        message = serviceResult.Message,
-        //        data = serviceResult.Data
-        //    });
-        //}
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getEMRControlDocumentMapping")]
+        [Authorize]
+        public IActionResult GetEMRControlDocumentMapping([FromQuery] int headerId)
+        {
+            _log.Info($"GetEMRControlDocumentMapping called. HeaderId={headerId}");
+
+            if (headerId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "HeaderId must be greater than 0",
+                    errors = new { headerId }
+                });
+            }
+
+            var serviceResult = _emrRepository.GetEMRControlDocumentMapping(headerId);
+
+            if (serviceResult.Result)
+                _log.Info($"EMR control documents fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"EMR control documents fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("deleteEMRControlDocumentMapping")]
+        [Authorize]
+        public IActionResult DeleteEMRControlDocumentMapping(
+            [FromQuery] int headerId,
+            [FromQuery] int documentId)
+        {
+            _log.Info($"DeleteEMRControlDocumentMapping called. HeaderId={headerId}, DocumentId={documentId}");
+
+            if (headerId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "HeaderId must be greater than 0",
+                    errors = new { headerId }
+                });
+            }
+
+            if (documentId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "DocumentId must be greater than 0",
+                    errors = new { documentId }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _emrRepository.DeleteEMRControlDocumentMapping(headerId, documentId, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"EMR control document mapping deleted successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"EMR control document mapping delete failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+        [HttpPost("createUpdateDoseMaster")]
+        [Authorize]
+        public IActionResult CreateUpdateDoseMaster([FromBody] CreateUpdateDoseMasterRequest request)
+        {
+            _log.Info($"CreateUpdateDoseMaster called. DoseId={request.DoseId}, Dose={request.Dose}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for dose master insert/update.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _emrRepository.CreateUpdateDoseMaster(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"DoseMaster operation completed: {serviceResult.Message}");
+            else
+                _log.Warn($"DoseMaster operation failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getDoseMasterList")]
+        [Authorize]
+        public IActionResult GetDoseMasterList(
+            [FromQuery] int? doseId = null,
+            [FromQuery] int? isActive = null)
+        {
+            _log.Info($"GetDoseMasterList called. DoseId={doseId?.ToString() ?? "All"}, IsActive={isActive?.ToString() ?? "All"}");
+
+            if (doseId.HasValue && doseId.Value <= 0)
+            {
+                _log.Warn($"Invalid DoseId parameter: {doseId.Value}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "DoseId must be greater than 0",
+                    errors = new { doseId }
+                });
+            }
+
+            if (isActive.HasValue && isActive.Value != 0 && isActive.Value != 1)
+            {
+                _log.Warn($"Invalid IsActive parameter: {isActive.Value}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "IsActive must be 0 (Inactive), 1 (Active), or null (All)",
+                    errors = new { isActive }
+                });
+            }
+
+            var serviceResult = _emrRepository.GetDoseMasterList(doseId, isActive);
+
+            if (serviceResult.Result)
+                _log.Info($"DoseMaster fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"DoseMaster fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
     }
 }

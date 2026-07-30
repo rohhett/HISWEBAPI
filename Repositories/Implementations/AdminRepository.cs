@@ -1,28 +1,28 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Linq;
-using HISWEBAPI.Repositories.Interfaces;
+﻿using HISWEBAPI.Configuration;
 using HISWEBAPI.Data.Helpers;
-using HISWEBAPI.Models;
 using HISWEBAPI.DTO;
-using HISWEBAPI.Services;
-using Microsoft.Extensions.Logging;
 using HISWEBAPI.Exceptions;
-using System.Reflection;
+using HISWEBAPI.Models;
+using HISWEBAPI.Repositories.Interfaces;
+using HISWEBAPI.Services;
+using HISWEBAPI.Utilities;
 using log4net;
 using Microsoft.Data.SqlClient;
-using HISWEBAPI.Utilities;
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
+using System;
+using System.Collections.Generic;
 using System.Configuration;
-using HISWEBAPI.Configuration;
+using System.Data;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.ConstrainedExecution;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 using static System.Net.Mime.MediaTypeNames;
 using static System.Runtime.InteropServices.JavaScript.JSType;
-using System.Runtime.ConstrainedExecution;
-using System.Text.RegularExpressions;
-using System.Text.Json;
 
 namespace HISWEBAPI.Repositories.Implementations
 {
@@ -7511,6 +7511,7 @@ namespace HISWEBAPI.Repositories.Implementations
             new SqlParameter("@isOnlineConsultationAllow", (object?)request.IsOnlineConsultationAllow ?? DBNull.Value),
             new SqlParameter("@isTeleConsultationService", (object?)request.IsTeleConsultationService ?? DBNull.Value),
             new SqlParameter("@isRegistrationCharge", (object?)request.IsRegistrationCharge ?? DBNull.Value),
+            new SqlParameter("@registrationChargeValidityDays", (object?)request.RegistrationChargeValidityDays ?? DBNull.Value),
 
             new SqlParameter("@isActive", request.IsActive),
             new SqlParameter("@userId", globalValues.userId),
@@ -10204,6 +10205,137 @@ namespace HISWEBAPI.Repositories.Implementations
             }
         }
 
+        public ServiceResult<CreateUpdatePackageMasterResponse> CreateUpdatePackageMaster(
+    CreateUpdatePackageMasterRequest request,
+    AllGlobalValues globalValues)
+        {
+            var connectionString = _configuration.GetConnectionString("ConnectionString");
+            SqlConnection con = new SqlConnection(connectionString);
+            con.Open();
+            var tnx = CustomSqlHelper.getSqlTransaction(con);
 
+            try
+            {
+                _log.Info($"CreateUpdatePackageMaster called. PackageId={request.PackageId}, Name={request.Name}");
+
+                // ── Parse validity dates ──────────────────────────────────────────
+                if (!DateTime.TryParse(request.ValidityStartsFrom, out DateTime validityStartsFrom))
+                {
+                    tnx.Rollback();
+                    var alertDate = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return ServiceResult<CreateUpdatePackageMasterResponse>.Failure(
+                        alertDate.Type, "Invalid ValidityStartsFrom format", 400);
+                }
+
+                if (!DateTime.TryParse(request.ValidityEndsOn, out DateTime validityEndsOn))
+                {
+                    tnx.Rollback();
+                    var alertDate = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return ServiceResult<CreateUpdatePackageMasterResponse>.Failure(
+                        alertDate.Type, "Invalid ValidityEndsOn format", 400);
+                }
+
+                // ── 1. IU_ServiceItemMaster (shared SP used across multiple masters) ──
+                var result = _sqlHelper.DML(
+                    tnx,
+                    "IU_ServiceItemMaster",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @hospId = globalValues.hospId,
+                        @serviceItemId = request.PackageId,
+                        @categoryId = request.CategoryId,
+                        @subCategoryId = request.SubCategoryId,
+                        @subSubCategoryId = request.SubSubCategoryId,
+                        @name = request.Name,
+                        @code = (object)request.Code ?? DBNull.Value,
+                        @validityStartsFrom = validityStartsFrom.ToString("yyyy-MM-dd"),
+                        @validityEndsOn = validityEndsOn.ToString("yyyy-MM-dd"),
+                        @isMultipleVisitAllow = (object)request.IsMultipleVisitAllow ?? DBNull.Value,
+                        @visitDuration = (object)request.VisitDuration ?? DBNull.Value,
+                        @visitDurationType = (object)request.VisitDurationType ?? DBNull.Value,
+                        @isActive = request.IsActive,
+                        @userId = globalValues.userId,
+                        @IpAddress = globalValues.ipAddress
+                    },
+                    new { result = 0 }
+                );
+
+                int packageId = Convert.ToInt32(result);
+
+                if (packageId < 0)
+                {
+                    tnx.Rollback();
+                    var alertDup = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Package Name/Code already exists. Name={request.Name}, Code={request.Code}");
+                    return ServiceResult<CreateUpdatePackageMasterResponse>.Failure(
+                        alertDup.Type,
+                        "Package Name (in same Sub Sub Category) or Code already exists",
+                        409
+                    );
+                }
+
+                // ── 2. Delete-then-insert package service mapping ─────────────────
+                _sqlHelper.DML(
+                    tnx,
+                    "D_PackageServiceMapping",
+                    CommandType.StoredProcedure,
+                    new { @packageId = packageId }
+                );
+
+                foreach (var item in request.PackageServices)
+                {
+                    _sqlHelper.DML(
+                        tnx,
+                        "IU_PackageServiceMapping",
+                        CommandType.StoredProcedure,
+                        new
+                        {
+                            @packageId = packageId,
+                            @serviceItemId = item.ServiceItemId,
+                            @qty = item.Qty,
+                            @userId = globalValues.userId,
+                            @IpAddress = globalValues.ipAddress
+                        }
+                    );
+                }
+
+                tnx.Commit();
+                _log.Info($"Package master saved successfully. PackageId={packageId}, ServicesCount={request.PackageServices.Count}");
+
+                // ── Invalidate cache AFTER successful DB write ─────────────────────
+                _distributedCache.Remove("_ServiceItemMaster_All");
+                _log.Info("Cleared ServiceItemMaster cache after package master save.");
+
+                var responseData = new CreateUpdatePackageMasterResponse { PackageId = packageId };
+                var alert = _messageService.GetMessageAndTypeByAlertCode(
+                    request.PackageId == 0 ? "DATA_SAVED_SUCCESSFULLY" : "DATA_UPDATED_SUCCESSFULLY"
+                );
+
+                return ServiceResult<CreateUpdatePackageMasterResponse>.Success(
+                    responseData,
+                    alert.Type,
+                    request.PackageId == 0 ? "Package saved successfully" : "Package updated successfully",
+                    request.PackageId == 0 ? 201 : 200
+                );
+            }
+            catch (Exception ex)
+            {
+                try { tnx.Rollback(); } catch { /* swallow rollback exception */ }
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<CreateUpdatePackageMasterResponse>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+            finally
+            {
+                tnx.Dispose();
+                if (con.State == ConnectionState.Open)
+                    con.Close();
+            }
+        }
     }
 }

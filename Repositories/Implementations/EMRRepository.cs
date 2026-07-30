@@ -1,15 +1,16 @@
-﻿using System.Data;
-using System.Reflection;
-using System.Text.Json;
-using HISWEBAPI.Data.Helpers;
+﻿using HISWEBAPI.Data.Helpers;
 using HISWEBAPI.DTO;
 using HISWEBAPI.Exceptions;
 using HISWEBAPI.Models;
 using HISWEBAPI.Repositories.Interfaces;
 using HISWEBAPI.Services;
+using HISWEBAPI.Utilities;
 using log4net;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Caching.Distributed;
+using System.Data;
+using System.Reflection;
+using System.Text.Json;
 
 namespace HISWEBAPI.Repositories.Implementations
 {
@@ -2088,136 +2089,361 @@ namespace HISWEBAPI.Repositories.Implementations
             }
         }
 
-        //public ServiceResult<EMRVisitResponse> CreateUpdateEMRVisit(EMRVisitRequest request, AllGlobalValues globalValues)
-        //{
-        //    SqlConnection con = null;
-        //    SqlTransaction tnx = null;
 
-        //    try
-        //    {
-        //        _log.Info($"CreateUpdateEMRVisit called. PatientId={request.PatientId}, VisitId={request.VisitId}");
+        public ServiceResult<string> UploadEMRControlDocument(
+           UploadEMRControlDocumentRequest request,
+           AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"UploadEMRControlDocument called. HeaderId={request.HeaderId}, DocumentId={request.DocumentId}");
 
-        //        var visitId = request.Id;
+                // Validate file
+                if (request.DocumentFile == null || request.DocumentFile.Length == 0)
+                {
+                    var alertFile = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return ServiceResult<string>.Failure(
+                        alertFile.Type,
+                        "Document file is required",
+                        400
+                    );
+                }
 
-        //        var connectionString = _configuration.GetConnectionString("ConnectionString");
-        //        con = new SqlConnection(connectionString);
-        //        con.Open();
-        //        tnx = CustomSqlHelper.getSqlTransaction(con);
+                // Upload file to DMS
+                var fileUploadHelper = new FileUploadHelper(_configuration);
+                var (uploadSuccess, filePath, uploadError) = fileUploadHelper.UploadFile(
+                    request.DocumentFile,
+                    "EMRControlDocuments"
+                );
 
-        //        _sqlHelper.ExecuteScalar(tnx, "IU_EMRVisitMaster", CommandType.StoredProcedure, new
-        //        {
-        //            Id = visitId,
-        //            PatientId = request.PatientId,
-        //            PatientName = request.PatientName,
-        //            DoctorId = request.DoctorId,
-        //            DoctorName = request.DoctorName,
-        //            TypeId = request.TypeId,
-        //            TypeName = request.TypeName,
-        //            VisitId = request.VisitId,
-        //            UHID = request.Uhid,
-        //            AppointmentNo = request.AppointmentNo,
-        //            userId = globalValues.userId,
-        //            IPAddress = globalValues.ipAddress
-        //        });
+                if (!uploadSuccess)
+                {
+                    _log.Error($"EMR control document upload failed: {uploadError}");
+                    var alertUpload = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                    return ServiceResult<string>.Failure(
+                        alertUpload.Type,
+                        $"Document file upload failed: {uploadError}",
+                        500
+                    );
+                }
 
-        //        var attributesJson = JsonSerializer.Serialize(request.Attributes);
+                _log.Info($"EMR control document uploaded successfully: {filePath}");
 
-        //        _sqlHelper.ExecuteScalar(tnx, "IU_EMRVisitAttributeDetail", CommandType.StoredProcedure, new
-        //        {
-        //            EMRVisitId = visitId,
-        //            AttributesJson = attributesJson
-        //        });
+                // Save to database (upsert on DocumentId + HeaderId)
+                _sqlHelper.DML(
+                    "IU_EMRControlDocumentMapping",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @documentId = request.DocumentId,
+                        @headerId = request.HeaderId,
+                        @documentPath = filePath,
+                        @userId = globalValues.userId,
+                        @IpAddress = globalValues.ipAddress
+                    }
+                );
 
-        //        tnx.Commit();
-        //        _log.Info($"EMR visit saved successfully. Id={visitId}");
+                // Clear cache for this header's documents
+                _distributedCache.Remove($"_EMRControlDocumentMapping_{request.HeaderId}");
+                _log.Info($"Cleared EMRControlDocumentMapping cache for HeaderId={request.HeaderId}");
 
-        //        var alert = _messageService.GetMessageAndTypeByAlertCode(
-        //            request.Id == null ? "DATA_SAVED_SUCCESSFULLY" : "DATA_UPDATED_SUCCESSFULLY"
-        //        );
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    filePath,
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
 
-        //        return ServiceResult<EMRVisitResponse>.Success(
-        //            new EMRVisitResponse { Id = visitId },
-        //            alert.Type,
-        //            alert.Message,
-        //            request.Id == null ? 201 : 200
-        //        );
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        try { tnx?.Rollback(); } catch { /* ignore rollback errors */ }
-        //        LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
-        //        var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
-        //        return ServiceResult<EMRVisitResponse>.Failure(alert.Type, alert.Message, 500);
-        //    }
-        //    finally
-        //    {
-        //        tnx?.Dispose();
-        //        if (con != null)
-        //        {
-        //            if (con.State == ConnectionState.Open) con.Close();
-        //            con.Dispose();
-        //        }
-        //    }
-        //}
+        public ServiceResult<object> GetEMRControlDocumentMapping(int headerId)
+        {
+            try
+            {
+                _log.Info($"GetEMRControlDocumentMapping called. HeaderId={headerId}");
 
-        //public ServiceResult<object> GetEMRVisit(GetEMRVisitRequest request)
-        //{
-        //    try
-        //    {
-        //        _log.Info($"GetEMRVisit called. Id={request.Id}, VisitId={request.VisitId}, PatientId={request.PatientId}");
+                string cacheKey = $"_EMRControlDocumentMapping_{headerId}";
 
-        //        var dataSet = _sqlHelper.GetDataSet(
-        //            "S_GetEMRVisitById",
-        //            CommandType.StoredProcedure,
-        //            new
-        //            {
-        //                Id = (object)request.Id ?? DBNull.Value,
-        //                VisitId = (object)request.VisitId ?? DBNull.Value,
-        //                PatientId = (object)request.PatientId ?? DBNull.Value
-        //            }
-        //        );
+                var cachedData = _distributedCache.GetString(cacheKey);
+                List<Dictionary<string, object>> documents;
 
-        //        if (dataSet == null || dataSet.Tables.Count < 1 || dataSet.Tables[0].Rows.Count == 0)
-        //        {
-        //            var alert404 = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
-        //            return ServiceResult<object>.Failure(alert404.Type, "No EMR visit found", 404);
-        //        }
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"EMRControlDocumentMapping retrieved from cache. Key={cacheKey}");
+                    documents = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"EMRControlDocumentMapping cache miss. Fetching from database. Key={cacheKey}");
 
-        //        // Raw output - no model mapping. New SP columns flow through automatically.
-        //        var master = ToRawList(dataSet.Tables[0]).FirstOrDefault();
-        //        var attributes = dataSet.Tables.Count > 1
-        //            ? ToRawList(dataSet.Tables[1])
-        //            : new List<Dictionary<string, object>>();
+                    // Raw DataTable -> List<Dictionary<string,object>> (no model mapping,
+                    // so any new columns added to the SP automatically flow through)
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_EMRControlDocumentMapping",
+                        CommandType.StoredProcedure,
+                        new { @headerId = headerId }
+                    );
 
-        //        var result = new { visit = master, attributes };
+                    documents = dataTable?.AsEnumerable().Select(row =>
+                        dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                            col => col.ColumnName,
+                            col => row[col] == DBNull.Value ? null : row[col]
+                        )
+                    ).ToList() ?? new List<Dictionary<string, object>>();
 
-        //        var alert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
-        //        return ServiceResult<object>.Success(result, alert.Type, "EMR visit retrieved successfully", 200);
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
-        //        var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
-        //        return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
-        //    }
-        //}
+                    if (documents.Any())
+                    {
+                        var serialized = JsonSerializer.Serialize(documents);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                        _log.Info($"EMRControlDocumentMapping cached. Key={cacheKey}, Count={documents.Count}");
+                    }
+                }
 
-        //public static List<Dictionary<string, object>> ToRawList(DataTable dt)
-        //{
-        //    var rows = new List<Dictionary<string, object>>();
-        //    if (dt == null) return rows;
+                if (documents == null || !documents.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No EMR control documents found for HeaderId={headerId}");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        "No documents found for this header",
+                        404
+                    );
+                }
 
-        //    foreach (DataRow row in dt.Rows)
-        //    {
-        //        var dict = new Dictionary<string, object>();
-        //        foreach (DataColumn col in dt.Columns)
-        //        {
-        //            var value = row[col];
-        //            dict[col.ColumnName] = value == DBNull.Value ? null : value;
-        //        }
-        //        rows.Add(dict);
-        //    }
-        //    return rows;
-        //}
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    documents,
+                    alert1.Type,
+                    $"{documents.Count} document(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<string> DeleteEMRControlDocumentMapping(
+            int headerId,
+            int documentId,
+            AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"DeleteEMRControlDocumentMapping called. HeaderId={headerId}, DocumentId={documentId}");
+
+                _sqlHelper.DML(
+                    "D_EMRControlDocumentMapping",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @headerId = headerId,
+                        @documentId = documentId
+                    }
+                );
+
+                // Clear cache for this header's documents
+                _distributedCache.Remove($"_EMRControlDocumentMapping_{headerId}");
+                _log.Info($"Cleared EMRControlDocumentMapping cache for HeaderId={headerId}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_DELETED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    "EMR control document mapping deleted successfully",
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        private const string CACHE_KEY_DoseMaster_All = "_DoseMaster_All";
+
+        public ServiceResult<object> GetDoseMasterList(int? doseId, int? isActive)
+        {
+            try
+            {
+                _log.Info($"GetDoseMasterList called. DoseId={doseId?.ToString() ?? "All"}, IsActive={isActive?.ToString() ?? "All"}");
+
+                var cachedData = _distributedCache.GetString(CACHE_KEY_DoseMaster_All);
+                List<Dictionary<string, object>> allItems;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"DoseMaster data retrieved from cache. Key={CACHE_KEY_DoseMaster_All}");
+                    allItems = System.Text.Json.JsonSerializer
+                        .Deserialize<List<Dictionary<string, object>>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"DoseMaster cache miss. Fetching from database. Key={CACHE_KEY_DoseMaster_All}");
+
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_GetDoseMasterList",
+                        CommandType.StoredProcedure
+                    );
+
+                    allItems = dataTable?.AsEnumerable().Select(row =>
+                        dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                            col => col.ColumnName,
+                            col => row[col] == DBNull.Value ? null : row[col]
+                        )
+                    ).ToList() ?? new List<Dictionary<string, object>>();
+
+                    if (allItems.Any())
+                    {
+                        var serialized = System.Text.Json.JsonSerializer.Serialize(allItems);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(CACHE_KEY_DoseMaster_All, serialized, cacheOptions);
+                        _log.Info($"DoseMaster data cached permanently. Key={CACHE_KEY_DoseMaster_All}, Count={allItems.Count}");
+                    }
+                }
+
+                // In-memory filter by DoseId; null = return all
+                if (doseId.HasValue)
+                {
+                    allItems = allItems.Where(row =>
+                    {
+                        if (row.TryGetValue("DoseId", out var val) && val != null)
+                            return val.ToString() == doseId.Value.ToString();
+                        return false;
+                    }).ToList();
+                    _log.Info($"Filtered by DoseId={doseId.Value}. Count={allItems.Count}");
+                }
+
+                // In-memory filter by IsActive; null = return all
+                if (isActive.HasValue)
+                {
+                    allItems = allItems.Where(row =>
+                    {
+                        if (row.TryGetValue("IsActive", out var val) && val != null)
+                            return val.ToString() == isActive.Value.ToString();
+                        return false;
+                    }).ToList();
+                    _log.Info($"Filtered by IsActive={isActive.Value}. Count={allItems.Count}");
+                }
+
+                if (!allItems.Any())
+                {
+                    var notFoundAlert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Warn("No dose records found.");
+                    return ServiceResult<object>.Failure(
+                        notFoundAlert.Type,
+                        "No dose records found",
+                        404
+                    );
+                }
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    allItems,
+                    alert.Type,
+                    $"{allItems.Count} dose record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> CreateUpdateDoseMaster(
+            CreateUpdateDoseMasterRequest request,
+            AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CreateUpdateDoseMaster called. DoseId={request.DoseId}, Dose={request.Dose}");
+
+                var parameters = new SqlParameter[]
+                {
+            new SqlParameter("@doseId",         SqlDbType.Int)          { Value = request.DoseId },
+            new SqlParameter("@dose",           SqlDbType.NVarChar, 100){ Value = request.Dose },
+            new SqlParameter("@doseTimes",      SqlDbType.NVarChar, 256){ Value = request.DoseTimes      ?? (object)DBNull.Value },
+            new SqlParameter("@doseTimeLabels", SqlDbType.NVarChar, 256){ Value = request.DoseTimeLabels ?? (object)DBNull.Value },
+            new SqlParameter("@isActive",       SqlDbType.Int)          { Value = request.IsActive },
+            new SqlParameter("@userId",         SqlDbType.Int)          { Value = globalValues.userId },
+            new SqlParameter("@ipAddress",      SqlDbType.NVarChar, 20) { Value = globalValues.ipAddress ?? (object)DBNull.Value },
+            new SqlParameter("@Result",         SqlDbType.Int)          { Direction = ParameterDirection.Output }
+                };
+
+                long result = _sqlHelper.RunProcedureInsert("IU_DoseMaster", parameters);
+
+                if (result == -1)
+                {
+                    var dupAlert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Duplicate Dose: {request.Dose}");
+                    return ServiceResult<object>.Failure(
+                        dupAlert.Type,
+                        "Dose already exists",
+                        409
+                    );
+                }
+
+                if (result > 0)
+                {
+                    _distributedCache.Remove(CACHE_KEY_DoseMaster_All);
+                    _log.Info($"Cleared DoseMaster cache. DoseId={result}");
+
+                    var alert = _messageService.GetMessageAndTypeByAlertCode(
+                        request.DoseId == 0 ? "DATA_SAVED_SUCCESSFULLY" : "DATA_UPDATED_SUCCESSFULLY"
+                    );
+                    return ServiceResult<object>.Success(
+                        new { DoseId = result },
+                        alert.Type,
+                        alert.Message,
+                        request.DoseId == 0 ? 201 : 200
+                    );
+                }
+
+                var failAlert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(failAlert.Type, failAlert.Message, 500);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
     }
 }

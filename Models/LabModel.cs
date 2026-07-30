@@ -98,6 +98,8 @@
         public int? IsOnlineConsultationAllow { get; set; }
         public int? IsTeleConsultationService { get; set; }
         public int? IsRegistrationCharge { get; set; }
+        public int? RegistrationChargeValidityDays { get; set; }
+       
 
     }
 

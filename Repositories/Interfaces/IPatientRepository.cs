@@ -11,21 +11,26 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<string> UploadPatientDocument(UploadPatientDocumentRequest request, AllGlobalValues globalValues);
         ServiceResult<IEnumerable<PatientDocumentMappingResponse>> GetPatientDocumentMapping(int patientId);
 
-        ServiceResult<IEnumerable<PatientMasterModel>> GetPatientMaster(int? patientId = null, string? uhid = null, string? contactNumber = null, int? branchId = null);
-        ServiceResult<IEnumerable<SearchPatientMasterModel>> SearchPatientMaster(
-            int? patientId = null,
-            string? uhid = null,
-            string? firstName = null,
-            string? middleName = null,
-            string? lastName = null,
-            string? relativeName = null,
-            string? dob = null,
-            string? contactNumber = null,
-            string? emergencyContactNumber = null,
-            string? address = null,
-            string? registrationDate = null,
-            string? ipdNo = null,
-            int? branchId = null);
+        ServiceResult<IEnumerable<PatientMasterModel>> GetPatientMaster(
+      int? patientId = null,
+      string? uhid = null,
+      string? contactNumber = null,
+      int? branchId = null);
+
+        ServiceResult<IEnumerable<Dictionary<string, object>>> SearchPatientMaster(
+         int? patientId = null,
+         string? uhid = null,
+         string? firstName = null,
+         string? middleName = null,
+         string? lastName = null,
+         string? relativeName = null,
+         string? dob = null,
+         string? contactNumber = null,
+         string? emergencyContactNumber = null,
+         string? address = null,
+         string? registrationDate = null,
+         string? ipdNo = null,
+         int? branchId = null);
         ServiceResult<ServiceBillingDetailsModel> GetServiceAllDetailsForOPDBilling(int branchId,int corporateId, int doctorId, int serviceItemId, int categoryId, int subCategoryId, int subSubCategoryId, int bedTypeId);
         ServiceResult<SaveOPDBillingResponse> SaveOPDBilling(SaveOPDBillingRequest request, AllGlobalValues globalValues);
         ServiceResult<IEnumerable<PackageAllDetailsModel>> GetPackageAllDetails(int packageId);

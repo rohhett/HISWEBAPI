@@ -73,6 +73,7 @@
         public string? DayCareNo { get; set; }
         public string? DialysisNo { get; set; }
         public string? EmergencyNo { get; set; }
+        public int IsRegistrationValid { get; set; }
     }
 
     public class SearchPatientMasterModel
@@ -121,6 +122,7 @@
         public int SubCategoryId { get; set; }
         public int SubSubCategoryId { get; set; }
         public int IsCorporateDiscount { get; set; }
+        public int IsPrivilegedCardDiscount { get; set; }
         public decimal GSTPer { get; set; }
         public int SampleTypeId { get; set; }
         public int ReportTypeId { get; set; }
@@ -172,6 +174,10 @@
         public int PackageServiceSubSubCategoryId { get; set; }
         public string PackageServiceCode { get; set; }
         public int PackageServiceCategoryId { get; set; }
+        public int IsMultipleVisitAllow { get; set; }
+        public int VisitDuration { get; set; }
+        public string VisitDurationType { get; set; }
+
     }
 
 

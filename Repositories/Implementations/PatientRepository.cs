@@ -182,6 +182,7 @@ namespace HISWEBAPI.Repositories.Implementations
                         @identityMark2 = request.IdentityMark2 ?? (object)DBNull.Value,
                         @referenceType = request.ReferenceType ?? (object)DBNull.Value,
                         @remarks = request.Remarks ?? (object)DBNull.Value,
+
                     }
                 );
 
@@ -406,157 +407,104 @@ namespace HISWEBAPI.Repositories.Implementations
             }
         }
         public ServiceResult<IEnumerable<PatientMasterModel>> GetPatientMaster(
-            int? patientId = null,
-            string? uhid = null,
-            string? contactNumber = null,
-            int? branchId = null)
+      int? patientId = null,
+      string? uhid = null,
+      string? contactNumber = null,
+      int? branchId = null)
         {
             try
             {
                 _log.Info($"GetPatientMaster called. PatientId={patientId?.ToString() ?? "All"}, Uhid={uhid ?? "All"}, ContactNumber={contactNumber ?? "All"}, BranchId={branchId?.ToString() ?? "All"}");
 
-                // Try to get ALL patients from cache
-                var cachedData = _distributedCache.GetString(CACHE_KEY_PatientMaster_All);
-                List<PatientMasterModel> allPatients;
-
-                if (!string.IsNullOrEmpty(cachedData))
-                {
-                    _log.Info($"PatientMaster data retrieved from cache. Key={CACHE_KEY_PatientMaster_All}");
-                    allPatients = JsonSerializer.Deserialize<List<PatientMasterModel>>(cachedData);
-                }
-                else
-                {
-                    _log.Info($"PatientMaster cache miss. Fetching all data from database. Key={CACHE_KEY_PatientMaster_All}");
-
-                    var dataTable = _sqlHelper.GetDataTable(
-                        "S_GetPatientMaster",
-                        CommandType.StoredProcedure
-                    // No parameters — SP returns all patients
-                    );
-
-                    allPatients = dataTable?.AsEnumerable().Select(row => new PatientMasterModel
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetPatientMaster",
+                    CommandType.StoredProcedure,
+                    new
                     {
-                        PatientId = row.Field<int>("PatientId"),
-                        BranchId = row.Field<int>("BranchId"),
-                        Uhid = row.Field<string>("UHID") ?? string.Empty,
-                        Title = row.Field<string>("Title") ?? string.Empty,
-                        FirstName = row.Field<string>("FirstName") ?? string.Empty,
-                        MiddleName = row.Field<string>("MiddleName"),
-                        LastName = row.Field<string>("LastName"),
-                        PatientName = row.Field<string>("PatientName") ?? string.Empty,
-                        AgeYears = row.Field<int?>("AgeYears"),
-                        AgeMonths = row.Field<int?>("AgeMonths"),
-                        AgeDays = row.Field<int?>("AgeDays"),
-                        Age = row.Field<string>("Age"),
-                        Dob = row.Field<string>("DOB"),
-                        Gender = row.Field<string>("Gender"),
-                        MaritalStatus = row.Field<string>("MaritalStatus"),
-                        Relation = row.Field<string>("Relation"),
-                        RelativeName = row.Field<string>("RelativeName"),
-                        IdProofName = row.Field<string>("IdProofName"),
-                        IdProofNumber = row.Field<string>("IdProofNumber"),
-                        ContactNumber = row.Field<string>("ContactNumber"),
-                        EmergencyContactNumber = row.Field<string>("EmergencyContactNumber"),
-                        Email = row.Field<string>("Email"),
-                        PrivilegedCardNumber = row.Field<string>("PrivilegedCardNumber"),
-                        Address = row.Field<string>("Address"),
-                        CountryId = row.Field<int?>("CountryId"),
-                        Country = row.Field<string>("Country"),
-                        StateId = row.Field<int?>("StateId"),
-                        State = row.Field<string>("State"),
-                        DistrictId = row.Field<int?>("DistrictId"),
-                        District = row.Field<string>("District"),
-                        CityId = row.Field<int?>("CityId"),
-                        City = row.Field<string>("City"),
-                        InsuranceCompanyId = row.Field<int?>("InsuranceCompanyId"),
-                        CorporateId = row.Field<int?>("CorporateId"),
-                        CardNo = row.Field<string>("CardNo"),
-                        IsVaccination = row.Field<int?>("IsVaccination"),
-                        VIPPatient = row.Field<int?>("VIPPatient"),
-                        PatientImagePath = row.Field<string>("PatientImagePath"),
-                        PolicyNo = row.Field<string>("PolicyNo"),
-                        PolicyCardNo = row.Field<string>("PolicyCardNo"),
-                        ExpiryDate = row.Field<string>("ExpiryDate"),
-                        CardHolder = row.Field<string>("CardHolder"),
-                        ReferalNo = row.Field<string>("ReferalNo"),
-                        ReferalDate = row.Field<string>("ReferalDate"),
-                        LandlineNo = row.Field<string>("LandlineNo"),
-                        BirthPlace = row.Field<string>("BirthPlace"),
-                        Religion = row.Field<string>("Religion"),
-                        RelationPhone = row.Field<string>("RelationPhone"),
-                        RelationAge = row.Field<int?>("RelationAge"),
-                        RelationGender = row.Field<string>("RelationGender"),
-                        EMG_FirstName = row.Field<string>("EMG_FirstName"),
-                        EMG_LastName = row.Field<string>("EMG_LastName"),
-                        EMG_Relation = row.Field<string>("EMG_Relation"),
-                        EMG_MobileNo = row.Field<string>("EMG_MobileNo"),
-                        EMG_ResidentNo = row.Field<string>("EMG_ResidentNo"),
-                        EMG_Address = row.Field<string>("EMG_Address"),
-                        IsInternational = row.Field<int?>("IsInternational"),
-                        Locality = row.Field<string>("Locality"),
-                        PassportNumber = row.Field<string>("PassportNumber"),
-                        InternationalNo = row.Field<string>("InternationalNo"),
-                        MembershipNo = row.Field<string>("MembershipNo"),
-                        PatientType = row.Field<string>("PatientType"),
-                        IdentityMark = row.Field<string>("IdentityMark"),
-                        IdentityMark2 = row.Field<string>("IdentityMark2"),
-                        ReferenceType = row.Field<string>("ReferenceType"),
-                        Remarks = row.Field<string>("Remarks"),
-                        DoctorId = row.IsNull("DoctorId") ? 0 : row.Field<int>("DoctorId"),
-                        IPDNo = row.Field<string>("IPDNo"),
-                        DayCareNo = row.Field<string>("DayCareNo"),
-                        DialysisNo = row.Field<string>("DialysisNo"),
-                        EmergencyNo = row.Field<string>("EmergencyNo"),
-
-
-                    }).ToList() ?? new List<PatientMasterModel>();
-
-                    // Store ALL patients in cache (no expiration)
-                    if (allPatients.Any())
-                    {
-                        var serialized = JsonSerializer.Serialize(allPatients);
-                        var cacheOptions = new DistributedCacheEntryOptions
-                        {
-                            AbsoluteExpiration = null,
-                            SlidingExpiration = null
-                        };
-                        _distributedCache.SetString(CACHE_KEY_PatientMaster_All, serialized, cacheOptions);
-                        _log.Info($"All PatientMaster data cached permanently. Key={CACHE_KEY_PatientMaster_All}, Count={allPatients.Count}");
+                        PatientId = patientId,
+                        UHID = uhid,
+                        ContactNumber = contactNumber,
+                        BranchId = branchId
                     }
-                }
+                );
 
-                // Filter in memory based on parameters (always from cache)
-                List<PatientMasterModel> filteredPatients = allPatients;
-
-                if (patientId.HasValue)
+                var patients = dataTable?.AsEnumerable().Select(row => new PatientMasterModel
                 {
-                    _log.Info($"Filtering by PatientId: {patientId.Value}");
-                    filteredPatients = filteredPatients.Where(p => p.PatientId == patientId.Value).ToList();
-                }
+                    PatientId = row.Field<int>("PatientId"),
+                    BranchId = row.Field<int>("BranchId"),
+                    Uhid = row.Field<string>("UHID") ?? string.Empty,
+                    Title = row.Field<string>("Title") ?? string.Empty,
+                    FirstName = row.Field<string>("FirstName") ?? string.Empty,
+                    MiddleName = row.Field<string>("MiddleName"),
+                    LastName = row.Field<string>("LastName"),
+                    PatientName = row.Field<string>("PatientName") ?? string.Empty,
+                    AgeYears = row.Field<int?>("AgeYears"),
+                    AgeMonths = row.Field<int?>("AgeMonths"),
+                    AgeDays = row.Field<int?>("AgeDays"),
+                    Age = row.Field<string>("Age"),
+                    Dob = row.Field<string>("DOB"),
+                    Gender = row.Field<string>("Gender"),
+                    MaritalStatus = row.Field<string>("MaritalStatus"),
+                    Relation = row.Field<string>("Relation"),
+                    RelativeName = row.Field<string>("RelativeName"),
+                    IdProofName = row.Field<string>("IdProofName"),
+                    IdProofNumber = row.Field<string>("IdProofNumber"),
+                    ContactNumber = row.Field<string>("ContactNumber"),
+                    EmergencyContactNumber = row.Field<string>("EmergencyContactNumber"),
+                    Email = row.Field<string>("Email"),
+                    PrivilegedCardNumber = row.Field<string>("PrivilegedCardNumber"),
+                    Address = row.Field<string>("Address"),
+                    CountryId = row.Field<int?>("CountryId"),
+                    Country = row.Field<string>("Country"),
+                    StateId = row.Field<int?>("StateId"),
+                    State = row.Field<string>("State"),
+                    DistrictId = row.Field<int?>("DistrictId"),
+                    District = row.Field<string>("District"),
+                    CityId = row.Field<int?>("CityId"),
+                    City = row.Field<string>("City"),
+                    InsuranceCompanyId = row.Field<int?>("InsuranceCompanyId"),
+                    CorporateId = row.Field<int?>("CorporateId"),
+                    CardNo = row.Field<string>("CardNo"),
+                    IsVaccination = row.Field<int?>("IsVaccination"),
+                    VIPPatient = row.Field<int?>("VIPPatient"),
+                    PatientImagePath = row.Field<string>("PatientImagePath"),
+                    PolicyNo = row.Field<string>("PolicyNo"),
+                    PolicyCardNo = row.Field<string>("PolicyCardNo"),
+                    ExpiryDate = row.Field<string>("ExpiryDate"),
+                    CardHolder = row.Field<string>("CardHolder"),
+                    ReferalNo = row.Field<string>("ReferalNo"),
+                    ReferalDate = row.Field<string>("ReferalDate"),
+                    LandlineNo = row.Field<string>("LandlineNo"),
+                    BirthPlace = row.Field<string>("BirthPlace"),
+                    Religion = row.Field<string>("Religion"),
+                    RelationPhone = row.Field<string>("RelationPhone"),
+                    RelationAge = row.Field<int?>("RelationAge"),
+                    RelationGender = row.Field<string>("RelationGender"),
+                    EMG_FirstName = row.Field<string>("EMG_FirstName"),
+                    EMG_LastName = row.Field<string>("EMG_LastName"),
+                    EMG_Relation = row.Field<string>("EMG_Relation"),
+                    EMG_MobileNo = row.Field<string>("EMG_MobileNo"),
+                    EMG_ResidentNo = row.Field<string>("EMG_ResidentNo"),
+                    EMG_Address = row.Field<string>("EMG_Address"),
+                    IsInternational = row.Field<int?>("IsInternational"),
+                    Locality = row.Field<string>("Locality"),
+                    PassportNumber = row.Field<string>("PassportNumber"),
+                    InternationalNo = row.Field<string>("InternationalNo"),
+                    MembershipNo = row.Field<string>("MembershipNo"),
+                    PatientType = row.Field<string>("PatientType"),
+                    IdentityMark = row.Field<string>("IdentityMark"),
+                    IdentityMark2 = row.Field<string>("IdentityMark2"),
+                    ReferenceType = row.Field<string>("ReferenceType"),
+                    Remarks = row.Field<string>("Remarks"),
+                    DoctorId = row.IsNull("DoctorId") ? 0 : row.Field<int>("DoctorId"),
+                    IPDNo = row.Field<string>("IPDNo"),
+                    DayCareNo = row.Field<string>("DayCareNo"),
+                    DialysisNo = row.Field<string>("DialysisNo"),
+                    EmergencyNo = row.Field<string>("EmergencyNo"),
+                    IsRegistrationValid = row.Field<int>("IsRegistrationValid"),
+                }).ToList() ?? new List<PatientMasterModel>();
 
-                if (!string.IsNullOrWhiteSpace(uhid))
-                {
-                    _log.Info($"Filtering by UHID: {uhid}");
-                    filteredPatients = filteredPatients
-                        .Where(p => p.Uhid != null && p.Uhid.Equals(uhid, StringComparison.OrdinalIgnoreCase))
-                        .ToList();
-                }
-
-                if (!string.IsNullOrWhiteSpace(contactNumber))
-                {
-                    _log.Info($"Filtering by ContactNumber: {contactNumber}");
-                    filteredPatients = filteredPatients
-                        .Where(p => p.ContactNumber != null && p.ContactNumber.Contains(contactNumber))
-                        .ToList();
-                }
-
-                if (branchId.HasValue)
-                {
-                    _log.Info($"Filtering by BranchId: {branchId.Value}");
-                    filteredPatients = filteredPatients.Where(p => p.BranchId == branchId.Value).ToList();
-                }
-
-                if (!filteredPatients.Any())
+                if (!patients.Any())
                 {
                     var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
                     _log.Info("No patients found for the given filters");
@@ -567,12 +515,12 @@ namespace HISWEBAPI.Repositories.Implementations
                     );
                 }
 
-                _log.Info($"Retrieved {filteredPatients.Count} patient(s) from cache");
+                _log.Info($"Retrieved {patients.Count} patient(s) from database");
 
                 return ServiceResult<IEnumerable<PatientMasterModel>>.Success(
-                    filteredPatients,
+                    patients,
                     "Info",
-                    $"{filteredPatients.Count} patient(s) retrieved successfully",
+                    $"{patients.Count} patient(s) retrieved successfully",
                     200
                 );
             }
@@ -589,179 +537,80 @@ namespace HISWEBAPI.Repositories.Implementations
         }
 
 
-        public ServiceResult<IEnumerable<SearchPatientMasterModel>> SearchPatientMaster(
-            int? patientId = null,
-            string? uhid = null,
-            string? firstName = null,
-            string? middleName = null,
-            string? lastName = null,
-            string? relativeName = null,
-            string? dob = null,
-            string? contactNumber = null,
-            string? emergencyContactNumber = null,
-            string? address = null,
-            string? registrationDate = null,
-            string? ipdNo = null,
-            int? branchId = null)
+        public ServiceResult<IEnumerable<Dictionary<string, object>>> SearchPatientMaster(
+    int? patientId = null,
+    string? uhid = null,
+    string? firstName = null,
+    string? middleName = null,
+    string? lastName = null,
+    string? relativeName = null,
+    string? dob = null,
+    string? contactNumber = null,
+    string? emergencyContactNumber = null,
+    string? address = null,
+    string? registrationDate = null,
+    string? ipdNo = null,
+    int? branchId = null)
+    {
+        try
         {
-            try
+            _log.Info($"SearchPatientMaster called. PatientId={patientId?.ToString() ?? "All"}, Uhid={uhid ?? "All"}, BranchId={branchId?.ToString() ?? "All"}");
+
+            var dataTable = _sqlHelper.GetDataTable(
+                "S_SearchPatientMaster",
+                CommandType.StoredProcedure,
+                new
+                {
+                    PatientId = patientId,
+                    UHID = uhid,
+                    FirstName = firstName,
+                    MiddleName = middleName,
+                    LastName = lastName,
+                    RelativeName = relativeName,
+                    DOB = dob,
+                    ContactNumber = contactNumber,
+                    EmergencyContactNumber = emergencyContactNumber,
+                    Address = address,
+                    RegistrationDate = registrationDate,
+                    IPDNo = ipdNo,
+                    BranchId = branchId
+                }
+            );
+
+            var patients = dataTable.ToRawList();
+
+            if (!patients.Any())
             {
-                _log.Info($"SearchPatientMaster called.");
-
-                var cachedData = _distributedCache.GetString(CACHE_KEY_SearchPatientMaster_All);
-                List<SearchPatientMasterModel> allPatients;
-
-                if (!string.IsNullOrEmpty(cachedData))
-                {
-                    _log.Info($"SearchPatientMaster data retrieved from cache.");
-                    allPatients = JsonSerializer.Deserialize<List<SearchPatientMasterModel>>(cachedData);
-                }
-                else
-                {
-                    _log.Info($"SearchPatientMaster cache miss. Fetching from database.");
-
-                    var dataTable = _sqlHelper.GetDataTable(
-                        "S_SearchPatientMaster",
-                        CommandType.StoredProcedure
-                    );
-
-                    allPatients = dataTable?.AsEnumerable().Select(row => new SearchPatientMasterModel
-                    {
-                        PatientId = row.Field<int>("PatientId"),
-                        BranchId = row.Field<int>("BranchId"),
-                        Uhid = row.Field<string>("UHID") ?? string.Empty,
-                        Title = row.Field<string>("Title") ?? string.Empty,
-                        FirstName = row.Field<string>("FirstName") ?? string.Empty,
-                        MiddleName = row.IsNull("MiddleName") ? null : row.Field<string>("MiddleName"),
-                        LastName = row.IsNull("LastName") ? null : row.Field<string>("LastName"),
-                        PatientName = row.Field<string>("PatientName") ?? string.Empty,
-                        AgeYears = row.IsNull("AgeYears") ? null : row.Field<int?>("AgeYears"),
-                        AgeMonths = row.IsNull("AgeMonths") ? null : row.Field<int?>("AgeMonths"),
-                        AgeDays = row.IsNull("AgeDays") ? null : row.Field<int?>("AgeDays"),
-                        Age = row.IsNull("Age") ? null : row.Field<string>("Age"),
-                        Dob = row.IsNull("DOB") ? null : row.Field<string>("DOB"),
-                        Gender = row.IsNull("Gender") ? null : row.Field<string>("Gender"),
-                        Relation = row.IsNull("Relation") ? null : row.Field<string>("Relation"),
-                        RelativeName = row.IsNull("RelativeName") ? null : row.Field<string>("RelativeName"),
-                        ContactNumber = row.IsNull("ContactNumber") ? null : row.Field<string>("ContactNumber"),
-                        EmergencyContactNumber = row.IsNull("EmergencyContactNumber") ? null : row.Field<string>("EmergencyContactNumber"),
-                        Email = row.IsNull("Email") ? null : row.Field<string>("Email"),
-                        FullAddress = row.IsNull("FullAddress") ? null : row.Field<string>("FullAddress"),
-                        RegistrationDate = row.IsNull("RegistrationDate") ? null : row.Field<string>("RegistrationDate"),
-                        IPDNo = row.Field<string>("IPDNo"),
-                    }).ToList() ?? new List<SearchPatientMasterModel>();
-
-                    if (allPatients.Any())
-                    {
-                        var serialized = JsonSerializer.Serialize(allPatients);
-                        var cacheOptions = new DistributedCacheEntryOptions
-                        {
-                            AbsoluteExpiration = null,
-                            SlidingExpiration = null
-                        };
-                        _distributedCache.SetString(CACHE_KEY_SearchPatientMaster_All, serialized, cacheOptions);
-                        _log.Info($"SearchPatientMaster data cached. Count={allPatients.Count}");
-                    }
-                }
-
-                // In-memory filtering
-                List<SearchPatientMasterModel> filtered = allPatients;
-
-                if (patientId.HasValue)
-                    filtered = filtered.Where(p => p.PatientId == patientId.Value).ToList();
-
-                if (!string.IsNullOrWhiteSpace(uhid))
-                    filtered = filtered
-                        .Where(p => p.Uhid != null && p.Uhid.Contains(uhid, StringComparison.OrdinalIgnoreCase))
-                        .ToList();
-
-                if (!string.IsNullOrWhiteSpace(firstName))
-                    filtered = filtered
-                        .Where(p => p.FirstName != null && p.FirstName.Contains(firstName, StringComparison.OrdinalIgnoreCase))
-                        .ToList();
-
-                if (!string.IsNullOrWhiteSpace(middleName))
-                    filtered = filtered
-                        .Where(p => p.MiddleName != null && p.MiddleName.Contains(middleName, StringComparison.OrdinalIgnoreCase))
-                        .ToList();
-
-                if (!string.IsNullOrWhiteSpace(lastName))
-                    filtered = filtered
-                        .Where(p => p.LastName != null && p.LastName.Contains(lastName, StringComparison.OrdinalIgnoreCase))
-                        .ToList();
-
-                if (!string.IsNullOrWhiteSpace(relativeName))
-                    filtered = filtered
-                        .Where(p => p.RelativeName != null && p.RelativeName.Contains(relativeName, StringComparison.OrdinalIgnoreCase))
-                        .ToList();
-
-                if (!string.IsNullOrWhiteSpace(dob))
-                    filtered = filtered
-                        .Where(p => p.Dob != null && p.Dob.Equals(dob, StringComparison.OrdinalIgnoreCase))
-                        .ToList();
-
-                if (!string.IsNullOrWhiteSpace(contactNumber))
-                    filtered = filtered
-                        .Where(p => p.ContactNumber != null && p.ContactNumber.Contains(contactNumber))
-                        .ToList();
-
-                if (!string.IsNullOrWhiteSpace(emergencyContactNumber))
-                    filtered = filtered
-                        .Where(p => p.EmergencyContactNumber != null && p.EmergencyContactNumber.Contains(emergencyContactNumber))
-                        .ToList();
-
-                if (!string.IsNullOrWhiteSpace(address))
-                    filtered = filtered
-                        .Where(p => p.FullAddress != null && p.FullAddress.Contains(address, StringComparison.OrdinalIgnoreCase))
-                        .ToList();
-
-                if (!string.IsNullOrWhiteSpace(registrationDate))
-                    filtered = filtered
-                        .Where(p => p.RegistrationDate != null && p.RegistrationDate.Equals(registrationDate, StringComparison.OrdinalIgnoreCase))
-                        .ToList();
-
-                if (!string.IsNullOrWhiteSpace(ipdNo))
-                    filtered = filtered
-                        .Where(p => p.IPDNo != null && p.IPDNo.Contains(ipdNo, StringComparison.OrdinalIgnoreCase))
-                        .ToList();
-
-
-
-                if (branchId.HasValue)
-                    filtered = filtered.Where(p => p.BranchId == branchId.Value).ToList();
-
-                if (!filtered.Any())
-                {
-                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
-                    _log.Info("No patients found for the given filters");
-                    return ServiceResult<IEnumerable<SearchPatientMasterModel>>.Failure(
-                        alert.Type,
-                        "No patients found",
-                        404
-                    );
-                }
-
-                _log.Info($"Retrieved {filtered.Count} patient(s) from cache");
-
-                return ServiceResult<IEnumerable<SearchPatientMasterModel>>.Success(
-                    filtered,
-                    "Info",
-                    $"{filtered.Count} patient(s) retrieved successfully",
-                    200
-                );
-            }
-            catch (Exception ex)
-            {
-                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
-                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
-                return ServiceResult<IEnumerable<SearchPatientMasterModel>>.Failure(
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                _log.Info("No patients found for the given filters");
+                return ServiceResult<IEnumerable<Dictionary<string, object>>>.Failure(
                     alert.Type,
-                    alert.Message,
-                    500
+                    "No patients found",
+                    404
                 );
             }
+
+            _log.Info($"Retrieved {patients.Count} patient(s) from database");
+
+            return ServiceResult<IEnumerable<Dictionary<string, object>>>.Success(
+                patients,
+                "Info",
+                $"{patients.Count} patient(s) retrieved successfully",
+                200
+            );
         }
-        public ServiceResult<ServiceBillingDetailsModel> GetServiceAllDetailsForOPDBilling(
+        catch (Exception ex)
+        {
+            LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+            var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+            return ServiceResult<IEnumerable<Dictionary<string, object>>>.Failure(
+                alert.Type,
+                alert.Message,
+                500
+            );
+        }
+    }
+    public ServiceResult<ServiceBillingDetailsModel> GetServiceAllDetailsForOPDBilling(
           int branchId,
           int corporateId,
           int doctorId,
@@ -823,6 +672,7 @@ namespace HISWEBAPI.Repositories.Implementations
                     SubCategoryId = row["SubCategoryId"] != DBNull.Value ? Convert.ToInt32(row["SubCategoryId"]) : subCategoryId,
                     SubSubCategoryId = row["SubSubCategoryId"] != DBNull.Value ? Convert.ToInt32(row["SubSubCategoryId"]) : subSubCategoryId,
                     IsCorporateDiscount = row["IsCorporateDiscount"] != DBNull.Value ? Convert.ToInt32(row["IsCorporateDiscount"]) : 0,
+                    IsPrivilegedCardDiscount = row["IsPrivilegedCardDiscount"] != DBNull.Value ? Convert.ToInt32(row["IsPrivilegedCardDiscount"]) : 0,
                     GSTPer = row["GSTPer"] != DBNull.Value ? Convert.ToDecimal(row["GSTPer"]) : 0,
                     SampleTypeId = row["SampleTypeId"] != DBNull.Value ? Convert.ToInt32(row["SampleTypeId"]) : 0,
                     ReportTypeId = row["ReportTypeId"] != DBNull.Value ? Convert.ToInt32(row["ReportTypeId"]) : 0,
@@ -980,6 +830,24 @@ namespace HISWEBAPI.Repositories.Implementations
                 int ftid = Convert.ToInt32(ft.Create(_sqlHelper, tnx));
                 _log.Info($"FinancialTransactions created. FTID={ftid}");
 
+
+                // ── Fetch Registration Charge ServiceItemId (once) ───────────────────
+                int registrationChargeServiceItemId = 0;
+                int registrationChargeValidityDays = 0;
+
+                var regChargeDt = _sqlHelper.GetDataTable(
+                    tnx,
+                    "S_GetRegistrationChargeServiceItemId",
+                    CommandType.StoredProcedure
+                );
+
+                if (regChargeDt != null && regChargeDt.Rows.Count > 0)
+                {
+                    registrationChargeServiceItemId = Convert.ToInt32(regChargeDt.Rows[0]["ServiceItemId"]);
+                    registrationChargeValidityDays = Convert.ToInt32(regChargeDt.Rows[0]["RegistrationChargeValidityDays"]);
+                }
+
+
                 // ── 3. Process billing items ─────────────────────────────────────────
                 bool isReceipt = false;
                 bool isDoctorAppointment = false;
@@ -1047,6 +915,24 @@ namespace HISWEBAPI.Repositories.Implementations
 
                     int ftdId = Convert.ToInt32(ftd.Create(_sqlHelper, tnx));
                     _log.Info($"FinancialTransactionDetails created. FTDId={ftdId}, ServiceItemId={item.ServiceItemId}");
+
+
+                    // ── Update Patient Registration Charge Validity if matched ───────────
+                    if (registrationChargeServiceItemId > 0 && registrationChargeValidityDays > 0 && item.ServiceItemId == registrationChargeServiceItemId)
+                    {
+                        _sqlHelper.DML(
+                            tnx,
+                            "U_PatientMasterRegistrationChargeValidity",
+                            CommandType.StoredProcedure,
+                            new
+                            {
+                                @PatientId = v.PatientId,
+                                @RegistrationChargeValidityDays = registrationChargeValidityDays
+                            }
+                        );
+
+                        _log.Info($"PatientMaster RegistrationChargeExpiryDate updated. PatientId={v.PatientId}, ValidityDays={registrationChargeValidityDays}");
+                    }
 
                     // ── 3b. Consultation → DoctorAppointments (CategoryId == 1) ──────
                     if (item.CategoryId == 1)
@@ -1301,6 +1187,10 @@ namespace HISWEBAPI.Repositories.Implementations
                     PackageServiceCategoryId = row.Field<int?>("PackageServiceCategoryId") ?? 0,
                     PackageServiceSubCategoryId = row.Field<int?>("PackageServiceSubCategoryId") ?? 0,
                     PackageServiceSubSubCategoryId = row.Field<int?>("PackageServiceSubSubCategoryId") ?? 0,
+                    IsMultipleVisitAllow = row.Field<int?>("IsMultipleVisitAllow") ?? 0,
+                    VisitDuration = row.Field<int?>("VisitDuration") ?? 0,
+                    VisitDurationType = row.Field<string>("VisitDurationType") ?? string.Empty,
+
 
                 }).ToList() ?? new List<PackageAllDetailsModel>();
 

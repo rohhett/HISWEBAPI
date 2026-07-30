@@ -37,7 +37,11 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<object> GetDoctorFavouriteTableEntries(int doctorId, int entityId, int recordId);
         ServiceResult<string> DeleteDoctorFavouriteTableEntry(int id);
         ServiceResult<string> DeleteRecordByTableName(int id, string tableName, AllGlobalValues globalValues);
-        //ServiceResult<EMRVisitResponse> CreateUpdateEMRVisit(EMRVisitRequest request, AllGlobalValues globalValues);
-        //ServiceResult<object> GetEMRVisit(GetEMRVisitRequest request);
+        ServiceResult<string> UploadEMRControlDocument(UploadEMRControlDocumentRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetEMRControlDocumentMapping(int headerId);
+        ServiceResult<string> DeleteEMRControlDocumentMapping(int headerId, int documentId, AllGlobalValues globalValues);
+
+        ServiceResult<object> GetDoseMasterList(int? doseId, int? isActive);
+        ServiceResult<object> CreateUpdateDoseMaster(CreateUpdateDoseMasterRequest request, AllGlobalValues globalValues);
     }
 }

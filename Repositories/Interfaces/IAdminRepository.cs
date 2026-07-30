@@ -1,6 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using HISWEBAPI.DTO;
 using HISWEBAPI.Models;
-using HISWEBAPI.DTO;
+using System.Collections.Generic;
 
 namespace HISWEBAPI.Repositories.Interfaces
 {
@@ -134,5 +134,8 @@ namespace HISWEBAPI.Repositories.Interfaces
 
         ServiceResult<object> GetVitalDepartmentMapping(int typeId, int relatedToId);
         ServiceResult<string> SaveVitalDepartmentMapping(SaveVitalDepartmentMappingRequest request, AllGlobalValues globalValues);
+        ServiceResult<CreateUpdatePackageMasterResponse> CreateUpdatePackageMaster(
+    CreateUpdatePackageMasterRequest request,
+    AllGlobalValues globalValues);
     }
 }

@@ -298,49 +298,37 @@ namespace HISWEBAPI.DTO
     }
 
 
+    public class UploadEMRControlDocumentRequest
+    {
+        [Required(ErrorMessage = "HeaderId is required")]
+        public int HeaderId { get; set; }
 
-    ////--------------------------------------------------------------------------------------------------------------
-    //public class EMRVisitRequest
-    //{
-    //    public int Id { get; set; }
+        [Required(ErrorMessage = "DocumentId is required")]
+        public int DocumentId { get; set; }
 
-    //    [Required] public int PatientId { get; set; }
-    //    public string PatientName { get; set; }
-    //    [Required] public int DoctorId { get; set; }
-    //    public string DoctorName { get; set; }
-    //    public int TypeId { get; set; }
-    //    public string TypeName { get; set; }
-    //    public int? VisitId { get; set; }
-    //    public string Uhid { get; set; }
-    //    public int? AppointmentNo { get; set; }
+        [Required(ErrorMessage = "Document file is required")]
+        public IFormFile DocumentFile { get; set; }
+    }
 
-    //    [Required] public List<EMRAttributeRequest> Attributes { get; set; } = new();
 
-    //}
+    public class CreateUpdateDoseMasterRequest
+    {
+        public int DoseId { get; set; } = 0;
 
-    //public class EMRAttributeRequest
-    //{
-    //    [Required] public string AttributeType { get; set; }
-    //    public string AttributeCode { get; set; }
-    //    public string Label { get; set; }
-    //    public int? SectionId { get; set; }
+        [Required(ErrorMessage = "Dose is required")]
+        [StringLength(100, ErrorMessage = "Dose cannot exceed 100 characters")]
+        public string Dose { get; set; }
 
-    //    // Shape varies per attributeType (array, object, etc.) - keep raw
-    //    [Required] public JsonElement Value { get; set; }
-    //}
+        [StringLength(256, ErrorMessage = "DoseTimes cannot exceed 256 characters")]
+        public string? DoseTimes { get; set; }
+
+        [StringLength(256, ErrorMessage = "DoseTimeLabels cannot exceed 256 characters")]
+        public string? DoseTimeLabels { get; set; }
+
+        [Required(ErrorMessage = "IsActive is required")]
+        [Range(0, 1, ErrorMessage = "IsActive must be 0 or 1")]
+        public int IsActive { get; set; }
+    }
 
    
-
-    //public class EMRVisitResponse
-    //{
-    //    public int Id { get; set; }
-    //}
-
-    //public class GetEMRVisitRequest
-    //{
-    //    public int Id { get; set; }
-    //    public int? VisitId { get; set; }
-    //    public int? PatientId { get; set; }
-    //}
-    ////--------------------------------------------------------------------------------------------------------------
 }
