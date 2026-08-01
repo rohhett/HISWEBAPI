@@ -306,6 +306,9 @@ namespace HISWEBAPI.DTO
         [Required(ErrorMessage = "DocumentId is required")]
         public int DocumentId { get; set; }
 
+        [StringLength(100, ErrorMessage = "Image name cannot exceed 100 characters")]
+        public string ImageName { get; set; }
+
         [Required(ErrorMessage = "Document file is required")]
         public IFormFile DocumentFile { get; set; }
     }

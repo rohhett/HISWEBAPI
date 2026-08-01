@@ -2136,6 +2136,7 @@ namespace HISWEBAPI.Repositories.Implementations
                     new
                     {
                         @documentId = request.DocumentId,
+                        @imageName = request.ImageName,
                         @headerId = request.HeaderId,
                         @documentPath = filePath,
                         @userId = globalValues.userId,

@@ -99,7 +99,8 @@
         public int? IsTeleConsultationService { get; set; }
         public int? IsRegistrationCharge { get; set; }
         public int? RegistrationChargeValidityDays { get; set; }
-       
+        public int? IsPackageExpired { get; set; }
+
 
     }
 

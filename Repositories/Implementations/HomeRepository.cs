@@ -2176,7 +2176,8 @@ namespace HISWEBAPI.Repositories.Implementations
                         IsTeleConsultationService = row.Field<int?>("isTeleConsultationService") ?? 0,
                         IsRegistrationCharge = row.Field<int?>("IsRegistrationCharge") ?? 0,
                         RegistrationChargeValidityDays = row.Field<int?>("RegistrationChargeValidityDays") ?? 0,
-                      
+                        IsPackageExpired = row.Field<int?>("IsPackageExpired") ?? 0,
+
                     }).ToList();
 
                     if (allItems.Any())

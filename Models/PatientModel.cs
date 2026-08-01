@@ -167,13 +167,14 @@
         public string ExpiresOn { get; set; }
         public string PackageServiceNameCode { get; set; }
         public string PackageServiceName { get; set; }
+        public string PackageServiceCode { get; set; }
         public int PackageServiceId { get; set; }
         public int QTY { get; set; }
+        public int PackageServiceCategoryTypeId { get; set; }
         public string PackageServiceCategory { get; set; }
+        public int PackageServiceCategoryId { get; set; }
         public int PackageServiceSubCategoryId { get; set; }
         public int PackageServiceSubSubCategoryId { get; set; }
-        public string PackageServiceCode { get; set; }
-        public int PackageServiceCategoryId { get; set; }
         public int IsMultipleVisitAllow { get; set; }
         public int VisitDuration { get; set; }
         public string VisitDurationType { get; set; }

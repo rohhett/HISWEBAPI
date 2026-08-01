@@ -1347,14 +1347,14 @@ namespace HISWEBAPI.Controllers
         {
             _log.Info($"GetEMRControlDocumentMapping called. HeaderId={headerId}");
 
-            if (headerId <= 0)
+            if (headerId < 0)
             {
                 var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
                 return BadRequest(new
                 {
                     result = false,
                     messageType = alert.Type,
-                    message = "HeaderId must be greater than 0",
+                    message = "HeaderId must be greater than equal to 0",
                     errors = new { headerId }
                 });
             }
