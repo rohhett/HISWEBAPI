@@ -333,5 +333,92 @@ namespace HISWEBAPI.DTO
         public int IsActive { get; set; }
     }
 
-   
+    public class UploadEMRDocumentRequest
+    {
+        [Required(ErrorMessage = "VisitId is required")]
+        public int VisitId { get; set; }
+
+        [Required(ErrorMessage = "DocumentId is required")]
+        public int DocumentId { get; set; }
+
+        [Required(ErrorMessage = "Document file is required")]
+        public IFormFile DocumentFile { get; set; }
+    }
+
+    public class DoctorConsultationDetailsRequest
+    {
+        [Required(ErrorMessage = "DoctorId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "DoctorId must be greater than 0")]
+        public int DoctorId { get; set; }
+
+        [Required(ErrorMessage = "PatientId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "PatientId must be greater than 0")]
+        public int PatientId { get; set; }
+
+        [Required(ErrorMessage = "VisitId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "VisitId must be greater than 0")]
+        public int VisitId { get; set; }
+
+        /// <summary>1 = OPD, 2 = IPD</summary>
+        [Required(ErrorMessage = "VisitTypeId is required")]
+        [Range(1, 2, ErrorMessage = "VisitTypeId must be 1 (OPD) or 2 (IPD)")]
+        public int VisitTypeId { get; set; }
+
+        /// <summary>1 = mark file closed (consultation done), 0 = mark patient out</summary>
+        public int IsFileClosed { get; set; } = 0;
+        public int PatientVitalId { get; set; } = 0;
+        public DateTime VitalDateTime { get; set; }
+
+
+    }
+
+    public class ConsultationHeaderDataRequest
+    {
+        /// <summary>0 = insert new, >0 = existing row Id to delete/replace</summary>
+        public int DataId { get; set; } = 0;
+
+        [Required(ErrorMessage = "SectionId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "SectionId must be greater than 0")]
+        public int SectionId { get; set; }
+
+        [Required(ErrorMessage = "HeaderId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "HeaderId must be greater than 0")]
+        public int HeaderId { get; set; }
+
+        [Required(ErrorMessage = "ControlTypeId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "ControlTypeId must be greater than 0")]
+        public int ControlTypeId { get; set; }
+
+        [Required(ErrorMessage = "TemplateId is required")]
+        public int TemplateId { get; set; } = 0;
+
+        public string? HeaderValue { get; set; }
+
+    }
+
+    public class PatientVitalValueRequest
+    {
+        [Required(ErrorMessage = "VitalId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "VitalId must be greater than 0")]
+        public int VitalId { get; set; }
+        public string? VitalValue { get; set; }
+    }
+
+    public class SavePatientConsultationRequest
+    {
+        [Required(ErrorMessage = "ConsultationDetails is required")]
+        public DoctorConsultationDetailsRequest ConsultationDetails { get; set; }
+
+        public List<ConsultationHeaderDataRequest> ConsultationHeadersData { get; set; } = new();
+        public List<PatientVitalValueRequest> PatientVitalValue { get; set; } = new();
+    }
+
+    public class SavePatientConsultationResponse
+    {
+        public int VisitId { get; set; }
+        public int PatientId { get; set; }
+        public int DoctorId { get; set; }
+    }
+
+
 }

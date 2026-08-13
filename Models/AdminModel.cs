@@ -413,7 +413,9 @@ namespace HISWEBAPI.Models
         public decimal HikePerOut { get; set; }
         public decimal HikePerIn { get; set; }
         public string ActivePaymentModes { get; set; }
-    
+        public int IsRegistrationChargeApplicable { get; set; }
+
+
     }
 
     public class DiscountApprovalMasterModel
@@ -454,6 +456,10 @@ namespace HISWEBAPI.Models
         public int DataTypeId { get; set; }
         public string HeaderName { get; set; }
         public string Options { get; set; }
+        public int Score { get; set; }
+        public string Base64Data { get; set; }
+        public string Description { get; set; }
+
     }
 
     // ─── Doctor Header Mapping (for master screen) ────────────────────────────────

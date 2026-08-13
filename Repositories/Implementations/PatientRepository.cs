@@ -678,6 +678,8 @@ namespace HISWEBAPI.Repositories.Implementations
                     ReportTypeId = row["ReportTypeId"] != DBNull.Value ? Convert.ToInt32(row["ReportTypeId"]) : 0,
                     IsRequiredSeparatePerformingDoctor = row["IsRequiredSeparatePerformingDoctor"] != DBNull.Value ? Convert.ToInt32(row["IsRequiredSeparatePerformingDoctor"]) : 0,
                     DoctorDepartmentIds = row["DoctorDepartmentIds"]?.ToString() ?? string.Empty,
+                    LabTypeId = row["LabTypeId"] != DBNull.Value ? Convert.ToInt32(row["LabTypeId"]) : 0,
+
 
                 };
 
@@ -934,8 +936,8 @@ namespace HISWEBAPI.Repositories.Implementations
                         _log.Info($"PatientMaster RegistrationChargeExpiryDate updated. PatientId={v.PatientId}, ValidityDays={registrationChargeValidityDays}");
                     }
 
-                    // ── 3b. Consultation → DoctorAppointments (CategoryId == 1) ──────
-                    if (item.CategoryId == 1)
+                    // ── 3b. Consultation → DoctorAppointments (CategoryTypeId == 1) ──────
+                    if (item.CategoryTypeId == 1)
                     {
                         var appt = new DoctorAppointments
                         {
@@ -958,12 +960,12 @@ namespace HISWEBAPI.Repositories.Implementations
                         _log.Info($"DoctorAppointments created for DoctorId={item.DoctorId}");
                     }
 
-                    // ── 3c. Investigation (CategoryId == 3) ──────────────────────────
-                    else if (item.CategoryId == 3)
+                    // ── 3c. Investigation (CategoryTypeId == 3) ──────────────────────────
+                    else if (item.CategoryTypeId == 3)
                     {
                         // Barcode – one per unique SampleTypeId (Pathology only)
                         int barCode = 0;
-                        if (item.SubCategoryId == 1 && item.SampleTypeId > 0)
+                        if (item.LabTypeId == 1 && item.SampleTypeId > 0)
                         {
                             if (!sampleTypeBarcodeMap.ContainsKey(item.SampleTypeId))
                             {
@@ -990,19 +992,19 @@ namespace HISWEBAPI.Repositories.Implementations
 
                         // Token number per sub-category
                         int tokenNo = 0;
-                        if (item.SubCategoryId == 1 || item.SubCategoryId == 2 || item.SubCategoryId == 3)
+                        if (item.LabTypeId == 1 || item.LabTypeId == 2 || item.LabTypeId == 3)
                         {
                             tokenNo = Convert.ToInt32(_sqlHelper.ExecuteScalar(
                                 tnx,
                                 "S_GetLabTokenNo",
                                 CommandType.StoredProcedure,
-                                new { @branchId = v.BranchId, @SubCategoryId = item.SubCategoryId },
+                                new { @branchId = v.BranchId, @SubCategoryId = item.LabTypeId },
                                 new { result = 0 }));
                         }
 
-                        if (pathologyTokenNo == 0 && item.SubCategoryId == 1) pathologyTokenNo = tokenNo;
-                        if (radiologyTokenNo == 0 && item.SubCategoryId == 2) radiologyTokenNo = tokenNo;
-                        if (cardiologyTokenNo == 0 && item.SubCategoryId == 3) cardiologyTokenNo = tokenNo;
+                        if (pathologyTokenNo == 0 && item.LabTypeId == 1) pathologyTokenNo = tokenNo;
+                        if (radiologyTokenNo == 0 && item.LabTypeId == 2) radiologyTokenNo = tokenNo;
+                        if (cardiologyTokenNo == 0 && item.LabTypeId == 3) cardiologyTokenNo = tokenNo;
 
                         var pid = new PatientInvestigationDetails
                         {
@@ -1014,8 +1016,8 @@ namespace HISWEBAPI.Repositories.Implementations
                             DoctorId = item.DoctorId,
                             PatientId = v.PatientId,
                             LabNo = labNo,
-                            TokenNo = item.SubCategoryId == 1 ? pathologyTokenNo
-                                    : item.SubCategoryId == 2 ? radiologyTokenNo
+                            TokenNo = item.LabTypeId == 1 ? pathologyTokenNo
+                                    : item.LabTypeId == 2 ? radiologyTokenNo
                                     : cardiologyTokenNo,
                             IsUrgent = item.IsUrgent,
                             BarCode = barCode,
@@ -1978,139 +1980,9 @@ namespace HISWEBAPI.Repositories.Implementations
             }
         }
 
-        public ServiceResult<object> GetPatientVital(int patientId)
-        {
-            try
-            {
-                _log.Info($"GetPatientVital called. PatientId={patientId}");
+     
 
-                var dataTable = _sqlHelper.GetDataTable(
-                    "S_getPatientVital",
-                    CommandType.StoredProcedure,
-                    new { patientId = patientId }
-                );
-
-                if (dataTable == null || dataTable.Rows.Count == 0)
-                {
-                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
-                    _log.Info($"No vitals found for PatientId={patientId}");
-                    return ServiceResult<object>.Failure(
-                        alert.Type,
-                        $"No vitals found for PatientId: {patientId}",
-                        404
-                    );
-                }
-
-                // Group by VitalDateTime first, then take VisitId from that group
-                var grouped = dataTable.AsEnumerable()
-                    .GroupBy(row => row["VitalDateTime"]?.ToString() ?? string.Empty)
-                    .Select(g =>
-                    {
-                        // Take VisitId from the first row that has a non-zero VisitId
-                        // within this VitalDateTime group
-                        int visitId = g
-                            .Select(row => row["VisitId"] == DBNull.Value
-                                ? 0
-                                : Convert.ToInt32(row["VisitId"]))
-                            .FirstOrDefault(v => v != 0);
-
-                        return new
-                        {
-                            VitalDateTime = g.Key,
-                            VisitId = visitId,
-                            Vitals = g.Select(row =>
-                            {
-                                var dict = new Dictionary<string, object>();
-                                foreach (DataColumn col in dataTable.Columns)
-                                {
-                                    // Exclude VitalDateTime and VisitId from inner vitals
-                                    // since they are now at group level
-                                    if (col.ColumnName == "VitalDateTime") continue;
-                                    if (col.ColumnName == "VisitId") continue;
-                                    dict[col.ColumnName] = row[col] == DBNull.Value
-                                        ? null
-                                        : row[col];
-                                }
-                                return dict;
-                            }).ToList()
-                        };
-                    })
-                    .ToList();
-
-                _log.Info($"Retrieved {grouped.Count} VitalDateTime group(s) for PatientId={patientId}");
-
-                return ServiceResult<object>.Success(
-                    grouped,
-                    "Info",
-                    $"{grouped.Count} group(s) retrieved successfully",
-                    200
-                );
-            }
-            catch (Exception ex)
-            {
-                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
-                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
-                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
-            }
-        }
-
-        public ServiceResult<string> SavePatientVital(SavePatientVitalRequest request, AllGlobalValues globalValues)
-        {
-            try
-            {
-                _log.Info($"savePatientVital called. VisitId={request.VisitId}, PatientId={request.PatientId}, VitalId={request.VitalId}, Id={request.Id}");
-
-                var dataTable = _sqlHelper.GetDataTable(
-                    "I_savePatientVital",
-                    CommandType.StoredProcedure,
-                    new
-                    {
-                        @visitId = request.VisitId,
-                        @patientId = request.PatientId,
-                        @vitalId = request.VitalId,
-                        @vitalValue = request.VitalValue,
-                        @vitalDateTime = string.IsNullOrWhiteSpace(request.VitalDateTime)
-                            ? (object)DBNull.Value
-                            : request.VitalDateTime,
-                        @Id = request.Id,
-                        @userId = globalValues.userId,
-                        @ipAddress = globalValues.ipAddress
-                    }
-                );
-
-                bool success = dataTable != null
-                    && dataTable.Rows.Count > 0
-                    && Convert.ToInt32(dataTable.Rows[0]["success"]) == 1;
-
-                if (!success)
-                {
-                    var failAlert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_FAILED");
-                    _log.Error($"savePatientVital SP returned failure for PatientId={request.PatientId}");
-                    return ServiceResult<string>.Failure(failAlert.Type, failAlert.Message, 500);
-                }
-
-
-
-                var alert = _messageService.GetMessageAndTypeByAlertCode(
-                    request.Id > 0 ? "DATA_UPDATED_SUCCESSFULLY" : "DATA_SAVED_SUCCESSFULLY"
-                );
-
-                _log.Info($"PatientVital {(request.Id > 0 ? "updated" : "saved")} successfully. PatientId={request.PatientId}");
-
-                return ServiceResult<string>.Success(
-                    request.Id > 0 ? "Vital updated successfully" : "Vital saved successfully",
-                    alert.Type,
-                    alert.Message,
-                    request.Id > 0 ? 200 : 201
-                );
-            }
-            catch (Exception ex)
-            {
-                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
-                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
-                return ServiceResult<string>.Failure(alert.Type, alert.Message, 500);
-            }
-        }
+       
 
         public ServiceResult<object> GetPatientObservationResultsTrend(int patientId, int pageNumber, int pageSize)
         {
@@ -3049,6 +2921,7 @@ namespace HISWEBAPI.Repositories.Implementations
                 _log.Info($"SavePatientAdvance called. PatientId={request.PatientId}, PatientLedgerId={request.PatientLedgerId}");
 
                 decimal totalPaidAmount = request.PaymentDetails.Sum(p => p.Amount);
+               
 
                 // ── 1. Receipts (IsAdvanceReceipt = 1) ───────────────────────────────
                 var receipt = new Receipts
@@ -3059,7 +2932,7 @@ namespace HISWEBAPI.Repositories.Implementations
                     FTID = 0,
                     VisitId = 0,
                     PatientId = request.PatientId,
-                    Amount = totalPaidAmount,
+                    Amount = request.IsRefund == 0 ? totalPaidAmount : -totalPaidAmount,
                     IsAdvanceReceipt = 1,
                     PlutusTransactionReferenceID = request.PaymentDetails[0].PlutusTransactionReferenceID,
                     TransactionLogId = request.PaymentDetails[0].TransactionLogId,
@@ -3098,7 +2971,7 @@ namespace HISWEBAPI.Repositories.Implementations
                 var ledgerBill = new PatientLedgerBill
                 {
                     PatientId = request.PatientId,
-                    TransactionType = LedgerBillTransactionType.Credit,
+                    TransactionType = request.IsRefund == 0 ? LedgerBillTransactionType.Credit : LedgerBillTransactionType.Refund,
                     LedgerId = request.PatientLedgerId,
                     Amount = totalPaidAmount,
                     UserId = globalValues.userId,
@@ -3113,7 +2986,7 @@ namespace HISWEBAPI.Repositories.Implementations
                 {
                     PatientId = request.PatientId,
                     LedgerId = ledgerId,
-                    TransactionType = LedgerTransactionType.Credit,
+                    TransactionType = request.IsRefund == 0 ? LedgerTransactionType.Credit : LedgerTransactionType.Refund,
                     Amount = totalPaidAmount,
                     VisitId = 0,
                     BillId = 0,
@@ -5040,9 +4913,671 @@ namespace HISWEBAPI.Repositories.Implementations
                 return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
             }
         }
-     
 
-     
 
+        public ServiceResult<SaveOPDAppointmentResponse> SaveOPDAppointment(
+    SaveOPDAppointmentRequest request,
+    AllGlobalValues globalValues)
+        {
+            var connectionString = _configuration.GetConnectionString("ConnectionString");
+            SqlConnection con = new SqlConnection(connectionString);
+            con.Open();
+            var tnx = CustomSqlHelper.getSqlTransaction(con);
+
+            try
+            {
+                _log.Info($"SaveOPDAppointment called. PatientId={request.PatientDetails.PatientId}, BranchId={request.VisitDetails.BranchId}, DoctorId={request.VisitDetails.DoctorId}");
+
+                int receiptId = 0;
+                int ledgerId = 0;
+                int patientId = request.PatientDetails.PatientId;
+                int appId = 0;
+
+                // ── Parse DOB once — needed for both IU_PatientMaster and I_DoctorAppointmentPreBooking ──
+                DateTime dobParsed;
+                string[] dobFormats = { "dd-MM-yyyy", "yyyy-MM-dd", "dd/MM/yyyy", "MM/dd/yyyy", "yyyy/MM/dd" };
+
+                bool dobParsedOk = DateTime.TryParseExact(
+                    request.PatientDetails.Dob?.Trim(),
+                    dobFormats,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None,
+                    out dobParsed);
+
+                if (!dobParsedOk)
+                    dobParsedOk = DateTime.TryParse(request.PatientDetails.Dob?.Trim(), out dobParsed);
+
+                if (!dobParsedOk)
+                {
+                    tnx.Rollback();
+                    _log.Warn($"Invalid DOB format received: {request.PatientDetails.Dob}");
+                    var alertDob = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return ServiceResult<SaveOPDAppointmentResponse>.Failure(
+                        alertDob.Type,
+                        $"Invalid date of birth format: '{request.PatientDetails.Dob}'. Expected formats: dd-MM-yyyy or yyyy-MM-dd",
+                        400
+                    );
+                }
+
+                // ── Check if payment details exist and have a valid amount ────────────
+                bool hasPayment = request.PaymentDetails != null
+                                  && request.PaymentDetails.Any()
+                                  && request.PaymentDetails.Sum(p => p.Amount) > 0;
+
+                if (hasPayment)
+                {
+                    decimal totalPaidAmount = request.PaymentDetails.Sum(p => p.Amount);
+
+                    // ── 1. IU_PatientMaster — only when PatientId = 0 (new patient) ──
+                    if (request.PatientDetails.PatientId == 0)
+                    {
+                        var patientResult = _sqlHelper.ExecuteScalar(
+                            "IU_PatientMaster",
+                            CommandType.StoredProcedure,
+                            new
+                            {
+                                @hospId = globalValues.hospId,
+                                @branchId = request.PatientDetails.BranchId,
+                                @patientId = 0,
+                                @title = request.PatientDetails.Title,
+                                @firstName = request.PatientDetails.FirstName,
+                                @middleName = request.PatientDetails.MiddleName ?? (object)DBNull.Value,
+                                @lastName = request.PatientDetails.LastName ?? (object)DBNull.Value,
+                                @ageYears = request.PatientDetails.AgeYears,
+                                @ageMonths = request.PatientDetails.AgeMonths,
+                                @ageDays = request.PatientDetails.AgeDays,
+                                @dob = dobParsed,
+                                @gender = request.PatientDetails.Gender,
+                                @selfContactNumber = request.PatientDetails.SelfContactNumber,
+                                @address = request.PatientDetails.Address ?? (object)DBNull.Value,
+                                @countryId = request.PatientDetails.CountryId,
+                                @country = request.PatientDetails.Country ?? (object)DBNull.Value,
+                                @stateId = request.PatientDetails.StateId,
+                                @state = request.PatientDetails.State ?? (object)DBNull.Value,
+                                @districtId = request.PatientDetails.DistrictId,
+                                @district = request.PatientDetails.District ?? (object)DBNull.Value,
+                                @cityId = request.PatientDetails.CityId,
+                                @city = request.PatientDetails.City ?? (object)DBNull.Value,
+                                @insuranceCompanyId = request.PatientDetails.InsuranceCompanyId,
+                                @corporateId = request.PatientDetails.CorporateId,
+                                @maritalStatus = (object)DBNull.Value,
+                                @relation = (object)DBNull.Value,
+                                @relativeName = (object)DBNull.Value,
+                                @idProofName = (object)DBNull.Value,
+                                @idProofNumber = (object)DBNull.Value,
+                                @emergencyContactNumber = (object)DBNull.Value,
+                                @email = (object)DBNull.Value,
+                                @privilegedCardNumber = (object)DBNull.Value,
+                                @cardNo = (object)DBNull.Value,
+                                @patientImagePath = (object)DBNull.Value,
+                                @IsVaccination = 0,
+                                @vipPatient = (object)DBNull.Value,
+                                @PolicyNo = (object)DBNull.Value,
+                                @PolicyCardNo = (object)DBNull.Value,
+                                @ExpiryDate = (object)DBNull.Value,
+                                @CardHolder = (object)DBNull.Value,
+                                @ReferalNo = (object)DBNull.Value,
+                                @ReferalDate = (object)DBNull.Value,
+                                @OnlinePtId = 0,
+                                @healthId = (object)DBNull.Value,
+                                @healthIdNumber = (object)DBNull.Value,
+                                @landlineNo = (object)DBNull.Value,
+                                @birthPlace = (object)DBNull.Value,
+                                @religion = (object)DBNull.Value,
+                                @relationPhone = (object)DBNull.Value,
+                                @relationAge = (object)DBNull.Value,
+                                @relationGender = (object)DBNull.Value,
+                                @eMG_FirstName = (object)DBNull.Value,
+                                @eMG_LastName = (object)DBNull.Value,
+                                @eMG_Relation = (object)DBNull.Value,
+                                @eMG_MobileNo = (object)DBNull.Value,
+                                @eMG_ResidentNo = (object)DBNull.Value,
+                                @eMG_Address = (object)DBNull.Value,
+                                @isInternational = 0,
+                                @locality = (object)DBNull.Value,
+                                @passportNumber = (object)DBNull.Value,
+                                @internationalNo = (object)DBNull.Value,
+                                @membershipNo = (object)DBNull.Value,
+                                @patientType = (object)DBNull.Value,
+                                @identityMark = (object)DBNull.Value,
+                                @identityMark2 = (object)DBNull.Value,
+                                @referenceType = (object)DBNull.Value,
+                                @remarks = (object)DBNull.Value,
+                                @userId = globalValues.userId,
+                                @IpAddress = globalValues.ipAddress
+                            }
+                        );
+
+                        object rawResult = patientResult;
+                        if (Convert.IsDBNull(rawResult) || rawResult == null)
+                        {
+                            tnx.Rollback();
+                            var failAlert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                            return ServiceResult<SaveOPDAppointmentResponse>.Failure(
+                                failAlert.Type, "Failed to create patient record", 500);
+                        }
+
+                        int patientResultValue = Convert.ToInt32(rawResult);
+
+                        if (patientResultValue == -1)
+                        {
+                            tnx.Rollback();
+                            var alertDuplicate = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                            _log.Warn($"Patient already exists: {request.PatientDetails.FirstName} {request.PatientDetails.LastName}, Contact={request.PatientDetails.SelfContactNumber}");
+                            return ServiceResult<SaveOPDAppointmentResponse>.Failure(
+                                alertDuplicate.Type,
+                                "Patient already exists with the same name and contact number",
+                                409
+                            );
+                        }
+
+                        patientId = patientResultValue;
+                        _log.Info($"New patient created via IU_PatientMaster. PatientId={patientId}");
+
+                        // Invalidate patient cache after new patient created
+                        _distributedCache.Remove(CACHE_KEY_PatientMaster_All);
+                        _distributedCache.Remove(CACHE_KEY_SearchPatientMaster_All);
+                    }
+
+                    // ── 2. Receipts (IsAdvanceReceipt = 1) ───────────────────────────
+                    var receipt = new Receipts
+                    {
+                        HospId = globalValues.hospId,
+                        BranchId = request.VisitDetails.BranchId,
+                        FTID = 0,
+                        VisitId = 0,
+                        PatientId = patientId,
+                        Amount = totalPaidAmount,
+                        IsAdvanceReceipt = 1,
+                        PlutusTransactionReferenceID = string.Empty,
+                        TransactionLogId = string.Empty,
+                        UserId = globalValues.userId,
+                        IpAddress = globalValues.ipAddress,
+                        UniqueId = Guid.NewGuid().ToString()
+                    };
+
+                    receiptId = Convert.ToInt32(receipt.Create(_sqlHelper, tnx));
+                    _log.Info($"Advance receipt created. ReceiptId={receiptId}");
+
+                    // ── 3. Receipt Payment Mode Details ──────────────────────────────
+                    foreach (var p in request.PaymentDetails)
+                    {
+                        // PaymentModeTypeId 4 = Credit → skip
+                        if (p.PaymentModeTypeId == 4)
+                            continue;
+
+                        var rpmd = new ReceiptsPaymentModeDetails
+                        {
+                            HospId = globalValues.hospId,
+                            BranchId = request.VisitDetails.BranchId,
+                            ReceiptID = receiptId,
+                            Amount = p.Amount,
+                            PaymentModeId = p.PaymentModeId,
+                            BankId = p.BankId > 0 ? p.BankId : (int?)null,
+                            ReferenceNo = p.RefNo,
+                            UserId = globalValues.userId,
+                            IpAddress = globalValues.ipAddress
+                        };
+
+                        rpmd.Create(_sqlHelper, tnx);
+                    }
+                    _log.Info($"Receipt payment mode details created for ReceiptId={receiptId}");
+
+                    // ── 4. PatientLedgerBill (upsert running balance) ─────────────────
+                    var ledgerBill = new PatientLedgerBill
+                    {
+                        PatientId = patientId,
+                        TransactionType = LedgerBillTransactionType.Credit,
+                        LedgerId = 0,
+                        Amount = totalPaidAmount,
+                        UserId = globalValues.userId,
+                        IpAddress = globalValues.ipAddress
+                    };
+
+                    ledgerId = Convert.ToInt32(ledgerBill.Create(_sqlHelper, tnx));
+                    _log.Info($"PatientLedgerBill upserted. LedgerId={ledgerId}");
+
+                    // ── 5. PatientLedgerDetails (transaction history row) ─────────────
+                    var ledgerDetails = new PatientLedgerDetails
+                    {
+                        PatientId = patientId,
+                        LedgerId = ledgerId,
+                        TransactionType = LedgerTransactionType.Credit,
+                        Amount = totalPaidAmount,
+                        VisitId = 0,
+                        BillId = 0,
+                        ReceiptId = receiptId,
+                        UserId = globalValues.userId,
+                        IpAddress = globalValues.ipAddress
+                    };
+
+                    ledgerDetails.Create(_sqlHelper, tnx);
+                    _log.Info($"PatientLedgerDetails inserted. LedgerId={ledgerId}, ReceiptId={receiptId}");
+                }
+                else
+                {
+                    _log.Info("No payment details provided. Skipping receipt and ledger steps.");
+                }
+
+                // ── 6. I_DoctorAppointmentPreBooking (always runs) ───────────────────
+                var appointmentResult = _sqlHelper.DML(tnx, "I_DoctorAppointmentPreBooking",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @BranchId = request.VisitDetails.BranchId,
+                        @RoleId = request.VisitDetails.RoleId,
+                        @PatientId = patientId,
+                        @title = request.PatientDetails.Title,
+                        @firstName = request.PatientDetails.FirstName,
+                        @middleName = request.PatientDetails.MiddleName ?? (object)DBNull.Value,
+                        @lastName = request.PatientDetails.LastName ?? (object)DBNull.Value,
+                        @ageYears = request.PatientDetails.AgeYears,
+                        @ageMonths = request.PatientDetails.AgeMonths,
+                        @ageDays = request.PatientDetails.AgeDays,
+                        @dob = dobParsed,
+                        @gender = request.PatientDetails.Gender,
+                        @selfContactNumber = request.PatientDetails.SelfContactNumber,
+                        @address = request.PatientDetails.Address ?? (object)DBNull.Value,
+                        @countryId = request.PatientDetails.CountryId,
+                        @country = request.PatientDetails.Country ?? (object)DBNull.Value,
+                        @stateId = request.PatientDetails.StateId,
+                        @state = request.PatientDetails.State ?? (object)DBNull.Value,
+                        @districtId = request.PatientDetails.DistrictId,
+                        @district = request.PatientDetails.District ?? (object)DBNull.Value,
+                        @cityId = request.PatientDetails.CityId,
+                        @city = request.PatientDetails.City ?? (object)DBNull.Value,
+                        @InsuranceCompanyId = request.VisitDetails.InsuranceCompanyId,
+                        @CorporateId = request.VisitDetails.CorporateId,
+                        @DoctorId = request.VisitDetails.DoctorId,
+                        @ServiceItemId = request.VisitDetails.ServiceItemId.HasValue
+                                                ? request.VisitDetails.ServiceItemId.Value
+                                                : (object)DBNull.Value,
+                        @ServiceName = request.VisitDetails.ServiceName ?? (object)DBNull.Value,
+                        @Amount = request.VisitDetails.Amount,
+                        @ReceiptId = receiptId,
+                        @AppDateTime = request.VisitDetails.AppDateTime,
+                        @SlotId = request.VisitDetails.SlotId.HasValue
+                                                ? request.VisitDetails.SlotId.Value
+                                                : (object)DBNull.Value,
+                        @SourceType = request.VisitDetails.SourceType ?? (object)DBNull.Value,
+                        @UserId = globalValues.userId,
+                        @IpAddress = globalValues.ipAddress
+                    },
+                    new { result = 0 }
+                );
+
+                appId = Convert.ToInt32(appointmentResult);
+                _log.Info($"DoctorAppointmentPreBooking inserted. AppId={appId}, PatientId={patientId}, DoctorId={request.VisitDetails.DoctorId}");
+
+                tnx.Commit();
+                _log.Info($"SaveOPDAppointment committed. AppId={appId}, PatientId={patientId}, ReceiptId={receiptId}, LedgerId={ledgerId}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<SaveOPDAppointmentResponse>.Success(
+                    new SaveOPDAppointmentResponse
+                    {
+                        AppId = appId,
+                        PatientId = patientId,
+                        ReceiptId = receiptId,
+                        LedgerId = ledgerId
+                    },
+                    alert.Type,
+                    "OPD appointment saved successfully",
+                    201
+                );
+            }
+            catch (Exception ex)
+            {
+                try { tnx.Rollback(); } catch { /* swallow rollback exception */ }
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<SaveOPDAppointmentResponse>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+            finally
+            {
+                tnx.Dispose();
+                if (con.State == ConnectionState.Open)
+                    con.Close();
+            }
+        }
+
+        public ServiceResult<object> GetDoctorAppointmentPreBookingDetails(
+    DateTime fromDate,
+    DateTime toDate,
+    int dateTypeId,
+    int branchId,
+    int doctorId,
+    string sourceType,
+    int id,
+    string tokenNo)
+        {
+            try
+            {
+                _log.Info($"GetDoctorAppointmentPreBookingDetails called. FromDate={fromDate:yyyy-MM-dd}, ToDate={toDate:yyyy-MM-dd}, DateTypeId={dateTypeId}, BranchId={branchId}, DoctorId={doctorId}, TokenNo={tokenNo ?? "All"}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetDoctorAppointmentPreBookingDetails",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @fromDate = fromDate,
+                        @toDate = toDate,
+                        @dateTypeId = dateTypeId,
+                        @branchId = branchId,
+                        @doctorId = doctorId,
+                        @sourceType= sourceType,
+                        @id = id,
+                        @tokenNo = (object)tokenNo ?? DBNull.Value
+                    }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info("No credit note request details found for the given filters");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        "No credit note request details found",
+                        404
+                    );
+                }
+
+                // Raw SP output, no model mapping — new columns surface automatically
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetDoctorAppointmentPreBookingDetails retrieved {result.Count} record(s)");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    result,
+                    alert1.Type,
+                    $"{result.Count} record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        // Slot length in minutes — change here to affect slot generation globally
+        private const int SlotDurationMinutes = 30;
+        private const int TotalDaysToShow = 30;
+
+        public ServiceResult<object> GetDoctorAppointmentSlots(int branchId, int doctorId, DateTime appointmentDate)
+        {
+            try
+            {
+                _log.Info($"GetDoctorAppointmentSlots called. BranchId={branchId}, DoctorId={doctorId}, AppointmentDate={appointmentDate:yyyy-MM-dd}");
+
+                DateTime fromDate = appointmentDate.Date;
+                DateTime toDate = fromDate.AddDays(TotalDaysToShow - 1);
+
+                // 1. Doctor's weekly timing windows (a day can have multiple windows, per your screenshot)
+                var timingTable = _sqlHelper.GetDataTable(
+                    "S_GetDoctorTimingDetailsForSlots",
+                    CommandType.StoredProcedure,
+                    new { @branchId = branchId, @doctorId = doctorId }
+                );
+
+                if (timingTable == null || timingTable.Rows.Count == 0)
+                {
+                    var alertNoTiming = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No active timing configured for DoctorId={doctorId}, BranchId={branchId}");
+                    return ServiceResult<object>.Failure(
+                        alertNoTiming.Type,
+                        "No timing configured for this doctor",
+                        404
+                    );
+                }
+
+                // Group windows by Day name ("Wednesday", "Thursday" ...)
+                var timingByDay = timingTable.AsEnumerable()
+                    .GroupBy(r => r.Field<string>("Day"), StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(
+                        g => g.Key,
+                        g => g.Select(r => new
+                        {
+                            StartTiming = r.Field<string>("StartTiming"),
+                            EndTiming = r.Field<string>("EndTiming")
+                        }).ToList(),
+                        StringComparer.OrdinalIgnoreCase);
+
+                // 2. Existing non-cancelled bookings within the range
+                var bookedTable = _sqlHelper.GetDataTable(
+                    "S_GetDoctorBookedSlotsForRange",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @branchId = branchId,
+                        @doctorId = doctorId,
+                        @fromDate = fromDate,
+                        @toDate = toDate
+                    }
+                );
+
+                var bookedByDateTime = new Dictionary<DateTime, (int PatientId, string TokenNo)>();
+                if (bookedTable != null)
+                {
+                    foreach (DataRow row in bookedTable.Rows)
+                    {
+                        DateTime appDt = Convert.ToDateTime(row["AppDateTime"]);
+                        int patientId = row["PatientId"] == DBNull.Value ? 0 : Convert.ToInt32(row["PatientId"]);
+                        string tokenNo = row["TokenNo"] == DBNull.Value ? null : row["TokenNo"].ToString();
+
+                        if (!bookedByDateTime.ContainsKey(appDt))
+                            bookedByDateTime.Add(appDt, (patientId, tokenNo));
+                    }
+                }
+
+                DateTime now = DateTime.Now;
+                var result = new List<Dictionary<string, object>>();
+
+                // 3. Generate slots for the next N days
+                for (int d = 0; d < TotalDaysToShow; d++)
+                {
+                    DateTime currentDate = fromDate.AddDays(d);
+                    string dayName = currentDate.DayOfWeek.ToString();
+
+                    if (!timingByDay.TryGetValue(dayName, out var windows))
+                        continue; // no timing configured for this day => no slots shown, matches original UI behavior
+
+                    int slotIndex = 0;
+
+                    foreach (var window in windows)
+                    {
+                        if (!DateTime.TryParse(window.StartTiming, out DateTime startTime) ||
+                            !DateTime.TryParse(window.EndTiming, out DateTime endTime))
+                        {
+                            _log.Warn($"Invalid timing format. Day={dayName}, Start={window.StartTiming}, End={window.EndTiming}");
+                            continue;
+                        }
+
+                        DateTime slotStart = currentDate.Date.Add(startTime.TimeOfDay);
+                        DateTime windowEnd = currentDate.Date.Add(endTime.TimeOfDay);
+
+                        while (slotStart.AddMinutes(SlotDurationMinutes) <= windowEnd)
+                        {
+                            DateTime slotEnd = slotStart.AddMinutes(SlotDurationMinutes);
+
+                            // Deterministic & reproducible across calls
+                            string slotTimingId = $"{currentDate:yyMMdd}{doctorId}{slotIndex}";
+
+                            bool isBooked = bookedByDateTime.TryGetValue(slotStart, out var bookedInfo);
+                            bool isExpired = slotStart < now;
+
+                            result.Add(new Dictionary<string, object>
+                    {
+                        { "SlotTimingId", slotTimingId },
+                        { "AppointmentDate", currentDate.ToString("dd-MM-yyyy") },
+                        { "Day", dayName },
+                        { "SlotStartTime", slotStart.ToString("hh:mm tt") },
+                        { "SlotEndTime", slotEnd.ToString("hh:mm tt") },
+                        { "SlotStartDateTime", slotStart },
+                        { "SlotEndDateTime", slotEnd },
+                        { "IsBooked", isBooked ? 1 : 0 },
+                        { "IsExpired", isExpired ? 1 : 0 },
+                        { "PatientId", isBooked ? bookedInfo.PatientId : (object)null },
+                        { "TokenNo", isBooked ? bookedInfo.TokenNo : null }
+                    });
+
+                            slotIndex++;
+                            slotStart = slotEnd;
+                        }
+                    }
+                }
+
+                if (!result.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No slots generated for DoctorId={doctorId} in the given range");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        "No slots available for this doctor in the selected date range",
+                        404
+                    );
+                }
+
+                _log.Info($"GetDoctorAppointmentSlots generated {result.Count} slot(s) for DoctorId={doctorId}");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    result,
+                    alert1.Type,
+                    $"{result.Count} slot(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<string> CancelDoctorAppointmentPreBooking(int id, string cancelReason, AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CancelDoctorAppointmentPreBooking called. Id={id}");
+
+                var result = _sqlHelper.DML("U_CancelDoctorAppointmentPreBooking", CommandType.StoredProcedure, new
+                {
+                    @Id = id,
+                    @userId = globalValues.userId,
+                    @cancelReason = cancelReason,
+                    @ipAddress = globalValues.ipAddress
+                });
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                _log.Info($"Doctor appointment pre-booking cancelled successfully. Id={id}");
+                return ServiceResult<string>.Success(
+                    "Appointment pre-booking cancelled successfully",
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<string> ConfirmDoctorAppointmentPreBooking(int id, AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"ConfirmDoctorAppointmentPreBooking called. Id={id}");
+
+                var result = _sqlHelper.DML("U_ConfirmDoctorAppointmentPreBooking", CommandType.StoredProcedure, new
+                {
+                    @Id = id,
+                    @userId = globalValues.userId,
+                    @ipAddress = globalValues.ipAddress
+                });
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                _log.Info($"Doctor appointment pre-booking confirmed successfully. Id={id}");
+                return ServiceResult<string>.Success(
+                    "Appointment pre-booking confirmed successfully",
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<string> RescheduleDoctorAppointmentPreBooking(int id, int slotId, DateTime appDateTime, AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"RescheduleDoctorAppointmentPreBooking called. Id={id}, SlotId={slotId}, AppDateTime={appDateTime}");
+
+                var result = _sqlHelper.DML("U_RescheduleDoctorAppointmentPreBooking", CommandType.StoredProcedure, new
+                {
+                    @Id = id,
+                    @userId = globalValues.userId,
+                    @slotId = slotId,
+                    @AppDateTime = appDateTime,
+                    @ipAddress = globalValues.ipAddress
+                });
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                _log.Info($"Doctor appointment pre-booking rescheduled successfully. Id={id}");
+                return ServiceResult<string>.Success(
+                    "Appointment pre-booking rescheduled successfully",
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
     }
 }

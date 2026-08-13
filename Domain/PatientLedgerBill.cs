@@ -7,7 +7,8 @@ namespace HISWEBAPI.Domain
     public enum LedgerBillTransactionType
     {
         Credit = 1,
-        Debit = 2
+        Debit = 2,
+        Refund=3
     }
 
     public class PatientLedgerBill

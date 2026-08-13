@@ -48,8 +48,7 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<object> GetPatientBalanceAmountIPD(string uhid);
         ServiceResult<object> GetPatientBalanceAmountPharmacy(string uhid);
         ServiceResult<IEnumerable<Dictionary<string, object>>> SearchPatientForConsultation(SearchPatientForConsultationRequest request);
-        ServiceResult<object> GetPatientVital(int patientId);
-        ServiceResult<string> SavePatientVital(SavePatientVitalRequest request, AllGlobalValues globalValues);
+       
         ServiceResult<object> GetPatientObservationResultsTrend(int patientId, int pageNumber, int pageSize);
         ServiceResult<SaveIPDAdmissionResponse> SaveIPDAdmission(SaveIPDAdmissionRequest request, AllGlobalValues globalValues);
         ServiceResult<object> SearchIPDPatient(SearchIPDPatientRequest request, AllGlobalValues globalValues);
@@ -106,6 +105,20 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<object> GetWriteOffRequestListForApproval(string fromDate, string toDate, int branchId, AllGlobalValues globalValues);
         ServiceResult<object> GetWriteOffRequestDetailsByWriteOffId(int writeOffId);
         ServiceResult<object> GetWriteOffRequestApprovalDetails(int writeOffId);
+        ServiceResult<SaveOPDAppointmentResponse> SaveOPDAppointment(SaveOPDAppointmentRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetDoctorAppointmentPreBookingDetails(
+    DateTime fromDate,
+    DateTime toDate,
+    int dateTypeId,
+    int branchId,
+    int doctorId,
+    string sourceType,
+    int id,
+    string tokenNo);
 
+        ServiceResult<object> GetDoctorAppointmentSlots(int branchId, int doctorId, DateTime appointmentDate);
+        ServiceResult<string> CancelDoctorAppointmentPreBooking(int id, string cancelReason, AllGlobalValues globalValues);
+        ServiceResult<string> ConfirmDoctorAppointmentPreBooking(int id, AllGlobalValues globalValues);
+        ServiceResult<string> RescheduleDoctorAppointmentPreBooking(int id, int slotId, DateTime appDateTime, AllGlobalValues globalValues);
     }
 }

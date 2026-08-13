@@ -82,7 +82,7 @@ namespace HISWEBAPI.DTO
         public int CityId { get; set; }
         public string? City { get; set; }
 
-        public int InsuranceCompanyId { get; set; }
+        public int InsuranceCompanyId { get; set; } = 0;
         public int CorporateId { get; set; }
 
         [StringLength(100)]
@@ -215,11 +215,17 @@ namespace HISWEBAPI.DTO
 
         public int SubSubCategoryId { get; set; }
 
-        /// <summary>SubCategoryId: 1=Pathology, 2=Radiology, 3=Cardiology</summary>
+       
         public int SubCategoryId { get; set; }
 
-        /// <summary>CategoryId: 1=Consultation, 3=Investigation</summary>
+  
         public int CategoryId { get; set; }
+
+        /// <summary>CategoryId: 1=Consultation, 3=Investigation</summary>
+        public int CategoryTypeId { get; set; }
+
+        /// <summary>SubCategoryId: 1=Pathology, 2=Radiology, 3=Cardiology</summary>
+        public int LabTypeId { get; set; }
 
         [Required(ErrorMessage = "ServiceName is required")]
         public string ServiceName { get; set; }
@@ -368,16 +374,7 @@ namespace HISWEBAPI.DTO
         public string ToDate { get; set; }
     }
 
-    public class SavePatientVitalRequest
-    {
-        public int VisitId { get; set; }
-        public int PatientId { get; set; }
-        public int VitalId { get; set; }
-        public string VitalValue { get; set; }
-        public string VitalDateTime { get; set; }
-        public int Id { get; set; } = 0;
-    }
-
+  
     public class SaveIPDAdmissionRequest
     {
         [Required(ErrorMessage = "PatientId is required")]
@@ -622,6 +619,8 @@ namespace HISWEBAPI.DTO
 
         [Range(0, int.MaxValue, ErrorMessage = "PatientLedgerId must be greater than or equal to 0")]
         public int PatientLedgerId { get; set; } = 0;
+        public int IsRefund { get; set; } = 0;
+
 
         [Required(ErrorMessage = "PaymentDetails is required")]
         [MinLength(1, ErrorMessage = "At least one payment detail is required")]
@@ -994,5 +993,100 @@ namespace HISWEBAPI.DTO
     public class SaveWriteOffResponse
     {
         public int WriteOffId { get; set; }
+    }
+
+    public class SaveOPDAppointmentRequest
+    {
+        [Required(ErrorMessage = "VisitDetails are required")]
+        public OPDAppointmentVisitDetails VisitDetails { get; set; }
+
+        [Required(ErrorMessage = "PatientDetails are required")]
+        public OPDAppointmentPatientDetails PatientDetails { get; set; }
+
+        public List<PaymentDetailRequest> PaymentDetails { get; set; } = new();
+    }
+
+    public class OPDAppointmentPatientDetails
+    {
+        public int PatientId { get; set; } = 0;
+        public int BranchId { get; set; } = 0;
+        public int RoleId { get; set; } = 0;
+
+        [Required(ErrorMessage = "Title is required")]
+        [StringLength(20, ErrorMessage = "Title cannot exceed 20 characters")]
+        public string Title { get; set; }
+
+        [Required(ErrorMessage = "FirstName is required")]
+        [StringLength(100, ErrorMessage = "FirstName cannot exceed 100 characters")]
+        public string FirstName { get; set; }
+
+        [StringLength(100)]
+        public string? MiddleName { get; set; }
+
+        [StringLength(100)]
+        public string? LastName { get; set; }
+
+        [Required(ErrorMessage = "AgeYears is required")]
+        public int AgeYears { get; set; }
+
+        [Required(ErrorMessage = "AgeMonths is required")]
+        public int AgeMonths { get; set; }
+
+        [Required(ErrorMessage = "AgeDays is required")]
+        public int AgeDays { get; set; }
+
+        [Required(ErrorMessage = "DOB is required")]
+        public string Dob { get; set; }
+
+        [Required(ErrorMessage = "Gender is required")]
+        [RegularExpression("^(Male|Female|Other)$", ErrorMessage = "Gender must be Male, Female, or Other")]
+        public string Gender { get; set; }
+
+        [Required(ErrorMessage = "SelfContactNumber is required")]
+        [RegularExpression(@"^\d{10}$", ErrorMessage = "Contact must be exactly 10 digits")]
+        public string SelfContactNumber { get; set; }
+
+        public string? Address { get; set; }
+        public int CountryId { get; set; } = 0;
+        public string? Country { get; set; }
+        public int StateId { get; set; } = 0;
+        public string? State { get; set; }
+        public int DistrictId { get; set; } = 0;
+        public string? District { get; set; }
+        public int CityId { get; set; } = 0;
+        public string? City { get; set; }
+        public int InsuranceCompanyId { get; set; } = 0;
+        public int CorporateId { get; set; } = 0;
+    }
+
+    public class OPDAppointmentVisitDetails
+    {
+        [Required(ErrorMessage = "BranchId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "BranchId must be greater than 0")]
+        public int BranchId { get; set; }
+
+        [Required(ErrorMessage = "DoctorId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "DoctorId must be greater than 0")]
+        public int DoctorId { get; set; }
+
+        [Required(ErrorMessage = "AppDateTime is required")]
+        public DateTime AppDateTime { get; set; }
+
+        public int RoleId { get; set; } = 0;
+        public int InsuranceCompanyId { get; set; } = 0;
+        public int CorporateId { get; set; } = 0;
+        public int? ServiceItemId { get; set; }
+        public string? ServiceName { get; set; }
+        public decimal Amount { get; set; } = 0;
+        public int? SlotId { get; set; }
+        public string? SourceType { get; set; }
+    }
+
+    public class SaveOPDAppointmentResponse
+    {
+        public int AppId { get; set; }
+        public int PatientId { get; set; }
+        public int ReceiptId { get; set; }
+        public int LedgerId { get; set; }
     }
 }

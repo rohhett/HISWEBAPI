@@ -2446,5 +2446,563 @@ namespace HISWEBAPI.Repositories.Implementations
                 return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
             }
         }
+
+        public ServiceResult<string> UploadEMRDocument(
+    UploadEMRDocumentRequest request,
+    AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"UploadEMRDocument called. VisitId={request.VisitId}, DocumentId={request.DocumentId}");
+
+                // Validate file
+                if (request.DocumentFile == null || request.DocumentFile.Length == 0)
+                {
+                    var alertFile = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return ServiceResult<string>.Failure(
+                        alertFile.Type,
+                        "Document file is required",
+                        400
+                    );
+                }
+
+                // Upload file to DMS
+                var fileUploadHelper = new FileUploadHelper(_configuration);
+                var (uploadSuccess, filePath, uploadError) = fileUploadHelper.UploadFile(
+                    request.DocumentFile,
+                    "EMRDocuments"
+                );
+
+                if (!uploadSuccess)
+                {
+                    _log.Error($"EMR document upload failed: {uploadError}");
+                    var alertUpload = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                    return ServiceResult<string>.Failure(
+                        alertUpload.Type,
+                        $"Document file upload failed: {uploadError}",
+                        500
+                    );
+                }
+
+                _log.Info($"EMR document uploaded successfully: {filePath}");
+
+                // Save to database (upsert on DocumentId + VisitId)
+                _sqlHelper.DML(
+                    "IU_EMRDocumentMapping",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @documentId = request.DocumentId,
+                        @VisitId = request.VisitId,
+                        @documentPath = filePath,
+                        @userId = globalValues.userId,
+                        @IpAddress = globalValues.ipAddress
+                    }
+                );
+
+                // Clear cache for this visit's documents
+                _distributedCache.Remove($"_EMRDocumentMapping_{request.VisitId}");
+                _log.Info($"Cleared EMRDocumentMapping cache for VisitId={request.VisitId}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    filePath,
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<object> GetEMRDocumentMapping(int visitId)
+        {
+            try
+            {
+                _log.Info($"GetEMRDocumentMapping called. VisitId={visitId}");
+
+                string cacheKey = $"_EMRDocumentMapping_{visitId}";
+
+                var cachedData = _distributedCache.GetString(cacheKey);
+                List<Dictionary<string, object>> documents;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"EMRDocumentMapping retrieved from cache. Key={cacheKey}");
+                    documents = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"EMRDocumentMapping cache miss. Fetching from database. Key={cacheKey}");
+
+                    // Raw DataTable -> List<Dictionary<string,object>> (no model mapping,
+                    // so any new columns added to the SP automatically flow through)
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_EMRDocumentMapping",
+                        CommandType.StoredProcedure,
+                        new { @VisitId = visitId }
+                    );
+
+                    documents = dataTable?.AsEnumerable().Select(row =>
+                        dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                            col => col.ColumnName,
+                            col => row[col] == DBNull.Value ? null : row[col]
+                        )
+                    ).ToList() ?? new List<Dictionary<string, object>>();
+
+                    if (documents.Any())
+                    {
+                        var serialized = JsonSerializer.Serialize(documents);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(cacheKey, serialized, cacheOptions);
+                        _log.Info($"EMRDocumentMapping cached. Key={cacheKey}, Count={documents.Count}");
+                    }
+                }
+
+                if (documents == null || !documents.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No EMR documents found for VisitId={visitId}");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        "No documents found for this visit",
+                        404
+                    );
+                }
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    documents,
+                    alert1.Type,
+                    $"{documents.Count} document(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<object> GetEMRSectionHeaderMappingByDoctorId(int doctorId, int usedForPatientTypeId)
+        {
+            try
+            {
+                _log.Info($"GetEMRSectionHeaderMappingByDoctorId called. DoctorId={doctorId}, UsedForPatientTypeId={usedForPatientTypeId}");
+
+                // Raw DataTable -> List<Dictionary<string,object>> (no model mapping,
+                // so any new columns added to the SP automatically flow through)
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetEMRSectionHeaderMappingByDoctorId",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @doctorId = doctorId,
+                        @usedForPatientTypeId = usedForPatientTypeId
+                    }
+                );
+
+                var mappings = dataTable?.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList() ?? new List<Dictionary<string, object>>();
+
+                if (!mappings.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No EMR section header mappings found for DoctorId={doctorId}, UsedForPatientTypeId={usedForPatientTypeId}");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        "No section/header mappings found for this doctor",
+                        404
+                    );
+                }
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    mappings,
+                    alert1.Type,
+                    $"{mappings.Count} mapping(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<SavePatientConsultationResponse> SavePatientConsultation(
+            SavePatientConsultationRequest request,
+            AllGlobalValues globalValues)
+        {
+            var connectionString = _configuration.GetConnectionString("ConnectionString");
+            SqlConnection con = new SqlConnection(connectionString);
+            con.Open();
+            var tnx = CustomSqlHelper.getSqlTransaction(con);
+
+            try
+            {
+                var c = request.ConsultationDetails;
+
+                _log.Info($"SavePatientConsultation called. DoctorId={c.DoctorId}, PatientId={c.PatientId}, VisitId={c.VisitId}, VisitTypeId={c.VisitTypeId}");
+
+                // ── 0. Patient Vital ────────────────────────────────────────
+                var patientVitalIdResult = _sqlHelper.DML(
+                    tnx,
+                    "IU_SavePatientVitalDetails",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @patientVitalId = c.PatientVitalId,
+                        @visitId = c.VisitId,
+                        @patientId = c.PatientId,
+                        @vitalDateTime = c.VitalDateTime,
+                        @userId = globalValues.userId,
+                        @ipAddress = globalValues.ipAddress
+                    },
+                    new { result = 0 }   // <-- REQUIRED: forces DML to use ExecuteScalar() and read SELECT @Result
+                );
+
+                int patientVitalId = Convert.ToInt32(patientVitalIdResult);
+                _log.Info($"PatientVitalDetails saved. PatientVitalId={patientVitalId}");
+
+                if (request.PatientVitalValue != null && request.PatientVitalValue.Any())
+                {
+                    foreach (var v in request.PatientVitalValue)
+                    {
+                        _sqlHelper.DML(
+                            tnx,
+                            "I_SavePatientVitalValue",
+                            CommandType.StoredProcedure,
+                            new
+                            {
+                                @patientVitalId = patientVitalId,   // now the real Id, not 0
+                                @vitalId = v.VitalId,
+                                @vitalValue = (object)v.VitalValue ?? DBNull.Value,
+                                @userId = globalValues.userId,
+                                @ipAddress = globalValues.ipAddress
+                            });
+                    }
+                }
+
+                // ── 1. IU_DoctorConsultations ────────────────────────────────────────
+                _sqlHelper.DML(
+                    tnx,
+                    "IU_DoctorConsultations",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @doctorId = c.DoctorId,
+                        @patientId = c.PatientId,
+                        @visitId = c.VisitId,
+                        @visitTypeId = c.VisitTypeId,
+                        @userId = globalValues.userId,
+                        @ipAddress = globalValues.ipAddress
+                    });
+
+                // ── 2. IU_PatientDoctorHeadersData (loop) ────────────────────────────
+                if (request.ConsultationHeadersData != null && request.ConsultationHeadersData.Any())
+                {
+                    foreach (var h in request.ConsultationHeadersData)
+                    {
+                        _sqlHelper.DML(
+                            tnx,
+                            "IU_PatientDoctorHeadersData",
+                            CommandType.StoredProcedure,
+                            new
+                            {
+                                @id = h.DataId,
+                                @patientId = c.PatientId,
+                                @visitId = c.VisitId,
+                                @sectionId = h.SectionId,
+                                @headerId = h.HeaderId,
+                                @controlTypeId = h.ControlTypeId,
+                                @templateId = h.TemplateId,
+                                @headerValue = (object)h.HeaderValue ?? DBNull.Value,
+                                @userId = globalValues.userId,
+                                @ipAddress = globalValues.ipAddress
+                            });
+                    }
+                }
+
+                // ── 3. U_PatientOutFileClose ──────────────────────────────────────────
+                _sqlHelper.DML(
+                    tnx,
+                    "U_PatientOutFileClose",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @visitId = c.VisitId,
+                        @isFileClosed = c.IsFileClosed,
+                        @userId = globalValues.userId,
+                        @ipAddress = globalValues.ipAddress
+                    });
+
+                tnx.Commit();
+                _log.Info($"SavePatientConsultation committed. VisitId={c.VisitId}, PatientId={c.PatientId}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<SavePatientConsultationResponse>.Success(
+                    new SavePatientConsultationResponse
+                    {
+                        VisitId = c.VisitId,
+                        PatientId = c.PatientId,
+                        DoctorId = c.DoctorId
+                    },
+                    alert.Type,
+                    "Consultation saved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                try { tnx.Rollback(); } catch { /* swallow rollback exception */ }
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<SavePatientConsultationResponse>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+            finally
+            {
+                tnx.Dispose();
+                if (con.State == ConnectionState.Open)
+                    con.Close();
+            }
+        }
+
+        public ServiceResult<object> GetDoctorConsultationByVisitId(int visitId)
+        {
+            try
+            {
+                _log.Info($"GetDoctorConsultationByVisitId called. VisitId={visitId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetDoctorConsultationByVisitId",
+                    CommandType.StoredProcedure,
+                    new { @visitId = visitId }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No consultation found for VisitId={visitId}");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        "No consultation found for the given visit",
+                        404
+                    );
+                }
+
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetDoctorConsultationByVisitId retrieved {result.Count} record(s)");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    result,
+                    alert1.Type,
+                    "Consultation details retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+        public ServiceResult<object> GetPatientVisitDetailsByPatientId(int patientId)
+        {
+            try
+            {
+                _log.Info($"GetPatientVisitDetailsByPatientId called. PatientId={patientId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetPatientVisitDetailsByPatientId",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @patientId = patientId
+                    }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No visit details found for PatientId={patientId}");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        "No visit details found for the given patient",
+                        404
+                    );
+                }
+
+                // Raw DataTable -> List<Dictionary<string,object>> projection (no model mapping)
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetPatientVisitDetailsByPatientId retrieved {result.Count} record(s) for PatientId={patientId}");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    result,
+                    alert1.Type,
+                    $"{result.Count} visit(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<object> GetVitalDepartmentMappingByDoctorId(int doctorId)
+        {
+            try
+            {
+                _log.Info($"GetVitalDepartmentMappingByDoctorId called. DoctorId={doctorId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetVitalDepartmentMappingByDoctorId",
+                    CommandType.StoredProcedure,
+                    new { @doctorId = doctorId }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No vital mapping found for DoctorId={doctorId}");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        "No vital mapping found for the given doctor",
+                        404
+                    );
+                }
+
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetVitalDepartmentMappingByDoctorId retrieved {result.Count} record(s) for DoctorId={doctorId}");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    result,
+                    alert1.Type,
+                    $"{result.Count} vital(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+        public ServiceResult<object> GetPatientVital(int patientId, int visitId = 0)
+        {
+            try
+            {
+                _log.Info($"GetPatientVital called. PatientId={patientId}, VisitId={visitId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetPatientVital",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @patientId = patientId,
+                        @visitId = visitId
+                    }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No vitals found for PatientId={patientId}, VisitId={visitId}");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        $"No vitals found for PatientId: {patientId}",
+                        404
+                    );
+                }
+
+                // Raw DataTable -> Dictionary projection (no model mapping),
+                // so any new columns added to the SP surface automatically.
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetPatientVital retrieved {result.Count} record(s) for PatientId={patientId}");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    result,
+                    alert1.Type,
+                    $"{result.Count} record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
     }
 }

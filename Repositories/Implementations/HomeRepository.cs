@@ -990,6 +990,8 @@ namespace HISWEBAPI.Repositories.Implementations
                         InsuranceCompanyId = row.Field<int>("InsuranceCompanyId"),
                         PaymentType = row.Field<string>("PaymentType") ?? string.Empty,
                         PaymentTypeId = row.Field<int>("PaymentTypeId"),
+                        IsRegistrationChargeApplicable = row.Field<int?>("IsRegistrationChargeApplicable") ?? 0,
+
                     }).ToList() ?? new List<CorporateBranchMappingModel>();
 
                     // Store ALL corporates in cache (no expiration)

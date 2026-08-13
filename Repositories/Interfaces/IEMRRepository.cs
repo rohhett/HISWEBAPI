@@ -43,5 +43,21 @@ namespace HISWEBAPI.Repositories.Interfaces
 
         ServiceResult<object> GetDoseMasterList(int? doseId, int? isActive);
         ServiceResult<object> CreateUpdateDoseMaster(CreateUpdateDoseMasterRequest request, AllGlobalValues globalValues);
+        ServiceResult<string> UploadEMRDocument(UploadEMRDocumentRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetEMRDocumentMapping(int visitId);
+        ServiceResult<object> GetEMRSectionHeaderMappingByDoctorId(int doctorId, int usedForPatientTypeId);
+
+        ServiceResult<SavePatientConsultationResponse> SavePatientConsultation(
+            SavePatientConsultationRequest request,
+            AllGlobalValues globalValues);
+
+        ServiceResult<object> GetDoctorConsultationByVisitId(int visitId);
+
+        ServiceResult<object> GetPatientVisitDetailsByPatientId(int patientId);
+        ServiceResult<object> GetVitalDepartmentMappingByDoctorId(int doctorId);
+        ServiceResult<object> GetPatientVital(int patientId, int visitId = 0);
+
+
+
     }
 }

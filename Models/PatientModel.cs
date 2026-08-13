@@ -128,6 +128,7 @@
         public int ReportTypeId { get; set; }
         public string DoctorDepartmentIds { get; set; }
         public int IsRequiredSeparatePerformingDoctor { get; set; }
+        public int LabTypeId { get; set; }
     }
 
     public class OPDVisitSummaryModel

@@ -6110,7 +6110,7 @@ namespace HISWEBAPI.Repositories.Implementations
                 new { result = 0 });
 
                 // Clear cache after successful operation
-                _distributedCache.Remove("_InsuranceCompanyMaster_All");
+                _distributedCache.Remove("WEB_InsuranceCompanyMaster_All");
                 _log.Info("Cleared InsuranceCompanyMaster cache");
 
                 if (result < 0)
@@ -6167,7 +6167,7 @@ namespace HISWEBAPI.Repositories.Implementations
             {
                 _log.Info("GetInsuranceCompanyMasterList called.");
 
-                string cacheKey = "_InsuranceCompanyMaster_All";
+                string cacheKey = "WEB_InsuranceCompanyMaster_All";
 
                 var cachedData = _distributedCache.GetString(cacheKey);
                 List<InsuranceCompanyMasterModel> allInsuranceCompanies;
@@ -6447,7 +6447,8 @@ namespace HISWEBAPI.Repositories.Implementations
                     @hikePerOut = request.HikePerOut,
                     @hikePerIn = request.HikePerIn,
                     @activePaymentModes = request.ActivePaymentModes ?? string.Empty,
-                   
+                    @isRegistrationChargeApplicable = request.IsRegistrationChargeApplicable,
+
                     @userId = globalValues.userId,
                     @IpAddress = globalValues.ipAddress
                 },
@@ -6561,8 +6562,10 @@ namespace HISWEBAPI.Repositories.Implementations
                         DiscountPerIn = row.Field<decimal?>("DiscountPerIn") ?? 0,
                         HikePerOut = row.Field<decimal?>("HikePerOut") ?? 0,
                         HikePerIn = row.Field<decimal?>("HikePerIn") ?? 0,
-                        ActivePaymentModes = row.Field<string>("ActivePaymentModes") ?? string.Empty
-                      
+                        ActivePaymentModes = row.Field<string>("ActivePaymentModes") ?? string.Empty,
+                        IsRegistrationChargeApplicable = row.Field<int?>("IsRegistrationChargeApplicable") ?? 0,
+
+
                     }).ToList() ?? new List<CorporateMasterDetailModel>();
 
                     if (allCorporates.Any())
@@ -7140,6 +7143,9 @@ namespace HISWEBAPI.Repositories.Implementations
                             @headerId = headerId,
                             @value = lov.Value ?? string.Empty,
                             @dataTypeId = lov.DataTypeId,
+                            @score = lov.Score,
+                            @base64Data = lov.Base64Data ?? (object)DBNull.Value,
+                            @description = lov.Description ?? (object)DBNull.Value,
                             @headerName = lov.HeaderName ?? (object)DBNull.Value,
                             @options = optionsString ?? (object)DBNull.Value
                         });
@@ -7288,6 +7294,10 @@ namespace HISWEBAPI.Repositories.Implementations
                     DataTypeId = row.Field<int?>("DataTypeId") ?? 0,
                     HeaderName = row.Field<string>("HeaderName") ?? string.Empty,
                     Options = row.Field<string>("Options") ?? string.Empty,
+                    Score = row.Field<int?>("Score") ?? 0,
+                    Base64Data = row.Field<string>("Base64Data") ?? string.Empty,
+                    Description = row.Field<string>("Description") ?? string.Empty,
+
 
                 }).ToList() ?? new List<DoctorHeaderLOVModel>();
 

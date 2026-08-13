@@ -1508,5 +1508,340 @@ namespace HISWEBAPI.Controllers
                 data = serviceResult.Data
             });
         }
+
+        [HttpPost("uploadEMRDocument")]
+        [Authorize]
+        public IActionResult UploadEMRDocument([FromForm] UploadEMRDocumentRequest request)
+        {
+            _log.Info($"UploadEMRDocument called. VisitId={request.VisitId}, DocumentId={request.DocumentId}");
+
+            if (!ModelState.IsValid)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.VisitId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "VisitId must be greater than 0",
+                    errors = new { request.VisitId }
+                });
+            }
+
+            if (request.DocumentId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "DocumentId must be greater than 0",
+                    errors = new { request.DocumentId }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _emrRepository.UploadEMRDocument(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"EMR document uploaded successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"EMR document upload failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getEMRDocumentMapping")]
+        [Authorize]
+        public IActionResult GetEMRDocumentMapping([FromQuery] int visitId)
+        {
+            _log.Info($"GetEMRDocumentMapping called. VisitId={visitId}");
+
+            if (visitId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "VisitId must be greater than 0",
+                    errors = new { visitId }
+                });
+            }
+
+            var serviceResult = _emrRepository.GetEMRDocumentMapping(visitId);
+
+            if (serviceResult.Result)
+                _log.Info($"EMR documents fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"EMR documents fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getEMRSectionHeaderMappingByDoctorId")]
+        [Authorize]
+        public IActionResult GetEMRSectionHeaderMappingByDoctorId(
+     [FromQuery] int doctorId,
+     [FromQuery] int usedForPatientTypeId)
+        {
+            _log.Info($"GetEMRSectionHeaderMappingByDoctorId called. DoctorId={doctorId}, UsedForPatientTypeId={usedForPatientTypeId}");
+
+            if (doctorId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "DoctorId must be greater than 0",
+                    errors = new { doctorId }
+                });
+            }
+
+            if (usedForPatientTypeId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "UsedForPatientTypeId must be greater than 0",
+                    errors = new { usedForPatientTypeId }
+                });
+            }
+
+            var serviceResult = _emrRepository.GetEMRSectionHeaderMappingByDoctorId(doctorId, usedForPatientTypeId);
+
+            if (serviceResult.Result)
+                _log.Info($"EMR section header mappings fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"EMR section header mappings fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPost("savePatientConsultation")]
+        [Authorize]
+        public IActionResult SavePatientConsultation([FromBody] SavePatientConsultationRequest request)
+        {
+            _log.Info($"SavePatientConsultation called. PatientId={request?.ConsultationDetails?.PatientId}, VisitId={request?.ConsultationDetails?.VisitId}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SavePatientConsultation.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.ConsultationHeadersData != null && request.ConsultationHeadersData.Any(h => h.HeaderId <= 0))
+            {
+                _log.Warn("Invalid HeaderId in ConsultationHeadersData.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "All HeaderId values in ConsultationHeadersData must be greater than 0"
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _emrRepository.SavePatientConsultation(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"SavePatientConsultation succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"SavePatientConsultation failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getDoctorConsultationByVisitId")]
+        [Authorize]
+        public IActionResult GetDoctorConsultationByVisitId([FromQuery] int visitId)
+        {
+            _log.Info($"GetDoctorConsultationByVisitId called. VisitId={visitId}");
+
+            if (visitId <= 0)
+            {
+                _log.Warn("Invalid VisitId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "VisitId must be greater than 0",
+                    errors = new { visitId }
+                });
+            }
+
+            var serviceResult = _emrRepository.GetDoctorConsultationByVisitId(visitId);
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+        [HttpGet("getPatientVisitDetailsByPatientId")]
+        [Authorize]
+        public IActionResult GetPatientVisitDetailsByPatientId(
+           [FromQuery] int patientId)
+        {
+            _log.Info($"GetPatientVisitDetailsByPatientId called. PatientId={patientId}");
+
+            if (patientId <= 0)
+            {
+                _log.Warn("Invalid PatientId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "PatientId must be greater than 0",
+                    errors = new { patientId }
+                });
+            }
+
+           
+
+            var serviceResult = _emrRepository.GetPatientVisitDetailsByPatientId(patientId);
+
+            if (serviceResult.Result)
+                _log.Info($"Patient visit details fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"Patient visit details fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+        [HttpGet("getVitalDepartmentMappingByDoctorId")]
+        [Authorize]
+        public IActionResult GetVitalDepartmentMappingByDoctorId([FromQuery] int doctorId)
+        {
+            _log.Info($"GetVitalDepartmentMappingByDoctorId called. DoctorId={doctorId}");
+
+            if (doctorId <= 0)
+            {
+                _log.Warn("Invalid DoctorId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "DoctorId must be greater than 0",
+                    errors = new { doctorId }
+                });
+            }
+
+            var serviceResult = _emrRepository.GetVitalDepartmentMappingByDoctorId(doctorId);
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getPatientVital")]
+        [Authorize]
+        public IActionResult getPatientVital(
+    [FromQuery] int patientId,
+    [FromQuery] int visitId = 0)
+        {
+            _log.Info($"getPatientVital called. PatientId={patientId}, VisitId={visitId}");
+
+            if (patientId <= 0)
+            {
+                _log.Warn("Invalid PatientId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "PatientId must be greater than 0",
+                    errors = new { patientId }
+                });
+            }
+
+            if (visitId < 0)
+            {
+                _log.Warn("Invalid VisitId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "VisitId must be greater than or equal to 0",
+                    errors = new { visitId }
+                });
+            }
+
+            var serviceResult = _emrRepository.GetPatientVital(patientId, visitId);
+
+            if (serviceResult.Result)
+                _log.Info($"Patient vitals fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"Patient vitals fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
     }
 }

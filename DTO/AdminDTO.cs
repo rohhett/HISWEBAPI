@@ -1112,10 +1112,12 @@ namespace HISWEBAPI.DTO
         [Required(ErrorMessage = "Active Payment Modes is required")]
         [StringLength(100, ErrorMessage = "Active payment modes cannot exceed 100 characters")]
         public string ActivePaymentModes { get; set; }
+        public int IsRegistrationChargeApplicable { get; set; } = 0;
 
-     
 
-      
+
+
+
     }
 
     public class CorporateMasterResponse
@@ -1203,6 +1205,9 @@ namespace HISWEBAPI.DTO
         public string Value { get; set; }
 
         public int DataTypeId { get; set; } = 0;
+        public int Score { get; set; } = 0;
+        public string Base64Data { get; set; }
+        public string Description { get; set; }
         public string HeaderName { get; set; }
         public List<string> Options { get; set; } = new List<string>();
     }

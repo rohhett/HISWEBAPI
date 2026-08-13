@@ -1092,128 +1092,6 @@ namespace HISWEBAPI.Controllers
             });
         }
 
-        [HttpGet("getPatientVital")]
-        [Authorize]
-        public IActionResult getPatientVital([FromQuery] int patientId)
-        {
-            _log.Info($"getPatientVital called. PatientId={patientId}");
-
-            if (patientId <= 0)
-            {
-                _log.Warn("Invalid PatientId provided.");
-                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
-                return BadRequest(new
-                {
-                    result = false,
-                    messageType = alert.Type,
-                    message = "PatientId must be greater than 0",
-                    errors = new { patientId }
-                });
-            }
-
-            var serviceResult = _patientRepository.GetPatientVital(patientId);
-
-            if (serviceResult.Result)
-                _log.Info($"Patient vitals fetched successfully: {serviceResult.Message}");
-            else
-                _log.Warn($"Patient vitals fetch failed: {serviceResult.Message}");
-
-            return StatusCode(serviceResult.StatusCode, new
-            {
-                result = serviceResult.Result,
-                messageType = serviceResult.MessageType,
-                message = serviceResult.Message,
-                data = serviceResult.Data
-            });
-        }
-
-        [HttpPost("savePatientVital")]
-        [Authorize]
-        public IActionResult savePatientVital([FromBody] SavePatientVitalRequest request)
-        {
-            _log.Info($"savePatientVital called. VisitId={request.VisitId}, PatientId={request.PatientId}, VitalId={request.VitalId}");
-
-            if (!ModelState.IsValid)
-            {
-                _log.Warn("Invalid model state for savePatientVital.");
-                var modelAlert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
-                return BadRequest(new
-                {
-                    result = false,
-                    messageType = modelAlert.Type,
-                    message = modelAlert.Message,
-                    errors = ModelState
-                });
-            }
-
-            if (request.VisitId <= 0)
-            {
-                _log.Warn("Invalid VisitId provided.");
-                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
-                return BadRequest(new
-                {
-                    result = false,
-                    messageType = alert.Type,
-                    message = "VisitId must be greater than 0",
-                    errors = new { request.VisitId }
-                });
-            }
-
-            if (request.PatientId <= 0)
-            {
-                _log.Warn("Invalid PatientId provided.");
-                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
-                return BadRequest(new
-                {
-                    result = false,
-                    messageType = alert.Type,
-                    message = "PatientId must be greater than 0",
-                    errors = new { request.PatientId }
-                });
-            }
-
-            if (request.VitalId <= 0)
-            {
-                _log.Warn("Invalid VitalId provided.");
-                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
-                return BadRequest(new
-                {
-                    result = false,
-                    messageType = alert.Type,
-                    message = "VitalId must be greater than 0",
-                    errors = new { request.VitalId }
-                });
-            }
-
-            if (string.IsNullOrWhiteSpace(request.VitalValue))
-            {
-                _log.Warn("VitalValue is missing.");
-                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
-                return BadRequest(new
-                {
-                    result = false,
-                    messageType = alert.Type,
-                    message = "VitalValue is required",
-                    errors = new { request.VitalValue }
-                });
-            }
-
-            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
-            var serviceResult = _patientRepository.SavePatientVital(request, globalValues);
-
-            if (serviceResult.Result)
-                _log.Info($"Patient vital saved successfully: {serviceResult.Message}");
-            else
-                _log.Warn($"Patient vital save failed: {serviceResult.Message}");
-
-            return StatusCode(serviceResult.StatusCode, new
-            {
-                result = serviceResult.Result,
-                messageType = serviceResult.MessageType,
-                message = serviceResult.Message,
-                data = serviceResult.Data
-            });
-        }
 
 
         [HttpGet("getPatientObservationResultsTrend")]
@@ -3678,8 +3556,429 @@ namespace HISWEBAPI.Controllers
                 data = serviceResult.Data
             });
         }
-       
-     
+
+        [HttpPost("saveOPDAppointment")]
+        [Authorize]
+        public IActionResult SaveOPDAppointment([FromBody] SaveOPDAppointmentRequest request)
+        {
+            _log.Info($"SaveOPDAppointment called. PatientId={request?.PatientDetails?.PatientId}, BranchId={request?.VisitDetails?.BranchId}, DoctorId={request?.VisitDetails?.DoctorId}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SaveOPDAppointment.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            // Validate AppDateTime is not default
+            if (request.VisitDetails.AppDateTime == default)
+            {
+                _log.Warn("AppDateTime is missing or invalid.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "AppDateTime is required and must be a valid date",
+                    errors = new { appDateTime = request.VisitDetails.AppDateTime }
+                });
+            }
+
+            // Validate DOB is present
+            if (string.IsNullOrWhiteSpace(request.PatientDetails.Dob))
+            {
+                _log.Warn("DOB is missing.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "Date of birth is required",
+                    errors = new { dob = "DOB cannot be empty" }
+                });
+            }
+
+            // Validate payment details if provided
+            if (request.PaymentDetails != null && request.PaymentDetails.Any())
+            {
+                var invalidPayments = request.PaymentDetails
+                    .Where(p => p.PaymentModeId <= 0)
+                    .ToList();
+
+                if (invalidPayments.Any())
+                {
+                    _log.Warn("One or more payment details have invalid PaymentModeId.");
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "All payment details must have PaymentModeId greater than 0",
+                        errors = new { invalidPaymentModeIds = invalidPayments.Select(p => p.PaymentModeId).ToList() }
+                    });
+                }
+
+                var invalidAmounts = request.PaymentDetails
+                    .Where(p => p.Amount < 0)
+                    .ToList();
+
+                if (invalidAmounts.Any())
+                {
+                    _log.Warn("One or more payment details have negative Amount.");
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "Payment amount cannot be negative",
+                        errors = new { invalidAmounts = invalidAmounts.Select(p => p.Amount).ToList() }
+                    });
+                }
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.SaveOPDAppointment(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"SaveOPDAppointment completed successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"SaveOPDAppointment failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("GetDoctorAppointmentPreBookingDetails")]
+        [Authorize]
+        public IActionResult GetDoctorAppointmentPreBookingDetails(
+        [FromQuery] int branchId,
+        [FromQuery] int doctorId,
+        [FromQuery] int id,
+        [FromQuery] int dateTypeId,
+        [FromQuery] string fromDate = null,
+        [FromQuery] string toDate = null,
+        [FromQuery] string tokenNo = null,
+        [FromQuery] string sourceType = null
+        )
+        {
+            _log.Info($"GetDoctorAppointmentPreBookingDetails called. FromDate={fromDate}, ToDate={toDate}, DateTypeId={dateTypeId}, BranchId={branchId}, DoctorId={doctorId}, TokenNo={tokenNo}");
+
+            bool hasIdentifier = id > 0 || !string.IsNullOrWhiteSpace(tokenNo);
+
+            DateTime parsedFromDate = DateTime.Now.Date;
+            DateTime parsedToDate = DateTime.Now.Date;
+
+            if (!hasIdentifier)
+            {
+                // Only enforce date/dateTypeId validation when neither id nor tokenNo is supplied
+                if (string.IsNullOrWhiteSpace(fromDate) || !DateTime.TryParse(fromDate, out parsedFromDate))
+                {
+                    _log.Warn("Invalid or missing FromDate.");
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "FromDate is required and must be a valid date",
+                        errors = new { fromDate }
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(toDate) || !DateTime.TryParse(toDate, out parsedToDate))
+                {
+                    _log.Warn("Invalid or missing ToDate.");
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "ToDate is required and must be a valid date",
+                        errors = new { toDate }
+                    });
+                }
+
+                if (dateTypeId != 1 && dateTypeId != 2)
+                {
+                    _log.Warn($"Invalid DateTypeId provided: {dateTypeId}");
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "DateTypeId must be 1 (CreatedOn) or 2 (AppDateTime)",
+                        errors = new { dateTypeId }
+                    });
+                }
+            }
+            else
+            {
+                // id or tokenNo supplied — dates/dateTypeId are optional; fall back to today if not provided/invalid
+                if (!string.IsNullOrWhiteSpace(fromDate) && DateTime.TryParse(fromDate, out var fd))
+                    parsedFromDate = fd;
+
+                if (!string.IsNullOrWhiteSpace(toDate) && DateTime.TryParse(toDate, out var td))
+                    parsedToDate = td;
+            }
+
+            if (branchId < 0)
+            {
+                _log.Warn("Invalid BranchId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BranchId must be greater than or equal to 0",
+                    errors = new { branchId }
+                });
+            }
+
+            if (doctorId < 0)
+            {
+                _log.Warn("Invalid DoctorId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "DoctorId must be greater than or equal to 0",
+                    errors = new { doctorId }
+                });
+            }
+
+            if (id < 0)
+            {
+                _log.Warn("Invalid id provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "Id must be greater than or equal to 0",
+                    errors = new { id }
+                });
+            }
+
+            var serviceResult = _patientRepository.GetDoctorAppointmentPreBookingDetails(
+                parsedFromDate, parsedToDate, dateTypeId, branchId, doctorId, sourceType, id, tokenNo);
+
+            if (serviceResult.Result)
+                _log.Info($"GetDoctorAppointmentPreBookingDetails fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetDoctorAppointmentPreBookingDetails failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getDoctorAppointmentSlots")]
+        [Authorize]
+        public IActionResult GetDoctorAppointmentSlots(
+    [FromQuery] int branchId,
+    [FromQuery] int doctorId,
+    [FromQuery] string appointmentDate)
+        {
+            _log.Info($"GetDoctorAppointmentSlots called. BranchId={branchId}, DoctorId={doctorId}, AppointmentDate={appointmentDate}");
+
+            if (branchId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "BranchId must be greater than 0", errors = new { branchId } });
+            }
+
+            if (doctorId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "DoctorId must be greater than 0", errors = new { doctorId } });
+            }
+
+            if (string.IsNullOrWhiteSpace(appointmentDate) || !DateTime.TryParse(appointmentDate, out DateTime parsedDate))
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "AppointmentDate is required and must be a valid date", errors = new { appointmentDate } });
+            }
+
+            var serviceResult = _patientRepository.GetDoctorAppointmentSlots(branchId, doctorId, parsedDate.Date);
+
+            if (serviceResult.Result)
+                _log.Info($"GetDoctorAppointmentSlots fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetDoctorAppointmentSlots failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("cancelDoctorAppointmentPreBooking")]
+        [Authorize]
+        public IActionResult CancelDoctorAppointmentPreBooking([FromQuery] int id, [FromQuery] string cancelReason)
+        {
+            _log.Info($"CancelDoctorAppointmentPreBooking called. Id={id}");
+
+            if (id <= 0)
+            {
+                _log.Warn("Invalid Id provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "Id must be greater than 0",
+                    errors = new { id }
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(cancelReason))
+            {
+                _log.Warn("CancelReason is missing or empty.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "CancelReason is required",
+                    errors = new { cancelReason = "Required" }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.CancelDoctorAppointmentPreBooking(id, cancelReason, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"Appointment pre-booking cancelled successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"Appointment pre-booking cancellation failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("confirmDoctorAppointmentPreBooking")]
+        [Authorize]
+        public IActionResult ConfirmDoctorAppointmentPreBooking([FromQuery] int id)
+        {
+            _log.Info($"ConfirmDoctorAppointmentPreBooking called. Id={id}");
+
+            if (id <= 0)
+            {
+                _log.Warn("Invalid Id provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "Id must be greater than 0",
+                    errors = new { id }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.ConfirmDoctorAppointmentPreBooking(id, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"Appointment pre-booking confirmed successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"Appointment pre-booking confirmation failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("rescheduleDoctorAppointmentPreBooking")]
+        [Authorize]
+        public IActionResult RescheduleDoctorAppointmentPreBooking(
+     [FromQuery] int id,
+     [FromQuery] int slotId,
+     [FromQuery] DateTime appDateTime)
+        {
+            _log.Info($"RescheduleDoctorAppointmentPreBooking called. Id={id}, SlotId={slotId}, AppDateTime={appDateTime}");
+
+            if (id <= 0)
+            {
+                _log.Warn("Invalid Id provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "Id must be greater than 0",
+                    errors = new { id }
+                });
+            }
+
+            if (slotId <= 0)
+            {
+                _log.Warn("Invalid SlotId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "SlotId must be greater than 0",
+                    errors = new { slotId }
+                });
+            }
+
+            if (appDateTime == default)
+            {
+                _log.Warn("Invalid AppDateTime provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "AppDateTime is required",
+                    errors = new { appDateTime }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _patientRepository.RescheduleDoctorAppointmentPreBooking(id, slotId, appDateTime, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"Appointment pre-booking rescheduled: {serviceResult.Message}");
+            else
+                _log.Warn($"Appointment pre-booking reschedule failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
 
     }
 }
