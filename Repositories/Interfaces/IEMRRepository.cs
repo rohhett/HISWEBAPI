@@ -57,7 +57,15 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<object> GetVitalDepartmentMappingByDoctorId(int doctorId);
         ServiceResult<object> GetPatientVital(int patientId, int visitId = 0);
 
+        ServiceResult<IEnumerable<Dictionary<string, object>>> GetTemplateCategoryMasterList();
+        ServiceResult<object> CreateUpdateTemplateCategoryMaster(CreateUpdateTemplateCategoryMasterRequest request, AllGlobalValues globalValues);
 
+        ServiceResult<object> CreateUpdateEMRTemplateMaster(CreateUpdateEMRTemplateMasterRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetEMRTemplateMaster(int? isActive);
+        ServiceResult<object> GetEMRTemplateSectionMapping(int templateId);
+        ServiceResult<object> GetEMRTemplateDepartmentMapping(int typeId, int relatedToId);
+        ServiceResult<string> SaveEMRTemplateDepartmentMapping(SaveEMRTemplateDepartmentMappingRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetEMRTemplateSectionMappingByDoctorId(int doctorId, int usedForPatientTypeId);
 
     }
 }

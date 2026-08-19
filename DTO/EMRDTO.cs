@@ -421,4 +421,70 @@ namespace HISWEBAPI.DTO
     }
 
 
+    public class CreateUpdateTemplateCategoryMasterRequest
+    {
+        public int TemplateCategoryId { get; set; } = 0;
+
+        [Required(ErrorMessage = "TemplateCategoryName is required")]
+        [StringLength(256, ErrorMessage = "TemplateCategoryName cannot exceed 256 characters")]
+        public string TemplateCategoryName { get; set; }
+    }
+
+    public class CreateUpdateEMRTemplateMasterRequest
+    {
+        public int TemplateId { get; set; } = 0;
+
+        [Required(ErrorMessage = "TemplateName is required")]
+        [StringLength(256, ErrorMessage = "TemplateName cannot exceed 256 characters")]
+        public string TemplateName { get; set; }
+
+        [StringLength(256, ErrorMessage = "DisplayName cannot exceed 256 characters")]
+        public string? DisplayName { get; set; }
+
+        [Required(ErrorMessage = "TemplateCategoryId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "TemplateCategoryId must be greater than 0")]
+        public int TemplateCategoryId { get; set; }
+
+        [Required(ErrorMessage = "IsActive is required")]
+        [Range(0, 1, ErrorMessage = "IsActive must be 0 or 1")]
+        public int IsActive { get; set; }
+
+        public List<EMRTemplateSectionMappingItem> SectionMappings { get; set; } = new();
+    }
+
+    public class EMRTemplateSectionMappingItem
+    {
+        [Required(ErrorMessage = "SectionId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "SectionId must be greater than 0")]
+        public int SectionId { get; set; }
+
+        public int SequenceNo { get; set; } = 0;
+    }
+
+    public class SaveEMRTemplateDepartmentMappingRequest
+    {
+        [Required(ErrorMessage = "TypeId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "TypeId must be greater than 0")]
+        public int TypeId { get; set; }
+
+        [StringLength(100)]
+        public string TypeName { get; set; }
+
+        [Required(ErrorMessage = "RelatedToId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "RelatedToId must be greater than 0")]
+        public int RelatedToId { get; set; }
+
+        public List<EMRTemplateDepartmentMappingItemRequest> SectionMappingData { get; set; }
+    }
+
+    public class EMRTemplateDepartmentMappingItemRequest
+    {
+        [Required(ErrorMessage = "TemplateId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "TemplateId must be greater than 0")]
+        public int TemplateId { get; set; }
+
+        public int SequenceNo { get; set; } = 0;
+    }
+
+
 }

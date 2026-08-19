@@ -3004,5 +3004,550 @@ namespace HISWEBAPI.Repositories.Implementations
                 return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
             }
         }
+
+        private const string CACHE_KEY_TemplateCategoryMaster_All = "_TemplateCategoryMaster_All";
+
+        public ServiceResult<IEnumerable<Dictionary<string, object>>> GetTemplateCategoryMasterList()
+        {
+            try
+            {
+                _log.Info("GetTemplateCategoryMasterList called.");
+
+                var cachedData = _distributedCache.GetString(CACHE_KEY_TemplateCategoryMaster_All);
+                List<Dictionary<string, object>> allItems;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    allItems = System.Text.Json.JsonSerializer
+                        .Deserialize<List<Dictionary<string, object>>>(cachedData);
+                }
+                else
+                {
+                    var dataTable = _sqlHelper.GetDataTable("S_GetTemplateCategoryMasterList", CommandType.StoredProcedure);
+
+                    allItems = dataTable?.AsEnumerable().Select(row =>
+                        dataTable.Columns.Cast<DataColumn>()
+                            .ToDictionary(col => col.ColumnName, col => row[col] == DBNull.Value ? null : row[col])
+                    ).ToList() ?? new List<Dictionary<string, object>>();
+
+                    if (allItems.Any())
+                    {
+                        var serialized = System.Text.Json.JsonSerializer.Serialize(allItems);
+                        _distributedCache.SetString(CACHE_KEY_TemplateCategoryMaster_All, serialized,
+                            new DistributedCacheEntryOptions { AbsoluteExpiration = null, SlidingExpiration = null });
+                    }
+                }
+
+                if (!allItems.Any())
+                {
+                    var notFoundAlert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    return ServiceResult<IEnumerable<Dictionary<string, object>>>.Failure(
+                        notFoundAlert.Type, "No template category records found", 404);
+                }
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<IEnumerable<Dictionary<string, object>>>.Success(
+                    allItems, alert.Type, $"{allItems.Count} template category record(s) retrieved successfully", 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<IEnumerable<Dictionary<string, object>>>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+
+
+
+
+
+
+        public ServiceResult<object> CreateUpdateTemplateCategoryMaster(
+            CreateUpdateTemplateCategoryMasterRequest request,
+            AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CreateUpdateTemplateCategoryMaster called. TemplateCategoryId={request.TemplateCategoryId}, TemplateCategoryName={request.TemplateCategoryName}");
+
+                var parameters = new SqlParameter[]
+                {
+            new SqlParameter("@TemplateCategoryId",   SqlDbType.Int)          { Value = request.TemplateCategoryId },
+            new SqlParameter("@TemplateCategoryName", SqlDbType.NVarChar, 256){ Value = request.TemplateCategoryName },
+            new SqlParameter("@userId",        SqlDbType.Int)          { Value = globalValues.userId },
+            new SqlParameter("@IpAddress",     SqlDbType.NVarChar, 20) { Value = globalValues.ipAddress ?? (object)DBNull.Value },
+            new SqlParameter("@Result",        SqlDbType.Int)          { Direction = ParameterDirection.Output }
+                };
+
+                long result = _sqlHelper.RunProcedureInsert("IU_TemplateCategoryMaster", parameters);
+
+                if (result == -1)
+                {
+                    var dupAlert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Duplicate TemplateCategoryName: {request.TemplateCategoryName}");
+                    return ServiceResult<object>.Failure(
+                        dupAlert.Type,
+                        "Procedure name already exists",
+                        409
+                    );
+                }
+
+                if (result > 0)
+                {
+                    _distributedCache.Remove(CACHE_KEY_TemplateCategoryMaster_All);
+                    _log.Info($"Cleared TemplateCategoryMaster cache. TemplateCategoryId={result}");
+
+                    var alert = _messageService.GetMessageAndTypeByAlertCode(
+                        request.TemplateCategoryId == 0 ? "DATA_SAVED_SUCCESSFULLY" : "DATA_UPDATED_SUCCESSFULLY"
+                    );
+                    return ServiceResult<object>.Success(
+                        new { TemplateCategoryId = result },
+                        alert.Type,
+                        alert.Message,
+                        request.TemplateCategoryId == 0 ? 201 : 200
+                    );
+                }
+
+                var failAlert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(failAlert.Type, failAlert.Message, 500);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        private const string CACHE_KEY_EMRTemplateMaster_All = "_EMRTemplateMaster_All";
+
+        public ServiceResult<object> CreateUpdateEMRTemplateMaster(
+            CreateUpdateEMRTemplateMasterRequest request,
+            AllGlobalValues globalValues)
+        {
+            SqlConnection con = null;
+            SqlTransaction tnx = null;
+            try
+            {
+                _log.Info($"CreateUpdateEMRTemplateMaster called. TemplateId={request.TemplateId}, TemplateName={request.TemplateName}");
+
+                var connectionString = _configuration.GetConnectionString("ConnectionString");
+                if (string.IsNullOrEmpty(connectionString))
+                    throw new InvalidOperationException("Connection string 'ConnectionString' not found.");
+
+                con = new SqlConnection(connectionString);
+                con.Open();
+                tnx = CustomSqlHelper.getSqlTransaction(con);
+
+                // Step 1 – Insert or Update EMRTemplateMaster
+                var parameters = new SqlParameter[]
+                {
+            new SqlParameter("@TemplateId",   SqlDbType.Int)          { Value = request.TemplateId },
+            new SqlParameter("@TemplateName", SqlDbType.NVarChar, 256){ Value = request.TemplateName },
+            new SqlParameter("@displayName", SqlDbType.NVarChar, 256){ Value = request.DisplayName ?? (object)DBNull.Value },
+            new SqlParameter("@templateCategoryId",    SqlDbType.Int)          { Value = request.TemplateCategoryId },
+            new SqlParameter("@isActive",    SqlDbType.Int)          { Value = request.IsActive },
+            new SqlParameter("@userId",      SqlDbType.Int)          { Value = globalValues.userId },
+            new SqlParameter("@IpAddress",   SqlDbType.NVarChar, 20) { Value = globalValues.ipAddress ?? (object)DBNull.Value },
+            new SqlParameter("@Result",      SqlDbType.Int)          { Direction = ParameterDirection.Output }
+                };
+
+                long sectionResult = _sqlHelper.RunProcedureInsert("IU_EMRTemplateMaster", parameters);
+
+                if (sectionResult == -1)
+                {
+                    tnx.Rollback();
+                    var dupAlert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Duplicate TemplateName: {request.TemplateName}");
+                    return ServiceResult<object>.Failure(
+                        dupAlert.Type,
+                        "Section name already exists",
+                        409
+                    );
+                }
+
+                if (sectionResult <= 0)
+                {
+                    tnx.Rollback();
+                    var failAlert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                    _log.Error($"IU_EMRTemplateMaster returned unexpected result: {sectionResult}");
+                    return ServiceResult<object>.Failure(failAlert.Type, failAlert.Message, 500);
+                }
+
+                int resolvedTemplateId = (int)sectionResult;
+                _log.Info($"EMRTemplateMaster {(request.TemplateId == 0 ? "inserted" : "updated")}. TemplateId={resolvedTemplateId}");
+
+                // Step 2 – Delete existing Section mappings for this section
+                _sqlHelper.DML(tnx, "D_EMRTemplateSectionMapping", CommandType.StoredProcedure, new
+                {
+                    @TemplateId = resolvedTemplateId
+                });
+                _log.Info($"Deleted existing EMRTemplateSectionMapping for TemplateId={resolvedTemplateId}");
+
+                // Step 3 – Insert new Section mappings
+                int insertedCount = 0;
+                if (request.SectionMappings != null && request.SectionMappings.Any())
+                {
+                    foreach (var item in request.SectionMappings)
+                    {
+                        _sqlHelper.DML(tnx, "I_EMRTemplateSectionMapping", CommandType.StoredProcedure, new
+                        {
+                            @TemplateId = resolvedTemplateId,
+                            @SectionId = item.SectionId,
+                            @sequenceNo = item.SequenceNo,
+                            @userId = globalValues.userId,
+                            @IpAddress = globalValues.ipAddress
+                        });
+                        insertedCount++;
+                    }
+                }
+
+                tnx.Commit();
+                _log.Info($"CreateUpdateEMRTemplateMaster committed. TemplateId={resolvedTemplateId}, MappingsInserted={insertedCount}");
+
+                // Invalidate cache after successful write
+                _distributedCache.Remove(CACHE_KEY_EMRTemplateMaster_All);
+                _log.Info($"Cleared EMRTemplateMaster cache. Key={CACHE_KEY_EMRTemplateMaster_All}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode(
+                    request.TemplateId == 0 ? "DATA_SAVED_SUCCESSFULLY" : "DATA_UPDATED_SUCCESSFULLY"
+                );
+                return ServiceResult<object>.Success(
+                    new { TemplateId = resolvedTemplateId, MappingsInserted = insertedCount },
+                    alert.Type,
+                    alert.Message,
+                    request.TemplateId == 0 ? 201 : 200
+                );
+            }
+            catch (Exception ex)
+            {
+                try { tnx?.Rollback(); } catch { /* swallow */ }
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+            finally
+            {
+                tnx?.Dispose();
+                if (con != null)
+                {
+                    if (con.State == System.Data.ConnectionState.Open) con.Close();
+                    con.Dispose();
+                }
+            }
+        }
+
+        public ServiceResult<object> GetEMRTemplateMaster(int? isActive)
+        {
+            try
+            {
+                _log.Info($"GetEMRTemplateMaster called. IsActive={isActive?.ToString() ?? "All"}");
+
+                var cachedData = _distributedCache.GetString(CACHE_KEY_EMRTemplateMaster_All);
+                List<Dictionary<string, object>> allItems;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"EMRTemplateMaster data retrieved from cache. Key={CACHE_KEY_EMRTemplateMaster_All}");
+                    allItems = System.Text.Json.JsonSerializer
+                        .Deserialize<List<Dictionary<string, object>>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"EMRTemplateMaster cache miss. Fetching from database. Key={CACHE_KEY_EMRTemplateMaster_All}");
+
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_GetEMRTemplateMaster",
+                        CommandType.StoredProcedure
+                    );
+
+                    allItems = dataTable?.AsEnumerable().Select(row =>
+                        dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                            col => col.ColumnName,
+                            col => row[col] == DBNull.Value ? null : row[col]
+                        )
+                    ).ToList() ?? new List<Dictionary<string, object>>();
+
+                    if (allItems.Any())
+                    {
+                        var serialized = System.Text.Json.JsonSerializer.Serialize(allItems);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(CACHE_KEY_EMRTemplateMaster_All, serialized, cacheOptions);
+                        _log.Info($"EMRTemplateMaster cached permanently. Key={CACHE_KEY_EMRTemplateMaster_All}, Count={allItems.Count}");
+                    }
+                }
+
+                // In-memory filter by IsActive; null = return all
+                if (isActive.HasValue)
+                {
+                    allItems = allItems.Where(row =>
+                    {
+                        if (row.TryGetValue("IsActive", out var val) && val != null)
+                            return val.ToString() == isActive.Value.ToString();
+                        return false;
+                    }).ToList();
+                    _log.Info($"Filtered by IsActive={isActive.Value}. Count={allItems.Count}");
+                }
+
+                if (!allItems.Any())
+                {
+                    var notFoundAlert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Warn("No EMR section records found.");
+                    return ServiceResult<object>.Failure(notFoundAlert.Type, "No EMR section records found", 404);
+                }
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    allItems,
+                    alert.Type,
+                    $"{allItems.Count} EMR section record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetEMRTemplateSectionMapping(int TemplateId)
+        {
+            try
+            {
+                _log.Info($"GetEMRTemplateSectionMapping called. TemplateId={TemplateId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetEMRTemplateSectionMapping",
+                    CommandType.StoredProcedure,
+                    new { @TemplateId = TemplateId }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var notFoundAlert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No Section mappings found for TemplateId={TemplateId}");
+                    return ServiceResult<object>.Failure(
+                        notFoundAlert.Type,
+                        "No Section mappings found for this section",
+                        404
+                    );
+                }
+
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetEMRTemplateSectionMapping retrieved {result.Count} record(s) for TemplateId={TemplateId}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    result,
+                    alert.Type,
+                    $"{result.Count} Section mapping(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetEMRTemplateDepartmentMapping(int typeId, int relatedToId)
+        {
+            try
+            {
+                _log.Info($"GetEMRTemplateDepartmentMapping called. TypeId={typeId}, RelatedToId={relatedToId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetEMRTemplateDepartmentMapping",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @typeId = typeId,
+                        @relatedToId = relatedToId
+                    });
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var notFoundAlert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No EMRTemplate department mapping found for TypeId={typeId}, RelatedToId={relatedToId}");
+                    return ServiceResult<object>.Failure(
+                        notFoundAlert.Type,
+                        "No EMRTemplate department mapping found",
+                        404
+                    );
+                }
+
+                var rawData = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>()
+                        .ToDictionary(
+                            col => col.ColumnName,
+                            col => row[col] == DBNull.Value ? null : row[col]
+                        )
+                ).ToList();
+
+                _log.Info($"GetEMRTemplateDepartmentMapping retrieved {rawData.Count} record(s)");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    rawData,
+                    alert.Type,
+                    $"{rawData.Count} record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<string> SaveEMRTemplateDepartmentMapping(
+            SaveEMRTemplateDepartmentMappingRequest request,
+            AllGlobalValues globalValues)
+        {
+            SqlConnection con = null;
+            SqlTransaction tnx = null;
+            try
+            {
+                _log.Info($"SaveEMRTemplateDepartmentMapping called. TypeId={request.TypeId}, RelatedToId={request.RelatedToId}, Items={request.SectionMappingData?.Count ?? 0}");
+
+                var connectionString = _configuration.GetConnectionString("ConnectionString");
+                if (string.IsNullOrEmpty(connectionString))
+                    throw new InvalidOperationException("Connection string 'ConnectionString' not found.");
+
+                con = new SqlConnection(connectionString);
+                con.Open();
+                tnx = CustomSqlHelper.getSqlTransaction(con);
+
+                // Step 1 – Delete existing mappings
+                _sqlHelper.DML(tnx, "D_DeleteEMRTemplateDepartmentMapping", CommandType.StoredProcedure, new
+                {
+                    @typeId = request.TypeId,
+                    @relatedToId = request.RelatedToId
+                });
+                _log.Info($"Deleted existing mappings for TypeId={request.TypeId}, RelatedToId={request.RelatedToId}");
+
+                // Step 2 – Insert new mappings
+                int insertedCount = 0;
+                if (request.SectionMappingData != null && request.SectionMappingData.Any())
+                {
+                    foreach (var item in request.SectionMappingData)
+                    {
+                        _sqlHelper.DML(tnx, "I_EMRTemplateDepartmentMapping", CommandType.StoredProcedure, new
+                        {
+                            @hospId = globalValues.hospId,
+                            @typeId = request.TypeId,
+                            @typeName = request.TypeName ?? string.Empty,
+                            @TemplateId = item.TemplateId,
+                            @retatedToId = request.RelatedToId,
+                            @sequenceNo = item.SequenceNo,
+                            @userId = globalValues.userId,
+                            @ipAddress = globalValues.ipAddress
+                        });
+                        insertedCount++;
+                    }
+                }
+
+                tnx.Commit();
+                _log.Info($"SaveEMRTemplateDepartmentMapping committed. Inserted={insertedCount}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    $"{insertedCount} mapping(s) saved successfully",
+                    alert.Type,
+                    "Mapping Updated Successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                try { tnx?.Rollback(); } catch { /* swallow */ }
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(alert.Type, alert.Message, 500);
+            }
+            finally
+            {
+                tnx?.Dispose();
+                if (con != null)
+                {
+                    if (con.State == System.Data.ConnectionState.Open) con.Close();
+                    con.Dispose();
+                }
+            }
+        }
+
+        public ServiceResult<object> GetEMRTemplateSectionMappingByDoctorId(int doctorId, int usedForPatientTypeId)
+        {
+            try
+            {
+                _log.Info($"GetEMRTemplateSectionMappingByDoctorId called. DoctorId={doctorId}, UsedForPatientTypeId={usedForPatientTypeId}");
+
+                // Raw DataTable -> List<Dictionary<string,object>> (no model mapping,
+                // so any new columns added to the SP automatically flow through).
+                // No caching here — result depends on doctorId + patientTypeId (dynamic, not master data).
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetEMRTemplateSectionMappingByDoctorId",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @doctorId = doctorId,
+                        @usedForPatientTypeId = usedForPatientTypeId
+                    }
+                );
+
+                var mappings = dataTable?.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList() ?? new List<Dictionary<string, object>>();
+
+                if (!mappings.Any())
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No EMR template section mappings found for DoctorId={doctorId}, UsedForPatientTypeId={usedForPatientTypeId}");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        "No template/section mappings found for this doctor",
+                        404
+                    );
+                }
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    mappings,
+                    alert1.Type,
+                    $"{mappings.Count} mapping(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
     }
 }

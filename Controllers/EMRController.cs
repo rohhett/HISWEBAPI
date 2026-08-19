@@ -1843,5 +1843,254 @@ namespace HISWEBAPI.Controllers
                 data = serviceResult.Data
             });
         }
+
+        [HttpPost("createUpdateTemplateCategoryMaster")]
+        [Authorize]
+        public IActionResult CreateUpdateTemplateCategoryMaster([FromBody] CreateUpdateTemplateCategoryMasterRequest request)
+        {
+            _log.Info($"CreateUpdateTemplateCategoryMaster called. TemplateCategoryId={request.TemplateCategoryId}, Name={request.TemplateCategoryName}");
+
+            if (!ModelState.IsValid)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new { result = false, messageType = alert.Type, message = alert.Message, errors = ModelState });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _emrRepository.CreateUpdateTemplateCategoryMaster(request, globalValues);
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getTemplateCategoryMasterList")]
+        [Authorize]
+        public IActionResult GetTemplateCategoryMasterList()
+        {
+            _log.Info("GetTemplateCategoryMasterList called.");
+
+            var serviceResult = _emrRepository.GetTemplateCategoryMasterList();
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPost("createUpdateEMRTemplateMaster")]
+        [Authorize]
+        public IActionResult CreateUpdateEMRTemplateMaster([FromBody] CreateUpdateEMRTemplateMasterRequest request)
+        {
+            _log.Info($"CreateUpdateEMRTemplateMaster called. TemplateId={request.TemplateId}, TemplateName={request.TemplateName}");
+
+            if (!ModelState.IsValid)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new { result = false, messageType = alert.Type, message = alert.Message, errors = ModelState });
+            }
+
+            if (request.SectionMappings != null && request.SectionMappings.Any(x => x.SectionId <= 0))
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "Every section mapping row must have SectionId greater than 0"
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _emrRepository.CreateUpdateEMRTemplateMaster(request, globalValues);
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getEMRTemplateMaster")]
+        [Authorize]
+        public IActionResult GetEMRTemplateMaster([FromQuery] int? isActive = null)
+        {
+            _log.Info($"GetEMRTemplateMaster called. IsActive={isActive?.ToString() ?? "All"}");
+
+            if (isActive.HasValue && isActive.Value != 0 && isActive.Value != 1)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "IsActive must be 0 (Inactive), 1 (Active), or null (All)",
+                    errors = new { isActive }
+                });
+            }
+
+            var serviceResult = _emrRepository.GetEMRTemplateMaster(isActive);
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getEMRTemplateSectionMapping")]
+        [Authorize]
+        public IActionResult GetEMRTemplateSectionMapping([FromQuery] int templateId)
+        {
+            _log.Info($"GetEMRTemplateSectionMapping called. TemplateId={templateId}");
+
+            if (templateId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "TemplateId must be greater than 0",
+                    errors = new { templateId }
+                });
+            }
+
+            var serviceResult = _emrRepository.GetEMRTemplateSectionMapping(templateId);
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getEMRTemplateDepartmentMapping")]
+        [Authorize]
+        public IActionResult GetEMRTemplateDepartmentMapping(
+            [FromQuery] int typeId,
+            [FromQuery] int relatedToId)
+        {
+            _log.Info($"GetEMRTemplateDepartmentMapping called. TypeId={typeId}, RelatedToId={relatedToId}");
+
+            if (typeId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "TypeId must be greater than 0", errors = new { typeId } });
+            }
+
+            if (relatedToId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "RelatedToId must be greater than 0", errors = new { relatedToId } });
+            }
+
+            var serviceResult = _emrRepository.GetEMRTemplateDepartmentMapping(typeId, relatedToId);
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPost("saveEMRTemplateDepartmentMapping")]
+        [Authorize]
+        public IActionResult SaveEMRTemplateDepartmentMapping([FromBody] SaveEMRTemplateDepartmentMappingRequest request)
+        {
+            _log.Info($"SaveEMRTemplateDepartmentMapping called. TypeId={request.TypeId}, RelatedToId={request.RelatedToId}, Items={request.SectionMappingData?.Count ?? 0}");
+
+            if (!ModelState.IsValid)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new { result = false, messageType = alert.Type, message = alert.Message, errors = ModelState });
+            }
+
+            if (request.SectionMappingData != null && request.SectionMappingData.Any(x => x.TemplateId <= 0))
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "Every mapping row must have TemplateId > 0"
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _emrRepository.SaveEMRTemplateDepartmentMapping(request, globalValues);
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+
+        [HttpGet("getEMRTemplateSectionMappingByDoctorId")]
+        [Authorize]
+        public IActionResult GetEMRTemplateSectionMappingByDoctorId(
+    [FromQuery] int doctorId,
+    [FromQuery] int usedForPatientTypeId)
+        {
+            _log.Info($"GetEMRTemplateSectionMappingByDoctorId called. DoctorId={doctorId}, UsedForPatientTypeId={usedForPatientTypeId}");
+
+            if (doctorId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "DoctorId must be greater than 0",
+                    errors = new { doctorId }
+                });
+            }
+
+            if (usedForPatientTypeId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "UsedForPatientTypeId must be greater than 0",
+                    errors = new { usedForPatientTypeId }
+                });
+            }
+
+            var serviceResult = _emrRepository.GetEMRTemplateSectionMappingByDoctorId(doctorId, usedForPatientTypeId);
+
+            if (serviceResult.Result)
+                _log.Info($"EMR template section mappings fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"EMR template section mappings fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
     }
 }

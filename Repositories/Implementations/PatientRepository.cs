@@ -2181,6 +2181,7 @@ namespace HISWEBAPI.Repositories.Implementations
                 {
                     @visitId = visitId,
                     @bedId = request.BedId,
+                    @isTransfer = 0,
                     @userId = globalValues.userId,
                     @ipAddress = globalValues.ipAddress
                 });

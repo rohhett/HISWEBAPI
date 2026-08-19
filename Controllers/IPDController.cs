@@ -108,5 +108,538 @@ namespace HISWEBAPI.Controllers
                 data = serviceResult.Data
             });
         }
+
+        [HttpGet("getIPDPatientDoctorHistory")]
+        [Authorize]
+        public IActionResult GetIPDPatientDoctorHistory([FromQuery] int visitId)
+        {
+            _log.Info($"GetIPDPatientDoctorHistory called. VisitId={visitId}");
+
+            if (visitId <= 0)
+            {
+                _log.Warn("Invalid VisitId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "VisitId must be greater than 0",
+                    errors = new { visitId }
+                });
+            }
+
+            var serviceResult = _ipdRepository.GetIPDPatientDoctorHistory(visitId);
+
+            if (serviceResult.Result)
+                _log.Info($"IPD doctor history fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"IPD doctor history fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("transferIPDPatientDoctor")]
+        [Authorize]
+        public IActionResult TransferIPDPatientDoctor([FromBody] TransferIPDPatientDoctorRequest request)
+        {
+            _log.Info($"TransferIPDPatientDoctor called. VisitId={request?.VisitId}, PrimaryDoctorId={request?.PrimaryDoctorId}, BranchId={request?.BranchId}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for TransferIPDPatientDoctor.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.SecondaryDoctorIds != null &&
+                request.SecondaryDoctorIds.Contains(request.PrimaryDoctorId))
+            {
+                _log.Warn("PrimaryDoctorId cannot also appear in SecondaryDoctorIds.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "PrimaryDoctorId cannot be included in SecondaryDoctorIds",
+                    errors = new { request.PrimaryDoctorId, request.SecondaryDoctorIds }
+                });
+            }
+
+            if (request.SecondaryDoctorIds != null && request.SecondaryDoctorIds.Any(id => id <= 0))
+            {
+                _log.Warn("Invalid SecondaryDoctorIds provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "All SecondaryDoctorIds must be greater than 0",
+                    errors = new { request.SecondaryDoctorIds }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _ipdRepository.TransferIPDPatientDoctor(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"IPD patient doctor transferred successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"IPD patient doctor transfer failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getIPDPatientCorporateHistory")]
+        [Authorize]
+        public IActionResult GetIPDPatientCorporateHistory([FromQuery] int visitId)
+        {
+            _log.Info($"GetIPDPatientCorporateHistory called. VisitId={visitId}");
+
+            if (visitId <= 0)
+            {
+                _log.Warn("Invalid VisitId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "VisitId must be greater than 0",
+                    errors = new { visitId }
+                });
+            }
+
+            var serviceResult = _ipdRepository.GetIPDPatientCorporateHistory(visitId);
+
+            if (serviceResult.Result)
+                _log.Info($"IPD corporate history fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"IPD corporate history fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("updateIPDPatientTariffDetails")]
+        [Authorize]
+        public IActionResult UpdateIPDPatientTariffDetails([FromBody] UpdateIPDPatientTariffDetailsRequest request)
+        {
+            _log.Info($"UpdateIPDPatientTariffDetails called. VisitId={request?.VisitId}, PatientId={request?.PatientId}, CorporateId={request?.CorporateId}, IsChangeTariff={request?.IsChangeTariff}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for UpdateIPDPatientTariffDetails.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.IsChangeTariff != 0 && request.IsChangeTariff != 1)
+            {
+                _log.Warn("Invalid IsChangeTariff value provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "IsChangeTariff must be 0 or 1",
+                    errors = new { request.IsChangeTariff }
+                });
+            }
+
+            if (request.IsChangeTariff == 1)
+            {
+                if (string.IsNullOrWhiteSpace(request.ChangeTariffFromDate))
+                {
+                    _log.Warn("ChangeTariffFromDate is missing.");
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "ChangeTariffFromDate is required when IsChangeTariff = 1",
+                        errors = new { request.ChangeTariffFromDate }
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(request.ChangeTariffToDate))
+                {
+                    _log.Warn("ChangeTariffToDate is missing.");
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "ChangeTariffToDate is required when IsChangeTariff = 1",
+                        errors = new { request.ChangeTariffToDate }
+                    });
+                }
+
+                if (!DateTime.TryParse(request.ChangeTariffFromDate, out _) ||
+                    !DateTime.TryParse(request.ChangeTariffToDate, out _))
+                {
+                    _log.Warn("Invalid date format for ChangeTariffFromDate/ChangeTariffToDate.");
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "ChangeTariffFromDate and ChangeTariffToDate must be valid dates",
+                        errors = new { request.ChangeTariffFromDate, request.ChangeTariffToDate }
+                    });
+                }
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _ipdRepository.UpdateIPDPatientTariffDetails(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"IPD patient tariff details updated successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"IPD patient tariff details update failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPost("saveCorporateTransferRequestApproval")]
+        [Authorize]
+        public IActionResult SaveCorporateTransferRequestApproval([FromBody] SaveCorporateTransferRequestApprovalRequest request)
+        {
+            _log.Info($"SaveCorporateTransferRequestApproval called. PatientId={request?.PatientId}, BranchId={request?.BranchId}, VisitId={request?.VisitId}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SaveCorporateTransferRequestApproval.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.PatientId <= 0)
+            {
+                _log.Warn("Invalid PatientId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "PatientId must be greater than 0",
+                    errors = new { patientId = request.PatientId }
+                });
+            }
+
+            if (request.BranchId <= 0)
+            {
+                _log.Warn("Invalid BranchId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BranchId must be greater than 0",
+                    errors = new { branchId = request.BranchId }
+                });
+            }
+
+            if (request.VisitId <= 0)
+            {
+                _log.Warn("Invalid VisitId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "VisitId must be greater than 0",
+                    errors = new { visitId = request.VisitId }
+                });
+            }
+
+            if (request.CorporateId <= 0)
+            {
+                _log.Warn("Invalid CorporateId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "CorporateId must be greater than 0",
+                    errors = new { corporateId = request.CorporateId }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _ipdRepository.SaveCorporateTransferRequestApproval(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"SaveCorporateTransferRequestApproval succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"SaveCorporateTransferRequestApproval failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("approveCorporateTransferRequest")]
+        [Authorize]
+        public IActionResult ApproveCorporateTransferRequest([FromBody] ApproveCorporateTransferRequestRequest request)
+        {
+            _log.Info($"ApproveCorporateTransferRequest called. CorporateTransferId={request?.CorporateTransferId}, Flag={request?.Flag}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for ApproveCorporateTransferRequest.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _ipdRepository.ApproveCorporateTransferRequest(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"ApproveCorporateTransferRequest succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"ApproveCorporateTransferRequest failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("cancelCorporateTransferRequest")]
+        [Authorize]
+        public IActionResult CancelCorporateTransferRequest([FromBody] CancelCorporateTransferRequestRequest request)
+        {
+            _log.Info($"CancelCorporateTransferRequest called. CorporateTransferId={request?.CorporateTransferId}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for CancelCorporateTransferRequest.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _ipdRepository.CancelCorporateTransferRequest(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"CancelCorporateTransferRequest succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"CancelCorporateTransferRequest failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("confirmCorporateTransferRequest")]
+        [Authorize]
+        public IActionResult ConfirmCorporateTransferRequest([FromBody] ConfirmCorporateTransferRequestRequest request)
+        {
+            _log.Info($"ConfirmCorporateTransferRequest called. CorporateTransferId={request?.CorporateTransferId}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for ConfirmCorporateTransferRequest.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _ipdRepository.ConfirmCorporateTransferRequest(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"ConfirmCorporateTransferRequest succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"ConfirmCorporateTransferRequest failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getCorporateTransferRequestListForApproval")]
+        [Authorize]
+        public IActionResult GetCorporateTransferRequestListForApproval(
+            [FromQuery] string fromDate,
+            [FromQuery] string toDate,
+            [FromQuery] int branchId)
+        {
+            _log.Info($"GetCorporateTransferRequestListForApproval called. FromDate={fromDate}, ToDate={toDate}, BranchId={branchId}");
+
+            if (string.IsNullOrWhiteSpace(fromDate))
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "FromDate is required" });
+            }
+
+            if (string.IsNullOrWhiteSpace(toDate))
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "ToDate is required" });
+            }
+
+            if (branchId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new { result = false, messageType = alert.Type, message = "BranchId must be greater than 0", errors = new { branchId } });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _ipdRepository.GetCorporateTransferRequestListForApproval(fromDate, toDate, branchId, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"GetCorporateTransferRequestListForApproval fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetCorporateTransferRequestListForApproval failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getCorporateTransferRequestDetailsByCorporateTransferId")]
+        [Authorize]
+        public IActionResult GetCorporateTransferRequestDetailsByCorporateTransferId([FromQuery] int corporateTransferId)
+        {
+            _log.Info($"GetCorporateTransferRequestDetailsByCorporateTransferId called. CorporateTransferId={corporateTransferId}");
+
+            if (corporateTransferId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "CorporateTransferId must be greater than 0",
+                    errors = new { corporateTransferId }
+                });
+            }
+
+            var serviceResult = _ipdRepository.GetCorporateTransferRequestDetailsByCorporateTransferId(corporateTransferId);
+
+            if (serviceResult.Result)
+                _log.Info($"GetCorporateTransferRequestDetailsByCorporateTransferId fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetCorporateTransferRequestDetailsByCorporateTransferId failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getCorporateTransferRequestApprovalDetails")]
+        [Authorize]
+        public IActionResult GetCorporateTransferRequestApprovalDetails([FromQuery] int corporateTransferId)
+        {
+            _log.Info($"GetCorporateTransferRequestApprovalDetails called. CorporateTransferId={corporateTransferId}");
+
+            if (corporateTransferId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "CorporateTransferId must be greater than 0",
+                    errors = new { corporateTransferId }
+                });
+            }
+
+            var serviceResult = _ipdRepository.GetCorporateTransferRequestApprovalDetails(corporateTransferId);
+
+            if (serviceResult.Result)
+                _log.Info($"GetCorporateTransferRequestApprovalDetails fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetCorporateTransferRequestApprovalDetails failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
     }
 }
