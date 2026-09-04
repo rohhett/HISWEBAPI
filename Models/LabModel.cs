@@ -100,6 +100,8 @@
         public int? IsRegistrationCharge { get; set; }
         public int? RegistrationChargeValidityDays { get; set; }
         public int? IsPackageExpired { get; set; }
+        public string SaltName { get; set; }
+
 
 
     }

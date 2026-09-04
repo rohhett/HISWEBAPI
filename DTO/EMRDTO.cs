@@ -448,6 +448,8 @@ namespace HISWEBAPI.DTO
         [Required(ErrorMessage = "IsActive is required")]
         [Range(0, 1, ErrorMessage = "IsActive must be 0 or 1")]
         public int IsActive { get; set; }
+        public int IsMultipleEntryAllow { get; set; } = 0;
+        public int ApplicableTo { get; set; } = 0;
 
         public List<EMRTemplateSectionMappingItem> SectionMappings { get; set; } = new();
     }
@@ -486,5 +488,40 @@ namespace HISWEBAPI.DTO
         public int SequenceNo { get; set; } = 0;
     }
 
+    public class CarePlanHeaderDataItemRequest
+    {
+        [Required(ErrorMessage = "SectionId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "SectionId must be greater than 0")]
+        public int SectionId { get; set; }
 
+        [Required(ErrorMessage = "HeaderId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "HeaderId must be greater than 0")]
+        public int HeaderId { get; set; }
+
+        [Required(ErrorMessage = "ControlTypeId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "ControlTypeId must be greater than 0")]
+        public int ControlTypeId { get; set; }
+
+        public string? HeaderValue { get; set; }
+    }
+
+    public class CreateUpdateCarePlanRequest
+    {
+        public int CarePlanId { get; set; } = 0;
+
+        [Required(ErrorMessage = "CarePlanName is required")]
+        [StringLength(256, ErrorMessage = "CarePlanName cannot exceed 256 characters")]
+        public string CarePlanName { get; set; }
+
+        [Required(ErrorMessage = "DoctorId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "DoctorId must be greater than 0")]
+        public int DoctorId { get; set; }
+
+        public List<CarePlanHeaderDataItemRequest> HeadersData { get; set; } = new();
+    }
+
+    public class CreateUpdateCarePlanResponse
+    {
+        public int CarePlanId { get; set; }
+    }
 }

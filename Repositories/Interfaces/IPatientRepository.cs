@@ -120,5 +120,6 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<string> CancelDoctorAppointmentPreBooking(int id, string cancelReason, AllGlobalValues globalValues);
         ServiceResult<string> ConfirmDoctorAppointmentPreBooking(int id, AllGlobalValues globalValues);
         ServiceResult<string> RescheduleDoctorAppointmentPreBooking(int id, int slotId, DateTime appDateTime, AllGlobalValues globalValues);
+        ServiceResult<object> GetServiceDetailsForCorporateRateComparison(int visitId, int corporateId);
     }
 }

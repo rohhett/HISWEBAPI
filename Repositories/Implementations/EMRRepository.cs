@@ -238,47 +238,62 @@ namespace HISWEBAPI.Repositories.Implementations
             }
         }
 
-        public ServiceResult<IEnumerable<Dictionary<string, object>>> GetSaltNameMasterList()
+        private const string CACHE_KEY_SaltNameMaster_All = "_SaltNameMaster_All";
+
+        public ServiceResult<IEnumerable<Dictionary<string, object>>> GetSaltNameMasterList(string saltName = null)
         {
             try
             {
-                _log.Info("GetSaltNameMasterList called.");
+                _log.Info($"GetSaltNameMasterList called. SaltName={saltName ?? "All"}");
 
-                string cacheKey = "_SaltNameMaster_All";
-
-                var cachedData = _distributedCache.GetString(cacheKey);
-                List<Dictionary<string, object>> saltNames;
+                var cachedData = _distributedCache.GetString(CACHE_KEY_SaltNameMaster_All);
+                List<Dictionary<string, object>> allItems;
 
                 if (!string.IsNullOrEmpty(cachedData))
                 {
-                    _log.Info($"SaltNameMaster data retrieved from cache. Key={cacheKey}");
-                    saltNames = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object>>>(cachedData);
+                    _log.Info($"SaltNameMaster data retrieved from cache. Key={CACHE_KEY_SaltNameMaster_All}");
+                    allItems = System.Text.Json.JsonSerializer
+                        .Deserialize<List<Dictionary<string, object>>>(cachedData);
                 }
                 else
                 {
-                    _log.Info($"SaltNameMaster cache miss. Fetching data from database. Key={cacheKey}");
+                    _log.Info($"SaltNameMaster cache miss. Fetching data from database. Key={CACHE_KEY_SaltNameMaster_All}");
 
                     var dataTable = _sqlHelper.GetDataTable(
                         "S_GetSaltNameMasterList",
                         CommandType.StoredProcedure
                     );
 
-                    saltNames = ConvertDataTableToList(dataTable);
+                    allItems = ConvertDataTableToList(dataTable);
 
-                    if (saltNames.Any())
+                    if (allItems.Any())
                     {
-                        var serialized = System.Text.Json.JsonSerializer.Serialize(saltNames);
+                        var serialized = System.Text.Json.JsonSerializer.Serialize(allItems);
                         var cacheOptions = new DistributedCacheEntryOptions
                         {
                             AbsoluteExpiration = null,
                             SlidingExpiration = null
                         };
-                        _distributedCache.SetString(cacheKey, serialized, cacheOptions);
-                        _log.Info($"SaltNameMaster data cached permanently. Key={cacheKey}, Count={saltNames.Count}");
+                        _distributedCache.SetString(CACHE_KEY_SaltNameMaster_All, serialized, cacheOptions);
+                        _log.Info($"SaltNameMaster data cached permanently. Key={CACHE_KEY_SaltNameMaster_All}, Count={allItems.Count}");
                     }
                 }
 
-                if (!saltNames.Any())
+                // In-memory filter by SaltName; blank/null = return all
+                List<Dictionary<string, object>> filteredItems = allItems;
+
+                if (!string.IsNullOrWhiteSpace(saltName))
+                {
+                    filteredItems = filteredItems.Where(row =>
+                    {
+                        if (row.TryGetValue("SaltName", out var val) && val != null)
+                            return val.ToString().Contains(saltName.Trim(), StringComparison.OrdinalIgnoreCase);
+                        return false;
+                    }).ToList();
+                    _log.Info($"Filtered by SaltName='{saltName}'. Count={filteredItems.Count}");
+                }
+
+                if (!filteredItems.Any())
                 {
                     var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
                     _log.Info("No salt names found");
@@ -289,12 +304,12 @@ namespace HISWEBAPI.Repositories.Implementations
                     );
                 }
 
-                _log.Info($"Retrieved {saltNames.Count} salt name(s) from cache");
+                _log.Info($"Retrieved {filteredItems.Count} salt name(s) from cache");
 
                 return ServiceResult<IEnumerable<Dictionary<string, object>>>.Success(
-                    saltNames,
+                    filteredItems,
                     "Info",
-                    $"{saltNames.Count} salt name(s) retrieved successfully",
+                    $"{filteredItems.Count} salt name(s) retrieved successfully",
                     200
                 );
             }
@@ -3148,6 +3163,8 @@ namespace HISWEBAPI.Repositories.Implementations
             new SqlParameter("@displayName", SqlDbType.NVarChar, 256){ Value = request.DisplayName ?? (object)DBNull.Value },
             new SqlParameter("@templateCategoryId",    SqlDbType.Int)          { Value = request.TemplateCategoryId },
             new SqlParameter("@isActive",    SqlDbType.Int)          { Value = request.IsActive },
+            new SqlParameter("@isMultipleEntryAllow",    SqlDbType.Int)          { Value = request.IsMultipleEntryAllow },
+            new SqlParameter("@applicableTo",    SqlDbType.Int)          { Value = request.ApplicableTo },
             new SqlParameter("@userId",      SqlDbType.Int)          { Value = globalValues.userId },
             new SqlParameter("@IpAddress",   SqlDbType.NVarChar, 20) { Value = globalValues.ipAddress ?? (object)DBNull.Value },
             new SqlParameter("@Result",      SqlDbType.Int)          { Direction = ParameterDirection.Output }
@@ -3162,7 +3179,7 @@ namespace HISWEBAPI.Repositories.Implementations
                     _log.Warn($"Duplicate TemplateName: {request.TemplateName}");
                     return ServiceResult<object>.Failure(
                         dupAlert.Type,
-                        "Section name already exists",
+                        "Template name already exists",
                         409
                     );
                 }
@@ -3493,7 +3510,7 @@ namespace HISWEBAPI.Repositories.Implementations
             }
         }
 
-        public ServiceResult<object> GetEMRTemplateSectionMappingByDoctorId(int doctorId, int usedForPatientTypeId)
+        public ServiceResult<object> GetEMRTemplateSectionMappingByDoctorId(int doctorId, int usedForPatientTypeId,int applicableToId)
         {
             try
             {
@@ -3508,7 +3525,8 @@ namespace HISWEBAPI.Repositories.Implementations
                     new
                     {
                         @doctorId = doctorId,
-                        @usedForPatientTypeId = usedForPatientTypeId
+                        @usedForPatientTypeId = usedForPatientTypeId,
+                        @applicableToId = applicableToId
                     }
                 );
 
@@ -3547,6 +3565,201 @@ namespace HISWEBAPI.Repositories.Implementations
                     alert.Message,
                     500
                 );
+            }
+        }
+
+        public ServiceResult<CreateUpdateCarePlanResponse> CreateUpdateCarePlan(
+    CreateUpdateCarePlanRequest request,
+    AllGlobalValues globalValues)
+        {
+            var connectionString = _configuration.GetConnectionString("ConnectionString");
+            SqlConnection con = new SqlConnection(connectionString);
+            con.Open();
+            var tnx = CustomSqlHelper.getSqlTransaction(con);
+
+            try
+            {
+                _log.Info($"CreateUpdateCarePlan called. CarePlanId={request.CarePlanId}, DoctorId={request.DoctorId}, CarePlanName={request.CarePlanName}");
+
+                // IU_CarePlanMaster uses a true OUTPUT parameter (no trailing SELECT @Result;),
+                // so RunProcedureInsert is required here (reads the OUTPUT param value directly).
+                long resultValue = _sqlHelper.RunProcedureInsert(
+                    "IU_CarePlanMaster",
+                    new IDataParameter[]
+                    {
+                new SqlParameter("@carePlanId", request.CarePlanId),
+                new SqlParameter("@doctorId", request.DoctorId),
+                new SqlParameter("@carePlanName", request.CarePlanName),
+                new SqlParameter("@userId", globalValues.userId),
+                new SqlParameter("@IpAddress", (object)globalValues.ipAddress ?? DBNull.Value),
+                new SqlParameter("@Result", SqlDbType.Int) { Direction = ParameterDirection.Output }
+                    });
+
+                int result = Convert.ToInt32(resultValue);
+
+                if (result == -1)
+                {
+                    tnx.Rollback();
+                    var dupAlert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Duplicate CarePlanName: {request.CarePlanName} for DoctorId={request.DoctorId}");
+                    return ServiceResult<CreateUpdateCarePlanResponse>.Failure(
+                        dupAlert.Type,
+                        "Care plan name already exists for this doctor",
+                        409
+                    );
+                }
+
+                int carePlanId = result;
+                _log.Info($"CarePlanMaster {(request.CarePlanId == 0 ? "inserted" : "updated")}. CarePlanId={carePlanId}");
+
+                // Delete existing mappings, then reinsert (covers both insert & update)
+                _sqlHelper.DML(tnx, "D_CarePlanMapping", CommandType.StoredProcedure, new
+                {
+                    @carePlanId = carePlanId
+                });
+                _log.Info($"Deleted existing CarePlanMapping for CarePlanId={carePlanId}");
+
+                int insertedCount = 0;
+                if (request.HeadersData != null && request.HeadersData.Any())
+                {
+                    foreach (var item in request.HeadersData)
+                    {
+                        _sqlHelper.DML(tnx, "I_CarePlanMapping", CommandType.StoredProcedure, new
+                        {
+                            @carePlanId = carePlanId,
+                            @sectionId = item.SectionId,
+                            @headerId = item.HeaderId,
+                            @controlTypeId = item.ControlTypeId,
+                            @headerValue = (object)item.HeaderValue ?? DBNull.Value,
+                            @userId = globalValues.userId,
+                            @ipAddress = globalValues.ipAddress
+                        });
+                        insertedCount++;
+                    }
+                }
+
+                tnx.Commit();
+                _log.Info($"CreateUpdateCarePlan committed. CarePlanId={carePlanId}, MappingsInserted={insertedCount}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode(
+                    request.CarePlanId == 0 ? "DATA_SAVED_SUCCESSFULLY" : "DATA_UPDATED_SUCCESSFULLY"
+                );
+
+                return ServiceResult<CreateUpdateCarePlanResponse>.Success(
+                    new CreateUpdateCarePlanResponse { CarePlanId = carePlanId },
+                    alert.Type,
+                    alert.Message,
+                    request.CarePlanId == 0 ? 201 : 200
+                );
+            }
+            catch (Exception ex)
+            {
+                try { tnx.Rollback(); } catch { /* swallow rollback exception */ }
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<CreateUpdateCarePlanResponse>.Failure(alert.Type, alert.Message, 500);
+            }
+            finally
+            {
+                tnx.Dispose();
+                if (con.State == ConnectionState.Open)
+                    con.Close();
+            }
+        }
+
+        public ServiceResult<object> GetCarePlanMaster(int doctorId)
+        {
+            try
+            {
+                _log.Info($"GetCarePlanMaster called. DoctorId={doctorId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetCarePlanMaster",
+                    CommandType.StoredProcedure,
+                    new { @DoctorId = doctorId }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No care plans found for DoctorId={doctorId}");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        "No care plans found for this doctor",
+                        404
+                    );
+                }
+
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetCarePlanMaster retrieved {result.Count} record(s) for DoctorId={doctorId}");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    result,
+                    alert1.Type,
+                    $"{result.Count} care plan(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetCarePlanDetails(int carePlanId)
+        {
+            try
+            {
+                _log.Info($"GetCarePlanDetails called. CarePlanId={carePlanId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetCarePlanDetails",
+                    CommandType.StoredProcedure,
+                    new { @carePlanId = carePlanId }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No care plan details found for CarePlanId={carePlanId}");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        "No care plan details found",
+                        404
+                    );
+                }
+
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetCarePlanDetails retrieved {result.Count} record(s) for CarePlanId={carePlanId}");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    result,
+                    alert1.Type,
+                    $"{result.Count} record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
             }
         }
     }

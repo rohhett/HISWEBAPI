@@ -4,14 +4,15 @@ using HISWEBAPI.Data.Helpers;
 
 namespace HISWEBAPI.Domain
 {
+    public enum VisitType { OPD = 1, IPD = 2, Store = 3 }
+
     public class PatientVisitDetails
     {
         public int HospId { get; set; }
         public int BranchId { get; set; }
         public int PatientId { get; set; }
         public string Uhid { get; set; }
-        public string Type { get; set; }
-        public int TypeId { get; set; }
+        public VisitType visitType { get; set; }
         public string CurrentAge { get; set; }
         public int DoctorId { get; set; }
         public int CorporateId { get; set; }
@@ -74,8 +75,8 @@ namespace HISWEBAPI.Domain
                 @branchId = BranchId,
                 @patientId = PatientId,
                 @uhid = Uhid,
-                @type = Type,
-                @typeId = TypeId,
+                @type = Enum.GetName(typeof(VisitType), this.visitType),
+                @typeId = this.visitType,
                 @currentAge = CurrentAge,
                 @doctorId = DoctorId,
                 @corporateId = CorporateId,

@@ -1113,6 +1113,7 @@ namespace HISWEBAPI.DTO
         [StringLength(100, ErrorMessage = "Active payment modes cannot exceed 100 characters")]
         public string ActivePaymentModes { get; set; }
         public int IsRegistrationChargeApplicable { get; set; } = 0;
+        public int IsCaseBillingApplicable { get; set; } = 0;
 
 
 
@@ -1457,6 +1458,9 @@ namespace HISWEBAPI.DTO
 
         public int? RoomTypeId { get; set; }
 
+        [Required(ErrorMessage = "FaIconId is required")]
+        public int FaIconId { get; set; } = 0;
+
         [Required(ErrorMessage = "IsActive is required")]
         public int IsActive { get; set; }
     }
@@ -1776,6 +1780,69 @@ namespace HISWEBAPI.DTO
     public class CreateUpdatePackageMasterResponse
     {
         public int PackageId { get; set; }
+    }
+
+    public class UpdateNavigationSubMenuSequenceItem
+    {
+        [Required(ErrorMessage = "SubMenuId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "SubMenuId must be greater than 0")]
+        public int SubMenuId { get; set; }
+
+        [Required(ErrorMessage = "SequenceNo is required")]
+        public int SequenceNo { get; set; }
+    }
+
+    public class UpdateNavigationSubMenuSequenceRequest
+    {
+        [Required(ErrorMessage = "SubMenus list is required")]
+        [MinLength(1, ErrorMessage = "At least one submenu sequence is required")]
+        public List<UpdateNavigationSubMenuSequenceItem> SubMenus { get; set; } = new();
+    }
+
+    public class UpdateNavigationTabSequenceItem
+    {
+        [Required(ErrorMessage = "TabId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "TabId must be greater than 0")]
+        public int TabId { get; set; }
+
+        [Required(ErrorMessage = "SequenceNo is required")]
+        public int SequenceNo { get; set; }
+    }
+
+    public class UpdateNavigationTabSequenceRequest
+    {
+        [Required(ErrorMessage = "Tabs list is required")]
+        [MinLength(1, ErrorMessage = "At least one tab sequence is required")]
+        public List<UpdateNavigationTabSequenceItem> Tabs { get; set; } = new();
+    }
+
+    public class CreateUpdateSurgeryComponentMasterRequest
+    {
+        public int ComponentId { get; set; } = 0;
+
+        [Required(ErrorMessage = "ComponentName is required")]
+        [StringLength(256, ErrorMessage = "ComponentName cannot exceed 256 characters")]
+        public string ComponentName { get; set; }
+
+        [Required(ErrorMessage = "HasDoctor is required")]
+        [Range(0, 1, ErrorMessage = "HasDoctor must be 0 or 1")]
+        public int HasDoctor { get; set; }
+
+        [Required(ErrorMessage = "IsBaseComponent is required")]
+        [Range(0, 1, ErrorMessage = "IsBaseComponent must be 0 or 1")]
+        public int IsBaseComponent { get; set; }
+
+        [Range(0, 100, ErrorMessage = "SharePercentage must be between 0 and 100")]
+        public decimal SharePercentage { get; set; } = 0;
+
+        [Required(ErrorMessage = "IsActive is required")]
+        [Range(0, 1, ErrorMessage = "IsActive must be 0 or 1")]
+        public int IsActive { get; set; }
+    }
+
+    public class CreateUpdateSurgeryComponentMasterResponse
+    {
+        public int ComponentId { get; set; }
     }
 
 }

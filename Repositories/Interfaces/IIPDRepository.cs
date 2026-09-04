@@ -18,5 +18,10 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<object> GetCorporateTransferRequestListForApproval(string fromDate, string toDate, int branchId, AllGlobalValues globalValues);
         ServiceResult<object> GetCorporateTransferRequestDetailsByCorporateTransferId(int corporateTransferId);
         ServiceResult<object> GetCorporateTransferRequestApprovalDetails(int corporateTransferId);
+        ServiceResult<object> GetCorporateTransferRequestDetailsByVisitId(int visitId);
+        ServiceResult<SaveIPDBillingResponse> SaveIPDBilling(SaveIPDBillingRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetIPDBillingSummary(int branchId, int visitId);
+        ServiceResult<object> GetIPDPatientBillAmounts(int visitId, int patientId);
+        ServiceResult<object> GetIPDPatientOrderDetails(int ftid, AllGlobalValues globalValues);
     }
 }

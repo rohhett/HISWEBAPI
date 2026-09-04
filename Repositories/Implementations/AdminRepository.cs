@@ -6448,6 +6448,7 @@ namespace HISWEBAPI.Repositories.Implementations
                     @hikePerIn = request.HikePerIn,
                     @activePaymentModes = request.ActivePaymentModes ?? string.Empty,
                     @isRegistrationChargeApplicable = request.IsRegistrationChargeApplicable,
+                    @isCaseBillingApplicable = request.IsCaseBillingApplicable,
 
                     @userId = globalValues.userId,
                     @IpAddress = globalValues.ipAddress
@@ -6564,6 +6565,7 @@ namespace HISWEBAPI.Repositories.Implementations
                         HikePerIn = row.Field<decimal?>("HikePerIn") ?? 0,
                         ActivePaymentModes = row.Field<string>("ActivePaymentModes") ?? string.Empty,
                         IsRegistrationChargeApplicable = row.Field<int?>("IsRegistrationChargeApplicable") ?? 0,
+                        IsCaseBillingApplicable = row.Field<int?>("IsCaseBillingApplicable") ?? 0,
 
 
                     }).ToList() ?? new List<CorporateMasterDetailModel>();
@@ -8541,6 +8543,7 @@ namespace HISWEBAPI.Repositories.Implementations
                         @tabType = request.TabType,
                         @roomTypeId = request.RoomTypeId ?? (object)DBNull.Value,
                         @isActive = request.IsActive,
+                        @faIconId = request.FaIconId,
                         @userId = globalValues.userId,
                         @ipAddress = globalValues.ipAddress
                     },
@@ -10345,6 +10348,268 @@ namespace HISWEBAPI.Repositories.Implementations
                 tnx.Dispose();
                 if (con.State == ConnectionState.Open)
                     con.Close();
+            }
+        }
+
+        public ServiceResult<string> UpdateNavigationSubMenuSequenceNo(
+    UpdateNavigationSubMenuSequenceRequest request,
+    AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"UpdateNavigationSubMenuSequenceNo called. Count={request.SubMenus?.Count ?? 0}");
+
+                foreach (var item in request.SubMenus)
+                {
+                    _sqlHelper.DML(
+                        "U_NavigationSubMenuSequenceNo",
+                        CommandType.StoredProcedure,
+                        new
+                        {
+                            @SubMenuId = item.SubMenuId,
+                            @SequenceNo = item.SequenceNo
+                        }
+                    );
+                }
+
+                _log.Info($"UpdateNavigationSubMenuSequenceNo completed. Updated {request.SubMenus.Count} record(s)");
+
+
+                GlobalFunctions.ClearCacheByPattern(_configuration, "_RoleWiseMenuMapping_*");
+                GlobalFunctions.ClearCacheByPattern(_configuration, "_UserWiseMenuMapping_*");
+                GlobalFunctions.ClearCacheByPattern(_configuration, "_UserTabMenu_*");
+
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    $"{request.SubMenus.Count} sub menu sequence(s) updated successfully",
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<string> UpdateNavigationTabSequenceNo(
+            UpdateNavigationTabSequenceRequest request,
+            AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"UpdateNavigationTabSequenceNo called. Count={request.Tabs?.Count ?? 0}");
+
+                foreach (var item in request.Tabs)
+                {
+                    _sqlHelper.DML(
+                        "U_NavigationTabSequenceNo",
+                        CommandType.StoredProcedure,
+                        new
+                        {
+                            @TabId = item.TabId,
+                            @SequenceNo = item.SequenceNo
+                        }
+                    );
+                }
+
+                _log.Info($"UpdateNavigationTabSequenceNo completed. Updated {request.Tabs.Count} record(s)");
+
+                GlobalFunctions.ClearCacheByPattern(_configuration, "_UserTabMenu_*");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_UPDATED_SUCCESSFULLY");
+                return ServiceResult<string>.Success(
+                    $"{request.Tabs.Count} tab sequence(s) updated successfully",
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<string>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        private const string CACHE_KEY_SurgeryComponentMaster_All = "_SurgeryComponentMaster_All";
+
+        public ServiceResult<CreateUpdateSurgeryComponentMasterResponse> CreateUpdateSurgeryComponentMaster(
+            CreateUpdateSurgeryComponentMasterRequest request,
+            AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"CreateUpdateSurgeryComponentMaster called. ComponentId={request.ComponentId}, ComponentName={request.ComponentName}");
+
+                // IU_SurgeryComponentMaster ends with an unconditional trailing SELECT @Result;,
+                // so ExecuteScalar is the correct helper here (not RunProcedureInsert).
+                var result = _sqlHelper.ExecuteScalar(
+                    "IU_SurgeryComponentMaster",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @hospId = globalValues.hospId,
+                        @componentId = request.ComponentId,
+                        @componentName = request.ComponentName,
+                        @hasDoctor = request.HasDoctor,
+                        @isBaseComponent = request.IsBaseComponent,
+                        @sharePercentage = request.SharePercentage,
+                        @isActive = request.IsActive,
+                        @userId = globalValues.userId,
+                        @IpAddress = globalValues.ipAddress ?? (object)DBNull.Value
+                    }
+                );
+
+                int resultValue = Convert.ToInt32(result);
+
+                if (resultValue == -1)
+                {
+                    var dupAlert = _messageService.GetMessageAndTypeByAlertCode("RECORD_ALREADY_EXISTS");
+                    _log.Warn($"Duplicate ComponentName: {request.ComponentName}");
+                    return ServiceResult<CreateUpdateSurgeryComponentMasterResponse>.Failure(
+                        dupAlert.Type,
+                        "Component name already exists",
+                        409
+                    );
+                }
+
+                if (resultValue == -2)
+                {
+                    var conflictAlert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    _log.Warn("Another active base component already exists.");
+                    return ServiceResult<CreateUpdateSurgeryComponentMasterResponse>.Failure(
+                        conflictAlert.Type,
+                        "An active base component already exists. Only one base component is allowed.",
+                        409
+                    );
+                }
+
+                if (resultValue > 0)
+                {
+                    _distributedCache.Remove(CACHE_KEY_SurgeryComponentMaster_All);
+                    _log.Info($"Cleared SurgeryComponentMaster cache. ComponentId={resultValue}");
+
+                    var responseData = new CreateUpdateSurgeryComponentMasterResponse { ComponentId = resultValue };
+                    var alert = _messageService.GetMessageAndTypeByAlertCode(
+                        request.ComponentId == 0 ? "DATA_SAVED_SUCCESSFULLY" : "DATA_UPDATED_SUCCESSFULLY"
+                    );
+
+                    _log.Info($"SurgeryComponent {(request.ComponentId == 0 ? "created" : "updated")} successfully. ComponentId={resultValue}");
+
+                    return ServiceResult<CreateUpdateSurgeryComponentMasterResponse>.Success(
+                        responseData,
+                        alert.Type,
+                        alert.Message,
+                        request.ComponentId == 0 ? 201 : 200
+                    );
+                }
+
+                var failAlert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_FAILED");
+                _log.Error($"SurgeryComponentMaster operation failed with result: {resultValue}");
+                return ServiceResult<CreateUpdateSurgeryComponentMasterResponse>.Failure(
+                    failAlert.Type,
+                    failAlert.Message,
+                    500
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<CreateUpdateSurgeryComponentMasterResponse>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
+
+        public ServiceResult<object> GetSurgeryComponentsList(int? isActive)
+        {
+            try
+            {
+                _log.Info($"GetSurgeryComponentsList called. IsActive={isActive?.ToString() ?? "All"}");
+
+                var cachedData = _distributedCache.GetString(CACHE_KEY_SurgeryComponentMaster_All);
+                List<Dictionary<string, object>> allItems;
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _log.Info($"SurgeryComponentMaster data retrieved from cache. Key={CACHE_KEY_SurgeryComponentMaster_All}");
+                    allItems = System.Text.Json.JsonSerializer
+                        .Deserialize<List<Dictionary<string, object>>>(cachedData);
+                }
+                else
+                {
+                    _log.Info($"SurgeryComponentMaster cache miss. Fetching from database. Key={CACHE_KEY_SurgeryComponentMaster_All}");
+
+                    var dataTable = _sqlHelper.GetDataTable(
+                        "S_GetSurgeryComponentsList",
+                        CommandType.StoredProcedure
+                    );
+
+                    allItems = dataTable?.AsEnumerable().Select(row =>
+                        dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                            col => col.ColumnName,
+                            col => row[col] == DBNull.Value ? null : row[col]
+                        )
+                    ).ToList() ?? new List<Dictionary<string, object>>();
+
+                    if (allItems.Any())
+                    {
+                        var serialized = System.Text.Json.JsonSerializer.Serialize(allItems);
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpiration = null,
+                            SlidingExpiration = null
+                        };
+                        _distributedCache.SetString(CACHE_KEY_SurgeryComponentMaster_All, serialized, cacheOptions);
+                        _log.Info($"SurgeryComponentMaster data cached permanently. Key={CACHE_KEY_SurgeryComponentMaster_All}, Count={allItems.Count}");
+                    }
+                }
+
+                // In-memory filter by IsActive; null or blank = return all
+                if (isActive.HasValue)
+                {
+                    allItems = allItems.Where(row =>
+                    {
+                        if (row.TryGetValue("IsActive", out var val) && val != null)
+                            return val.ToString() == isActive.Value.ToString();
+                        return false;
+                    }).ToList();
+                    _log.Info($"Filtered by IsActive={isActive.Value}. Count={allItems.Count}");
+                }
+
+                if (!allItems.Any())
+                {
+                    var notFoundAlert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No surgery components found for IsActive: {isActive?.ToString() ?? "All"}");
+                    return ServiceResult<object>.Failure(
+                        notFoundAlert.Type,
+                        "No surgery components found",
+                        404
+                    );
+                }
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    allItems,
+                    alert.Type,
+                    $"{allItems.Count} surgery component(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
             }
         }
     }

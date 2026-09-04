@@ -137,5 +137,11 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<CreateUpdatePackageMasterResponse> CreateUpdatePackageMaster(
     CreateUpdatePackageMasterRequest request,
     AllGlobalValues globalValues);
+
+        ServiceResult<string> UpdateNavigationSubMenuSequenceNo(UpdateNavigationSubMenuSequenceRequest request, AllGlobalValues globalValues);
+        ServiceResult<string> UpdateNavigationTabSequenceNo(UpdateNavigationTabSequenceRequest request, AllGlobalValues globalValues);
+
+        ServiceResult<CreateUpdateSurgeryComponentMasterResponse> CreateUpdateSurgeryComponentMaster(CreateUpdateSurgeryComponentMasterRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetSurgeryComponentsList(int? isActive);
     }
 }

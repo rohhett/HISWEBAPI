@@ -70,6 +70,28 @@ namespace HISWEBAPI.Controllers
 
         }
 
+        [HttpGet("getMobileAppSettings")]
+        [AllowAnonymous]
+        public IActionResult GetMobileAppSettings()
+        {
+            _log.Info("GetMobileAppSettings called.");
+
+            var serviceResult = _homeRepository.GetMobileAppSettings();
+
+            if (serviceResult.Result)
+                _log.Info($"Mobile app settings fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"Mobile app settings fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
         [HttpGet("getActiveBranchList")]
         [AllowAnonymous]
         public IActionResult GetActiveBranchList()

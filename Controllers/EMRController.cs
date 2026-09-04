@@ -134,11 +134,11 @@ namespace HISWEBAPI.Controllers
 
         [HttpGet("getSaltNameMasterList")]
         [Authorize]
-        public IActionResult GetSaltNameMasterList()
+        public IActionResult GetSaltNameMasterList([FromQuery] string saltName = null)
         {
-            _log.Info("GetSaltNameMasterList called.");
+            _log.Info($"GetSaltNameMasterList called. SaltName={saltName ?? "All"}");
 
-            var serviceResult = _emrRepository.GetSaltNameMasterList();
+            var serviceResult = _emrRepository.GetSaltNameMasterList(saltName);
 
             if (serviceResult.Result)
                 _log.Info($"Salt names fetched successfully from cache: {serviceResult.Message}");
@@ -2049,6 +2049,7 @@ namespace HISWEBAPI.Controllers
         [Authorize]
         public IActionResult GetEMRTemplateSectionMappingByDoctorId(
     [FromQuery] int doctorId,
+    [FromQuery] int applicableToId,
     [FromQuery] int usedForPatientTypeId)
         {
             _log.Info($"GetEMRTemplateSectionMappingByDoctorId called. DoctorId={doctorId}, UsedForPatientTypeId={usedForPatientTypeId}");
@@ -2077,12 +2078,149 @@ namespace HISWEBAPI.Controllers
                 });
             }
 
-            var serviceResult = _emrRepository.GetEMRTemplateSectionMappingByDoctorId(doctorId, usedForPatientTypeId);
+            if (applicableToId <= 0)
+            {
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "applicableToId must be greater than 0",
+                    errors = new { usedForPatientTypeId }
+                });
+            }
+
+            var serviceResult = _emrRepository.GetEMRTemplateSectionMappingByDoctorId(doctorId, usedForPatientTypeId, applicableToId);
 
             if (serviceResult.Result)
                 _log.Info($"EMR template section mappings fetched successfully: {serviceResult.Message}");
             else
                 _log.Warn($"EMR template section mappings fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPost("createUpdateCarePlan")]
+        [Authorize]
+        public IActionResult CreateUpdateCarePlan([FromBody] CreateUpdateCarePlanRequest request)
+        {
+            _log.Info($"CreateUpdateCarePlan called. CarePlanId={request?.CarePlanId}, DoctorId={request?.DoctorId}, CarePlanName={request?.CarePlanName}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for CreateUpdateCarePlan.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.HeadersData != null && request.HeadersData.Any())
+            {
+                var invalidRows = request.HeadersData
+                    .Where(x => x.SectionId <= 0 || x.HeaderId <= 0 || x.ControlTypeId <= 0)
+                    .ToList();
+
+                if (invalidRows.Any())
+                {
+                    _log.Warn($"{invalidRows.Count} row(s) have invalid SectionId, HeaderId, or ControlTypeId.");
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                    return BadRequest(new
+                    {
+                        result = false,
+                        messageType = alert.Type,
+                        message = "Every header row must have SectionId, HeaderId, and ControlTypeId greater than 0"
+                    });
+                }
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _emrRepository.CreateUpdateCarePlan(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"CreateUpdateCarePlan completed: {serviceResult.Message}");
+            else
+                _log.Warn($"CreateUpdateCarePlan failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getCarePlanMaster")]
+        [Authorize]
+        public IActionResult GetCarePlanMaster([FromQuery] int doctorId)
+        {
+            _log.Info($"GetCarePlanMaster called. DoctorId={doctorId}");
+
+            if (doctorId <= 0)
+            {
+                _log.Warn("Invalid DoctorId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "DoctorId must be greater than 0",
+                    errors = new { doctorId }
+                });
+            }
+
+            var serviceResult = _emrRepository.GetCarePlanMaster(doctorId);
+
+            if (serviceResult.Result)
+                _log.Info($"CarePlanMaster fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"CarePlanMaster fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getCarePlanDetails")]
+        [Authorize]
+        public IActionResult GetCarePlanDetails([FromQuery] int carePlanId)
+        {
+            _log.Info($"GetCarePlanDetails called. CarePlanId={carePlanId}");
+
+            if (carePlanId <= 0)
+            {
+                _log.Warn("Invalid CarePlanId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "CarePlanId must be greater than 0",
+                    errors = new { carePlanId }
+                });
+            }
+
+            var serviceResult = _emrRepository.GetCarePlanDetails(carePlanId);
+
+            if (serviceResult.Result)
+                _log.Info($"CarePlanDetails fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"CarePlanDetails fetch failed: {serviceResult.Message}");
 
             return StatusCode(serviceResult.StatusCode, new
             {

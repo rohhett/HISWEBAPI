@@ -4,15 +4,17 @@ using HISWEBAPI.Data.Helpers;
 
 namespace HISWEBAPI.Domain
 {
+    public enum TnxType { OPDBilling = 1, OPDRefund = 2, IPDBilling = 3, StockReceiving = 4, OPDSell = 5, IPDIssue = 6, OPDReturn = 7, IPDReturn = 8 }
+
     public class FinancialTransactions
     {
         public int HospId { get; set; }
         public int BranchId { get; set; }
         public int? ReceivingId { get; set; }
         public int? VisitId { get; set; }
+        public int? BillId { get; set; }
         public int? PatientId { get; set; }
-        public string TnxType { get; set; }
-        public int TnxTypeId { get; set; }
+        public TnxType tnxType { get; set; }
         public decimal GrossAmount { get; set; }
         public decimal DiscountPercentage { get; set; }
         public decimal DiscountAmount { get; set; }
@@ -34,9 +36,10 @@ namespace HISWEBAPI.Domain
                 @branchId = BranchId,
                 @receivingId = ReceivingId,
                 @visitId = VisitId,
+                @billId = BillId,
                 @patientId = PatientId,
-                @tnxType = TnxType,
-                @tnxTypeId = TnxTypeId,
+                @tnxType = Enum.GetName(typeof(TnxType), this.tnxType),
+                @tnxTypeId = this.tnxType,
                 @grossAmount = GrossAmount,
                 @discountPercentage = DiscountPercentage,
                 @discountAmount = DiscountAmount,

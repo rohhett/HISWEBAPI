@@ -16,7 +16,13 @@ namespace HISWEBAPI.Models
         public required string branchName { get; set; }
     }
 
- public class PickListModel
+    public class MobileAppSettingsResponse
+    {
+        public bool IsMobileAppActive { get; set; }
+        public string ApiBaseUrl { get; set; }
+    }
+
+    public class PickListModel
     {
        
         public required string value { get; set; }
@@ -414,6 +420,7 @@ namespace HISWEBAPI.Models
         public decimal HikePerIn { get; set; }
         public string ActivePaymentModes { get; set; }
         public int IsRegistrationChargeApplicable { get; set; }
+        public int IsCaseBillingApplicable { get; set; }
 
 
     }

@@ -7,6 +7,7 @@ namespace HISWEBAPI.Repositories.Interfaces
 {
     public interface IHomeRepository
     {
+        ServiceResult<MobileAppSettingsResponse> GetMobileAppSettings();
         ServiceResult<IEnumerable<BranchModel>> GetActiveBranchList();
         ServiceResult<IEnumerable<PickListModel>> GetPickListMaster(string fieldName);
         ServiceResult<AllGlobalValues> GetAllGlobalValues();

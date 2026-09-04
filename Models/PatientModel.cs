@@ -129,6 +129,7 @@
         public string DoctorDepartmentIds { get; set; }
         public int IsRequiredSeparatePerformingDoctor { get; set; }
         public int LabTypeId { get; set; }
+        public int TatTimeInMin { get; set; }
     }
 
     public class OPDVisitSummaryModel

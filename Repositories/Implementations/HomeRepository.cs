@@ -102,7 +102,43 @@ namespace HISWEBAPI.Repositories.Implementations
                 );
             }
         }
+        public ServiceResult<MobileAppSettingsResponse> GetMobileAppSettings()
+        {
+            try
+            {
+                _log.Info("GetMobileAppSettings called.");
 
+                bool isMobileAppActive = _configuration.GetValue<bool>("MobileAppSettings:IsMobileAppActive");
+
+                var result = new MobileAppSettingsResponse
+                {
+                    IsMobileAppActive = isMobileAppActive,
+                    ApiBaseUrl = isMobileAppActive
+                        ? _configuration.GetValue<string>("MobileAppSettings:ApiBaseUrl")
+                        : null
+                };
+
+                _log.Info($"GetMobileAppSettings resolved. IsMobileAppActive={isMobileAppActive}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<MobileAppSettingsResponse>.Success(
+                    result,
+                    alert.Type,
+                    alert.Message,
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<MobileAppSettingsResponse>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+        }
         public ServiceResult<IEnumerable<BranchModel>> GetActiveBranchList()
         {
             try
@@ -991,6 +1027,7 @@ namespace HISWEBAPI.Repositories.Implementations
                         PaymentType = row.Field<string>("PaymentType") ?? string.Empty,
                         PaymentTypeId = row.Field<int>("PaymentTypeId"),
                         IsRegistrationChargeApplicable = row.Field<int?>("IsRegistrationChargeApplicable") ?? 0,
+                        IsCaseBillingApplicable = row.Field<int?>("IsCaseBillingApplicable") ?? 0,
 
                     }).ToList() ?? new List<CorporateBranchMappingModel>();
 
@@ -2179,6 +2216,8 @@ namespace HISWEBAPI.Repositories.Implementations
                         IsRegistrationCharge = row.Field<int?>("IsRegistrationCharge") ?? 0,
                         RegistrationChargeValidityDays = row.Field<int?>("RegistrationChargeValidityDays") ?? 0,
                         IsPackageExpired = row.Field<int?>("IsPackageExpired") ?? 0,
+                        SaltName = row.Field<string>("SaltName") ?? string.Empty,
+
 
                     }).ToList();
 

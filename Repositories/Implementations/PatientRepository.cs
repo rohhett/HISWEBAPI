@@ -679,6 +679,7 @@ namespace HISWEBAPI.Repositories.Implementations
                     IsRequiredSeparatePerformingDoctor = row["IsRequiredSeparatePerformingDoctor"] != DBNull.Value ? Convert.ToInt32(row["IsRequiredSeparatePerformingDoctor"]) : 0,
                     DoctorDepartmentIds = row["DoctorDepartmentIds"]?.ToString() ?? string.Empty,
                     LabTypeId = row["LabTypeId"] != DBNull.Value ? Convert.ToInt32(row["LabTypeId"]) : 0,
+                    TatTimeInMin = row["TatTimeInMin"] != DBNull.Value ? Convert.ToInt32(row["TatTimeInMin"]) : 0,
 
 
                 };
@@ -740,8 +741,7 @@ namespace HISWEBAPI.Repositories.Implementations
                     BranchId = v.BranchId,
                     PatientId = v.PatientId,
                     Uhid = v.Uhid,
-                    Type = "OPD",
-                    TypeId = 1,
+                    visitType = VisitType.OPD,
                     CurrentAge = v.CurrentAge,
                     DoctorId = 0,
                     CorporateId = v.CorporateId,
@@ -805,7 +805,7 @@ namespace HISWEBAPI.Repositories.Implementations
                     IpAddress = globalValues.ipAddress
                 };
 
-                long billId = pbd.Create(_sqlHelper, tnx);
+                int billId = Convert.ToInt32(pbd.Create(_sqlHelper, tnx));
                 _log.Info($"PatientBillDetails created. BillId={billId}");
 
 
@@ -815,9 +815,9 @@ namespace HISWEBAPI.Repositories.Implementations
                     HospId = globalValues.hospId,
                     BranchId = v.BranchId,
                     VisitId = visitId,
+                    BillId = billId,
                     PatientId = v.PatientId,
-                    TnxType = "OPDBilling",
-                    TnxTypeId = 1,
+                    tnxType = TnxType.OPDBilling,
                     GrossAmount = v.GrossBillAmount,
                     DiscountPercentage = v.TotalDiscPerOnBill,
                     DiscountAmount = v.TotalDiscAmtOnBill,
@@ -2061,8 +2061,7 @@ namespace HISWEBAPI.Repositories.Implementations
                     BranchId = request.BranchId,
                     PatientId = request.PatientId,
                     Uhid = request.Uhid,
-                    Type = "IPD",
-                    TypeId = 2,
+                    visitType = VisitType.IPD,
                     CurrentAge = request.CurrentAge,
                     DoctorId = request.PrimaryDoctorId,
                     CorporateId = request.CorporateId,
@@ -3326,8 +3325,7 @@ namespace HISWEBAPI.Repositories.Implementations
                     BranchId = v.BranchId,
                     PatientId = v.PatientId,
                     Uhid = v.Uhid,
-                    Type = "OPD",
-                    TypeId = 1,
+                    visitType = VisitType.OPD,
                     CurrentAge = v.CurrentAge,
                     DoctorId = 0,
                     CorporateId = v.CorporateId,
@@ -3388,7 +3386,7 @@ namespace HISWEBAPI.Repositories.Implementations
                     IpAddress = globalValues.ipAddress
                 };
 
-                long billId = pbd.Create(_sqlHelper, tnx);
+                int billId = Convert.ToInt32(pbd.Create(_sqlHelper, tnx));
                 _log.Info($"PatientBillDetails created. BillId={billId}");
 
                 // ── 2. FinancialTransactions ─────────────────────────────────────────
@@ -3397,9 +3395,9 @@ namespace HISWEBAPI.Repositories.Implementations
                     HospId = globalValues.hospId,
                     BranchId = v.BranchId,
                     VisitId = visitId,
+                    BillId = billId,
                     PatientId = v.PatientId,
-                    TnxType = "OPDRefund",
-                    TnxTypeId = 2,
+                    tnxType = TnxType.OPDRefund,
                     GrossAmount = v.GrossBillAmount,
                     DiscountPercentage = v.TotalDiscPerOnBill,
                     DiscountAmount = v.TotalDiscAmtOnBill,
@@ -5578,6 +5576,60 @@ namespace HISWEBAPI.Repositories.Implementations
                     alert.Message,
                     500
                 );
+            }
+        }
+
+        public ServiceResult<object> GetServiceDetailsForCorporateRateComparison(int visitId, int corporateId)
+        {
+            try
+            {
+                _log.Info($"GetServiceDetailsForCorporateRateComparison called. VisitId={visitId}, CorporateId={corporateId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetServiceDetailsForCorporateRateComparison",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @visitId = visitId,
+                        @corporateId = corporateId
+                    }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No service details found for VisitId={visitId}, CorporateId={corporateId}");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        "No service details found for the given visit and corporate",
+                        404
+                    );
+                }
+
+                // Raw DataTable -> List<Dictionary<string,object>> (no model mapping,
+                // so any new columns added to the SP surface automatically)
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetServiceDetailsForCorporateRateComparison retrieved {result.Count} record(s) for VisitId={visitId}, CorporateId={corporateId}");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    result,
+                    alert1.Type,
+                    $"{result.Count} service detail(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
             }
         }
     }

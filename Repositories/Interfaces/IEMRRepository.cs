@@ -8,7 +8,7 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<object> GetAllergyMasterList(int? isActive,int? allergyTypeId);
         ServiceResult<object> CreateUpdateAllergyMaster(CreateUpdateAllergyMasterRequest request, AllGlobalValues globalValues);
         ServiceResult<string> DeleteAllergyMaster(int allergyId, AllGlobalValues globalValues);
-        ServiceResult<IEnumerable<Dictionary<string, object>>> GetSaltNameMasterList();
+        ServiceResult<IEnumerable<Dictionary<string, object>>> GetSaltNameMasterList(string saltName = null);
         ServiceResult<CreateUpdatePatientAllergyDetailsResponse> CreateUpdatePatientAllergyDetails(CreateUpdatePatientAllergyDetailsRequest request, AllGlobalValues globalValues);
         ServiceResult<object> GetPatientAllergyDetailList(int patientId);
         ServiceResult<string> DeletePatientAllergyDetails(DeletePatientAllergyDetailsRequest request, AllGlobalValues globalValues);
@@ -65,7 +65,9 @@ namespace HISWEBAPI.Repositories.Interfaces
         ServiceResult<object> GetEMRTemplateSectionMapping(int templateId);
         ServiceResult<object> GetEMRTemplateDepartmentMapping(int typeId, int relatedToId);
         ServiceResult<string> SaveEMRTemplateDepartmentMapping(SaveEMRTemplateDepartmentMappingRequest request, AllGlobalValues globalValues);
-        ServiceResult<object> GetEMRTemplateSectionMappingByDoctorId(int doctorId, int usedForPatientTypeId);
-
+        ServiceResult<object> GetEMRTemplateSectionMappingByDoctorId(int doctorId, int usedForPatientTypeId,int applicableToId);
+        ServiceResult<CreateUpdateCarePlanResponse> CreateUpdateCarePlan(CreateUpdateCarePlanRequest request, AllGlobalValues globalValues);
+        ServiceResult<object> GetCarePlanMaster(int doctorId);
+        ServiceResult<object> GetCarePlanDetails(int carePlanId);
     }
 }

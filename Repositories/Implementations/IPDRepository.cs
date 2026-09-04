@@ -1,8 +1,5 @@
-﻿using System;
-using System.Data;
-using System.Linq;
-using System.Reflection;
-using HISWEBAPI.Data.Helpers;
+﻿using HISWEBAPI.Data.Helpers;
+using HISWEBAPI.Domain;
 using HISWEBAPI.DTO;
 using HISWEBAPI.Exceptions;
 using HISWEBAPI.Models;
@@ -11,6 +8,10 @@ using HISWEBAPI.Services;
 using log4net;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
+using System;
+using System.Data;
+using System.Linq;
+using System.Reflection;
 
 namespace HISWEBAPI.Repositories.Implementations
 {
@@ -424,6 +425,9 @@ namespace HISWEBAPI.Repositories.Implementations
                 _log.Info($"UpdateIPDPatientTariffDetails called. VisitId={request.VisitId}, PatientId={request.PatientId}, CorporateId={request.CorporateId}, IsChangeTariff={request.IsChangeTariff}");
 
                 // 1. Update corporate/insurance/relation/card details + push new corporate mapping row
+                DateTime TransferDate = Convert.ToDateTime(request.TransferDate);
+
+
                 _sqlHelper.DML(
                     tnx,
                     "U_UpdateIPDTariffDetails",
@@ -437,6 +441,10 @@ namespace HISWEBAPI.Repositories.Implementations
                         @relation = (object)request.Relation ?? DBNull.Value,
                         @relativeName = (object)request.RelativeName ?? DBNull.Value,
                         @cardNo = (object)request.CardNo ?? DBNull.Value,
+                        @transferDate = TransferDate,
+                        @remarks = (object)request.Remarks ?? DBNull.Value,
+                        @reasonForTransfer = (object)request.ReasonForTransfer ?? DBNull.Value,
+                        @authorizationNumber = (object)request.AuthorizationNumber ?? DBNull.Value,
                         @billingTypeId = request.BillingTypeId,
                         @userId = globalValues.userId,
                         @ipAddress = globalValues.ipAddress
@@ -529,6 +537,9 @@ namespace HISWEBAPI.Repositories.Implementations
                         changeToDate = ctd;
                 }
 
+                DateTime TransferDate = Convert.ToDateTime(request.TransferDate);
+
+
                 // I_CorporateTransferRequestDetails uses a true OUTPUT parameter (no trailing SELECT @Result;),
                 // so RunProcedureInsert is required here. No item table for CorporateTransfer — header only.
                 long corporateTransferIdResult = _sqlHelper.RunProcedureInsert(
@@ -549,10 +560,18 @@ namespace HISWEBAPI.Repositories.Implementations
                         new SqlParameter("@Relation", (object)request.Relation ?? DBNull.Value),
                         new SqlParameter("@RelativeName", (object)request.RelativeName ?? DBNull.Value),
                         new SqlParameter("@CardNo", (object)request.CardNo ?? DBNull.Value),
+
+                        new SqlParameter("@TransferDate", TransferDate),
+                        new SqlParameter("@Remarks", (object)request.Remarks ?? DBNull.Value),
+                        new SqlParameter("@ReasonForTransfer", (object)request.ReasonForTransfer ?? DBNull.Value),
+                        new SqlParameter("@AuthorizationNumber", (object)request.AuthorizationNumber ?? DBNull.Value),
+
                         new SqlParameter("@UserId", globalValues.userId),
                         new SqlParameter("@IpAddress", (object)globalValues.ipAddress ?? DBNull.Value),
                         new SqlParameter("@Result", SqlDbType.Int) { Direction = ParameterDirection.Output }
                     });
+
+
 
                 int corporateTransferId = Convert.ToInt32(corporateTransferIdResult);
                 _log.Info($"CorporateTransferRequestDetails created. CorporateTransferId={corporateTransferId}");
@@ -799,6 +818,519 @@ namespace HISWEBAPI.Repositories.Implementations
                 _log.Info($"Approval details retrieved successfully for CorporateTransferId={corporateTransferId}");
 
                 return ServiceResult<object>.Success(result, "Info", "Approval details retrieved successfully", 200);
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetCorporateTransferRequestDetailsByVisitId(int visitId)
+        {
+            try
+            {
+                _log.Info($"GetCorporateTransferRequestDetailsByVisitId called. VisitId={visitId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_CorporateTransferRequestDetailsByVisitId",
+                    CommandType.StoredProcedure,
+                    new { @visitId = visitId }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No corporate transfer request details found for VisitId={visitId}");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        "No corporate transfer request details found for the given visit",
+                        404
+                    );
+                }
+
+                // Raw DataTable -> List<Dictionary<string,object>> (no model mapping),
+                // so any new columns added to the SP surface automatically.
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetCorporateTransferRequestDetailsByVisitId retrieved {result.Count} record(s) for VisitId={visitId}");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    result,
+                    alert1.Type,
+                    $"{result.Count} record(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+
+        public ServiceResult<SaveIPDBillingResponse> SaveIPDBilling(
+    SaveIPDBillingRequest request,
+    AllGlobalValues globalValues)
+        {
+            var connectionString = _configuration.GetConnectionString("ConnectionString");
+            SqlConnection con = new SqlConnection(connectionString);
+            con.Open();
+            var tnx = CustomSqlHelper.getSqlTransaction(con);
+
+            try
+            {
+                _log.Info($"SaveIPDBilling called. PatientId={request.VisitDetails.PatientId}, VisitId={request.VisitDetails.VisitId}, BranchId={request.VisitDetails.BranchId}");
+
+                var v = request.VisitDetails;
+                int visitId = v.VisitId;
+
+                decimal totalPaidAmount = 0;
+                if (request.PaymentDetails?.Count > 0)
+                {
+                    totalPaidAmount = request.PaymentDetails.Sum(p => p.Amount);
+                }
+
+                // ── 1. PatientBillDetails ────────────────────────────────────────────
+                var pbd = new PatientBillDetails
+                {
+                    HospId = globalValues.hospId,
+                    BranchId = v.BranchId,
+                    RoleId = v.RoleId,
+                    PatientId = v.PatientId,
+                    VisitId = visitId,
+                    TypeId = 2,                                // 2 = IPD
+                    TotalBillAmount = v.GrossBillAmount,
+                    TotalDiscountPerOnBill = v.TotalDiscPerOnBill,
+                    TotalDiscountAmountOnBill = v.TotalDiscAmtOnBill,
+                    DiscountApprovedById = v.DiscApprovedById > 0 ? v.DiscApprovedById : (int?)null,
+                    DiscountReason = v.DiscountReason,
+                    RoundOff = v.RoundOff,
+                    TotalPayableAmount = v.NetAmount,
+                    TotalPaidAmount = totalPaidAmount,
+                    TotalBalanceAmount = v.NetAmount - totalPaidAmount,
+                    TotalPatientPayableAmount = v.NetAmount,
+                    TotalCorporatePayableAmount = 0,
+                    TotalPatientPaidAmount = totalPaidAmount,
+                    TotalCorporatePaidAmount = 0,
+                    IsSupplementaryBill = v.IsSupplementaryBill,
+                    UserId = globalValues.userId,
+                    IpAddress = globalValues.ipAddress
+                };
+
+                int billId = Convert.ToInt32(pbd.Create(_sqlHelper, tnx));
+                _log.Info($"PatientBillDetails created. BillId={billId}");
+
+                // ── 2. FinancialTransactions ─────────────────────────────────────────
+                var ft = new FinancialTransactions
+                {
+                    HospId = globalValues.hospId,
+                    BranchId = v.BranchId,
+                    VisitId = visitId,
+                    BillId = billId,
+                    PatientId = v.PatientId,
+                    tnxType = TnxType.IPDBilling,
+                    GrossAmount = v.GrossBillAmount,
+                    DiscountPercentage = v.TotalDiscPerOnBill,
+                    DiscountAmount = v.TotalDiscAmtOnBill,
+                    RoundOff = v.RoundOff,
+                    NetAmount = v.NetAmount,
+                    Remarks = v.Remarks,
+                    UserId = globalValues.userId,
+                    IpAddress = globalValues.ipAddress,
+                    UniqueId = v.UniqueId
+                };
+
+                int ftid = Convert.ToInt32(ft.Create(_sqlHelper, tnx));
+                _log.Info($"FinancialTransactions created. FTID={ftid}");
+
+                // ── 3. Process billing items ─────────────────────────────────────────
+                bool isLabInvestigations = false;
+
+                int labNo = 0;
+                var sampleTypeBarcodeMap = new Dictionary<int, int>();
+                int pathologyTokenNo = 0;
+                int radiologyTokenNo = 0;
+                int cardiologyTokenNo = 0;
+
+                foreach (var item in request.BillingItems)
+                {
+                    // ── 3a. FinancialTransactionDetails ──────────────────────────────
+                    decimal itemDiscPer, itemDiscAmt, itemNetAmt;
+                    string itemDiscReason;
+
+                    if (request.IsBillDiscount == 1)
+                    {
+                        itemDiscPer = v.TotalDiscPerOnBill;
+                        itemDiscAmt = (item.GrossAmt * v.TotalDiscPerOnBill) / 100;
+                        itemNetAmt = item.GrossAmt - itemDiscAmt;
+                        itemDiscReason = v.DiscountReason;
+                    }
+                    else
+                    {
+                        itemDiscPer = item.DiscPer;
+                        itemDiscAmt = item.DiscAmt;
+                        itemNetAmt = item.NetAmt;
+                        itemDiscReason = item.DiscountReason;
+                    }
+
+                    if (!DateTime.TryParse(item.BillingDate, out DateTime parsedBillingDate))
+                    {
+                        var alertDate = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                        return ServiceResult<SaveIPDBillingResponse>.Failure(alertDate.Type, "Invalid Billing Date format", 400);
+                    }
+
+                    var ftd = new FinancialTransactionDetails
+                    {
+                        HospId = globalValues.hospId,
+                        BranchId = v.BranchId,
+                        FTID = ftid,
+                        VisitId = visitId,
+                        PatientId = v.PatientId,
+                        ServiceItemId = item.ServiceItemId,
+                        SubSubCategoryId = item.SubSubCategoryId,
+                        ServiceName = item.ServiceName,
+                        ServiceCode = item.Code,
+                        Remarks = item.Remarks,
+                        CorporateAlias = item.CorporateAlias,
+                        CorporateCode = item.CorporateCode,
+                        DoctorId = item.DoctorId > 0 ? item.DoctorId : (int?)null,
+                        PerformingDoctorId = item.PerformingDoctorId > 0 ? item.PerformingDoctorId : (int?)null,
+                        CorporateId = v.CorporateId > 0 ? v.CorporateId : (int?)null,
+                        Rate = item.Rate,
+                        Qty = item.Qty,
+                        GrossAmt = item.GrossAmt,
+                        DiscPer = itemDiscPer,
+                        DiscAmt = itemDiscAmt,
+                        NetAmt = itemNetAmt,
+                        IsCorporateNonPayable = item.IsNonPayable,
+                        DiscountReason = itemDiscReason,
+                        RateListId = item.RateListId,
+                      
+                        BillingDate = parsedBillingDate.ToString("yyyy-MM-dd"),
+                        UserId = globalValues.userId,
+                        IpAddress = globalValues.ipAddress
+                    };
+
+                    int ftdId = Convert.ToInt32(ftd.Create(_sqlHelper, tnx));
+                    _log.Info($"FinancialTransactionDetails created. FTDId={ftdId}, ServiceItemId={item.ServiceItemId}");
+
+                    // ── 3b. Investigation (CategoryTypeId == 3) ──────────────────────
+                    if (item.CategoryTypeId == 3)
+                    {
+                        // Barcode – one per unique SampleTypeId (Pathology only)
+                        int barCode = 0;
+                        if (item.LabTypeId == 1 && item.SampleTypeId > 0)
+                        {
+                            if (!sampleTypeBarcodeMap.ContainsKey(item.SampleTypeId))
+                            {
+                                int newBarcode = Convert.ToInt32(_sqlHelper.ExecuteScalar(
+                                    tnx,
+                                    "S_GetNextGlobalBarcode",
+                                    CommandType.StoredProcedure,
+                                    new { @branchId = v.BranchId }));
+                                sampleTypeBarcodeMap[item.SampleTypeId] = newBarcode;
+                            }
+                            barCode = sampleTypeBarcodeMap[item.SampleTypeId];
+                        }
+
+                        // Lab number – shared for all investigations in this visit
+                        if (labNo == 0)
+                        {
+                            labNo = Convert.ToInt32(_sqlHelper.ExecuteScalar(
+                                tnx,
+                                "getLabNo",
+                                CommandType.StoredProcedure,
+                                new { @branchId = v.BranchId },
+                                new { result = 0 }));
+                        }
+
+                        // Token number per sub-category
+                        int tokenNo = 0;
+                        if (item.LabTypeId == 1 || item.LabTypeId == 2 || item.LabTypeId == 3)
+                        {
+                            tokenNo = Convert.ToInt32(_sqlHelper.ExecuteScalar(
+                                tnx,
+                                "S_GetLabTokenNo",
+                                CommandType.StoredProcedure,
+                                new { @branchId = v.BranchId, @SubCategoryId = item.LabTypeId },
+                                new { result = 0 }));
+                        }
+
+                        if (pathologyTokenNo == 0 && item.LabTypeId == 1) pathologyTokenNo = tokenNo;
+                        if (radiologyTokenNo == 0 && item.LabTypeId == 2) radiologyTokenNo = tokenNo;
+                        if (cardiologyTokenNo == 0 && item.LabTypeId == 3) cardiologyTokenNo = tokenNo;
+
+                        var pid = new PatientInvestigationDetails
+                        {
+                            HospId = globalValues.hospId,
+                            BranchId = v.BranchId,
+                            VisitId = visitId,
+                            FTDID = ftdId,
+                            InvestigationId = item.ServiceItemId,
+                            DoctorId = item.DoctorId,
+                            PatientId = v.PatientId,
+                            LabNo = labNo,
+                            TokenNo = item.LabTypeId == 1 ? pathologyTokenNo
+                                    : item.LabTypeId == 2 ? radiologyTokenNo
+                                    : cardiologyTokenNo,
+                            IsUrgent = item.IsUrgent,
+                            BarCode = barCode,
+                            UserId = globalValues.userId,
+                            IpAddress = globalValues.ipAddress
+                        };
+
+                        pid.Create(_sqlHelper, tnx);
+                        isLabInvestigations = true;
+                        _log.Info($"PatientInvestigationDetails created for InvestigationId={item.ServiceItemId}");
+                    }
+                }
+
+                // ── 4. Receipt ───────────────────────────────────────────────────────
+                int receiptId = 0;
+                bool isReceipt = false;
+                if (totalPaidAmount > 0 && v.IsSupplementaryBill==1)
+                {
+                    var receipt = new Receipts
+                    {
+                        HospId = globalValues.hospId,
+                        BranchId = v.BranchId,
+                        RoleId = v.RoleId,
+                        FTID = ftid,
+                        VisitId = visitId,
+                        PatientId = v.PatientId,
+                        Amount = totalPaidAmount,
+                        IsCopaymentReceipt = request.PaymentDetails[0].IsCopaymentReceipt,
+                        PlutusTransactionReferenceID = request.PaymentDetails[0].PlutusTransactionReferenceID,
+                        TransactionLogId = request.PaymentDetails[0].TransactionLogId,
+                        UserId = globalValues.userId,
+                        IpAddress = globalValues.ipAddress,
+                        UniqueId = v.UniqueId
+                    };
+
+                    receiptId = Convert.ToInt32(receipt.Create(_sqlHelper, tnx));
+                    _log.Info($"Receipt created. ReceiptId={receiptId}");
+
+                    foreach (var p in request.PaymentDetails)
+                    {
+                        // PaymentModeTypeId 4 = Credit → skip
+                        if (p.PaymentModeTypeId == 4)
+                            continue;
+
+                        if (p.IsPatientAdvanceAmount == 1)
+                            continue;
+
+                        var rpmd = new ReceiptsPaymentModeDetails
+                        {
+                            HospId = globalValues.hospId,
+                            BranchId = v.BranchId,
+                            ReceiptID = receiptId,
+                            Amount = p.Amount,
+                            PaymentModeId = p.PaymentModeId,
+                            BankId = p.BankId > 0 ? p.BankId : (int?)null,
+                            ReferenceNo = p.RefNo,
+                            UserId = globalValues.userId,
+                            IpAddress = globalValues.ipAddress
+                        };
+
+                        rpmd.Create(_sqlHelper, tnx);
+                    }
+
+                    isReceipt = true;
+                }
+
+                tnx.Commit();
+                _log.Info($"SaveIPDBilling committed. VisitId={visitId}, FTID={ftid}, ReceiptId={receiptId}");
+
+                var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_SAVED_SUCCESSFULLY");
+                return ServiceResult<SaveIPDBillingResponse>.Success(
+                    new SaveIPDBillingResponse
+                    {
+                        VisitId = visitId,
+                        FTID = ftid,
+                        ReceiptId = receiptId,
+                        IsReceipt = isReceipt,
+                        IsLabInvestigations = isLabInvestigations
+                    },
+                    alert.Type,
+                    "IPD Billing saved successfully",
+                    201
+                );
+            }
+            catch (Exception ex)
+            {
+                try { tnx.Rollback(); } catch { /* swallow rollback exception */ }
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<SaveIPDBillingResponse>.Failure(
+                    alert.Type,
+                    alert.Message,
+                    500
+                );
+            }
+            finally
+            {
+                tnx.Dispose();
+                if (con.State == ConnectionState.Open)
+                    con.Close();
+            }
+        }
+
+        public ServiceResult<object> GetIPDBillingSummary(int branchId, int visitId)
+        {
+            try
+            {
+                _log.Info($"GetIPDBillingSummary called. BranchId={branchId}, VisitId={visitId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetIPDBillingDetails",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @branchId = branchId,
+                        @visitId = visitId
+                    }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No IPD billing details found for VisitId={visitId}, BranchId={branchId}");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        "No IPD billing details found",
+                        404
+                    );
+                }
+
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetIPDBillingSummary retrieved {result.Count} record(s) for VisitId={visitId}");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    result,
+                    alert1.Type,
+                    $"{result.Count} billing item(s) retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+
+        public ServiceResult<object> GetIPDPatientBillAmounts(int visitId, int patientId)
+        {
+            try
+            {
+                _log.Info($"GetIPDPatientBillAmounts called. VisitId={visitId}, PatientId={patientId}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetIPDPatientBillAmounts",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @visitId = visitId,
+                        @patientId = patientId
+                    }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No IPD patient bill amounts found for VisitId={visitId}, PatientId={patientId}");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        "No IPD patient bill amounts found",
+                        404
+                    );
+                }
+
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetIPDPatientBillAmounts retrieved {result.Count} record(s) for VisitId={visitId}");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    result,
+                    alert1.Type,
+                    "IPD patient bill amounts retrieved successfully",
+                    200
+                );
+            }
+            catch (Exception ex)
+            {
+                LogErrors.WriteErrorLog(ex, $"{GetType().Name}.{MethodBase.GetCurrentMethod().Name}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("SERVER_ERROR_FOUND");
+                return ServiceResult<object>.Failure(alert.Type, alert.Message, 500);
+            }
+        }
+        public ServiceResult<object> GetIPDPatientOrderDetails(int ftid, AllGlobalValues globalValues)
+        {
+            try
+            {
+                _log.Info($"GetIPDPatientOrderDetails called. FTID={ftid}");
+
+                var dataTable = _sqlHelper.GetDataTable(
+                    "S_GetIPDPatientOrderDetails",
+                    CommandType.StoredProcedure,
+                    new
+                    {
+                        @FTID = ftid,
+                        @printUserId = globalValues.userId
+                    }
+                );
+
+                if (dataTable == null || dataTable.Rows.Count == 0)
+                {
+                    var alert = _messageService.GetMessageAndTypeByAlertCode("DATA_NOT_FOUND");
+                    _log.Info($"No IPD patient order details found for FTID={ftid}");
+                    return ServiceResult<object>.Failure(
+                        alert.Type,
+                        "No IPD patient order details found",
+                        404
+                    );
+                }
+
+                var result = dataTable.AsEnumerable().Select(row =>
+                    dataTable.Columns.Cast<DataColumn>().ToDictionary(
+                        col => col.ColumnName,
+                        col => row[col] == DBNull.Value ? null : row[col]
+                    )
+                ).ToList();
+
+                _log.Info($"GetIPDPatientOrderDetails retrieved {result.Count} record(s) for FTID={ftid}");
+
+                var alert1 = _messageService.GetMessageAndTypeByAlertCode("OPERATION_COMPLETED_SUCCESSFULLY");
+                return ServiceResult<object>.Success(
+                    result,
+                    alert1.Type,
+                    $"{result.Count} order detail(s) retrieved successfully",
+                    200
+                );
             }
             catch (Exception ex)
             {

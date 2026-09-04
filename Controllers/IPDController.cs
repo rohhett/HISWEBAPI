@@ -284,7 +284,7 @@ namespace HISWEBAPI.Controllers
                     {
                         result = false,
                         messageType = alert.Type,
-                        message = "ChangeTariffFromDate is required when IsChangeTariff = 1",
+                        message = "Change Tariff From Date is required when Change Tariff is Enable",
                         errors = new { request.ChangeTariffFromDate }
                     });
                 }
@@ -297,7 +297,7 @@ namespace HISWEBAPI.Controllers
                     {
                         result = false,
                         messageType = alert.Type,
-                        message = "ChangeTariffToDate is required when IsChangeTariff = 1",
+                        message = "Change Tariff To Date is required when Change Tariff is Enable",
                         errors = new { request.ChangeTariffToDate }
                     });
                 }
@@ -632,6 +632,265 @@ namespace HISWEBAPI.Controllers
                 _log.Info($"GetCorporateTransferRequestApprovalDetails fetched successfully: {serviceResult.Message}");
             else
                 _log.Warn($"GetCorporateTransferRequestApprovalDetails failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getCorporateTransferRequestDetailsByVisitId")]
+        [Authorize]
+        public IActionResult GetCorporateTransferRequestDetailsByVisitId([FromQuery] int visitId)
+        {
+            _log.Info($"GetCorporateTransferRequestDetailsByVisitId called. VisitId={visitId}");
+
+            if (visitId <= 0)
+            {
+                _log.Warn("Invalid VisitId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "VisitId must be greater than 0",
+                    errors = new { visitId }
+                });
+            }
+
+            var serviceResult = _ipdRepository.GetCorporateTransferRequestDetailsByVisitId(visitId);
+
+            if (serviceResult.Result)
+                _log.Info($"Corporate transfer request details fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"Corporate transfer request details fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPost("saveIPDBilling")]
+        [Authorize]
+        public IActionResult SaveIPDBilling([FromBody] SaveIPDBillingRequest request)
+        {
+            _log.Info($"SaveIPDBilling called. PatientId={request?.VisitDetails?.PatientId}, VisitId={request?.VisitDetails?.VisitId}, BranchId={request?.VisitDetails?.BranchId}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for SaveIPDBilling.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.BillingItems == null || request.BillingItems.Count == 0)
+            {
+                _log.Warn("No billing items provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "At least one billing item is required",
+                    errors = new[] { "BillingItems cannot be empty" }
+                });
+            }
+
+            if (request.VisitDetails.PatientId <= 0)
+            {
+                _log.Warn("Invalid PatientId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "PatientId must be greater than 0",
+                    errors = new { patientId = request.VisitDetails.PatientId }
+                });
+            }
+
+            if (request.VisitDetails.BranchId <= 0)
+            {
+                _log.Warn("Invalid BranchId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BranchId must be greater than 0",
+                    errors = new { branchId = request.VisitDetails.BranchId }
+                });
+            }
+
+            if (request.VisitDetails.VisitId <= 0)
+            {
+                _log.Warn("Invalid VisitId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "VisitId must be greater than 0",
+                    errors = new { visitId = request.VisitDetails.VisitId }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _ipdRepository.SaveIPDBilling(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"SaveIPDBilling succeeded: {serviceResult.Message}");
+            else
+                _log.Warn($"SaveIPDBilling failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getIPDBillingSummary")]
+        [Authorize]
+        public IActionResult GetIPDBillingSummary(
+    [FromQuery] int branchId,
+    [FromQuery] int visitId)
+        {
+            _log.Info($"GetIPDBillingSummary called. BranchId={branchId}, VisitId={visitId}");
+
+            if (branchId <= 0)
+            {
+                _log.Warn("Invalid BranchId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "BranchId must be greater than 0",
+                    errors = new { branchId }
+                });
+            }
+
+            if (visitId <= 0)
+            {
+                _log.Warn("Invalid VisitId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "VisitId must be greater than 0",
+                    errors = new { visitId }
+                });
+            }
+
+            var serviceResult = _ipdRepository.GetIPDBillingSummary(branchId, visitId);
+
+            if (serviceResult.Result)
+                _log.Info($"IPD billing summary fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"IPD billing summary fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getIPDPatientBillAmounts")]
+        [Authorize]
+        public IActionResult GetIPDPatientBillAmounts(
+            [FromQuery] int visitId,
+            [FromQuery] int patientId)
+        {
+            _log.Info($"GetIPDPatientBillAmounts called. VisitId={visitId}, PatientId={patientId}");
+
+            if (visitId <= 0)
+            {
+                _log.Warn("Invalid VisitId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "VisitId must be greater than 0",
+                    errors = new { visitId }
+                });
+            }
+
+            if (patientId <= 0)
+            {
+                _log.Warn("Invalid PatientId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "PatientId must be greater than 0",
+                    errors = new { patientId }
+                });
+            }
+
+            var serviceResult = _ipdRepository.GetIPDPatientBillAmounts(visitId, patientId);
+
+            if (serviceResult.Result)
+                _log.Info($"IPD patient bill amounts fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"IPD patient bill amounts fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getIPDPatientOrderDetails")]
+        [Authorize]
+        public IActionResult GetIPDPatientOrderDetails([FromQuery] int ftid)
+        {
+            _log.Info($"GetIPDPatientOrderDetails called. FTID={ftid}");
+
+            if (ftid <= 0)
+            {
+                _log.Warn("Invalid FTID provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "FTID must be greater than 0",
+                    errors = new { ftid }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _ipdRepository.GetIPDPatientOrderDetails(ftid, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"IPD patient order details fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"IPD patient order details fetch failed: {serviceResult.Message}");
 
             return StatusCode(serviceResult.StatusCode, new
             {

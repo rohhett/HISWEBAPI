@@ -80,6 +80,8 @@ namespace HISWEBAPI.DTO
         public string PaymentType { get; set; }
         public int PaymentTypeId { get; set; }
         public int IsRegistrationChargeApplicable { get; set; }
+        public int IsCaseBillingApplicable { get; set; }
+
     }
 
     public class GetCorporateListRequest

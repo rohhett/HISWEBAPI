@@ -3980,5 +3980,55 @@ namespace HISWEBAPI.Controllers
             });
         }
 
+        [HttpGet("getServiceDetailsForCorporateRateComparison")]
+        [Authorize]
+        public IActionResult GetServiceDetailsForCorporateRateComparison(
+    [FromQuery] int visitId,
+    [FromQuery] int corporateId)
+        {
+            _log.Info($"GetServiceDetailsForCorporateRateComparison called. VisitId={visitId}, CorporateId={corporateId}");
+
+            if (visitId <= 0)
+            {
+                _log.Warn("Invalid VisitId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "VisitId must be greater than 0",
+                    errors = new { visitId }
+                });
+            }
+
+            if (corporateId <= 0)
+            {
+                _log.Warn("Invalid CorporateId provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "CorporateId must be greater than 0",
+                    errors = new { corporateId }
+                });
+            }
+
+            var serviceResult = _patientRepository.GetServiceDetailsForCorporateRateComparison(visitId, corporateId);
+
+            if (serviceResult.Result)
+                _log.Info($"GetServiceDetailsForCorporateRateComparison fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"GetServiceDetailsForCorporateRateComparison failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
     }
 }

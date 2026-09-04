@@ -5495,5 +5495,202 @@ namespace HISWEBAPI.Controllers
                 data = serviceResult.Data
             });
         }
+
+        [HttpPatch("updateNavigationSubMenuSequenceNo")]
+        [Authorize]
+        public IActionResult UpdateNavigationSubMenuSequenceNo([FromBody] UpdateNavigationSubMenuSequenceRequest request)
+        {
+            _log.Info($"UpdateNavigationSubMenuSequenceNo called. Count={request?.SubMenus?.Count ?? 0}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for UpdateNavigationSubMenuSequenceNo.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.SubMenus == null || !request.SubMenus.Any())
+            {
+                _log.Warn("No submenu sequence items provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "At least one submenu sequence is required",
+                    errors = new[] { "SubMenus cannot be empty" }
+                });
+            }
+
+            var invalidItems = request.SubMenus.Where(x => x.SubMenuId <= 0).ToList();
+            if (invalidItems.Any())
+            {
+                _log.Warn("Invalid SubMenuId(s) provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "All SubMenuIds must be greater than 0",
+                    errors = new { invalidSubMenuIds = invalidItems.Select(x => x.SubMenuId).ToList() }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _adminRepository.UpdateNavigationSubMenuSequenceNo(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"Sub menu sequence updated successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"Sub menu sequence update failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPatch("updateNavigationTabSequenceNo")]
+        [Authorize]
+        public IActionResult UpdateNavigationTabSequenceNo([FromBody] UpdateNavigationTabSequenceRequest request)
+        {
+            _log.Info($"UpdateNavigationTabSequenceNo called. Count={request?.Tabs?.Count ?? 0}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for UpdateNavigationTabSequenceNo.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            if (request.Tabs == null || !request.Tabs.Any())
+            {
+                _log.Warn("No tab sequence items provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "At least one tab sequence is required",
+                    errors = new[] { "Tabs cannot be empty" }
+                });
+            }
+
+            var invalidItems = request.Tabs.Where(x => x.TabId <= 0).ToList();
+            if (invalidItems.Any())
+            {
+                _log.Warn("Invalid TabId(s) provided.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "All TabIds must be greater than 0",
+                    errors = new { invalidTabIds = invalidItems.Select(x => x.TabId).ToList() }
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _adminRepository.UpdateNavigationTabSequenceNo(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"Tab sequence updated successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"Tab sequence update failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpPost("createUpdateSurgeryComponentMaster")]
+        [Authorize]
+        public IActionResult CreateUpdateSurgeryComponentMaster([FromBody] CreateUpdateSurgeryComponentMasterRequest request)
+        {
+            _log.Info($"CreateUpdateSurgeryComponentMaster called. ComponentId={request.ComponentId}, ComponentName={request.ComponentName}");
+
+            if (!ModelState.IsValid)
+            {
+                _log.Warn("Invalid model state for surgery component insert/update.");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("MODEL_VALIDATION_FAILED");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = alert.Message,
+                    errors = ModelState
+                });
+            }
+
+            var globalValues = GlobalFunctions.GetGlobalValues(HttpContext);
+            var serviceResult = _adminRepository.CreateUpdateSurgeryComponentMaster(request, globalValues);
+
+            if (serviceResult.Result)
+                _log.Info($"SurgeryComponent operation completed: {serviceResult.Message}");
+            else
+                _log.Warn($"SurgeryComponent operation failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
+
+        [HttpGet("getSurgeryComponentsList")]
+        [Authorize]
+        public IActionResult GetSurgeryComponentsList([FromQuery] int? isActive = null)
+        {
+            _log.Info($"GetSurgeryComponentsList called. IsActive={isActive?.ToString() ?? "All"}");
+
+            if (isActive.HasValue && isActive.Value != 0 && isActive.Value != 1)
+            {
+                _log.Warn($"Invalid IsActive parameter: {isActive.Value}");
+                var alert = _messageService.GetMessageAndTypeByAlertCode("INVALID_PARAMETER");
+                return BadRequest(new
+                {
+                    result = false,
+                    messageType = alert.Type,
+                    message = "IsActive must be 0 (Inactive), 1 (Active), or null (All)",
+                    errors = new { isActive }
+                });
+            }
+
+            var serviceResult = _adminRepository.GetSurgeryComponentsList(isActive);
+
+            if (serviceResult.Result)
+                _log.Info($"SurgeryComponents fetched successfully: {serviceResult.Message}");
+            else
+                _log.Warn($"SurgeryComponents fetch failed: {serviceResult.Message}");
+
+            return StatusCode(serviceResult.StatusCode, new
+            {
+                result = serviceResult.Result,
+                messageType = serviceResult.MessageType,
+                message = serviceResult.Message,
+                data = serviceResult.Data
+            });
+        }
     }
 }

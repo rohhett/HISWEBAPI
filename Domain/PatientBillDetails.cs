@@ -26,6 +26,7 @@ namespace HISWEBAPI.Domain
         public decimal TotalPatientPaidAmount { get; set; }
         public decimal TotalCorporatePaidAmount { get; set; }
         public decimal TotalAmountSettledWithPatientAdvance { get; set; }
+        public int IsSupplementaryBill { get; set; }
         public int UserId { get; set; }
         public string IpAddress { get; set; }
 
@@ -53,6 +54,7 @@ namespace HISWEBAPI.Domain
                 new SqlParameter("@totalPatientPaidAmount",    SqlDbType.Decimal) { Value = TotalPatientPaidAmount,     Precision = 16, Scale = 6 },
                 new SqlParameter("@totalCorporatePaidAmount",  SqlDbType.Decimal) { Value = TotalCorporatePaidAmount,   Precision = 16, Scale = 6 },
                 new SqlParameter("@totalAmountSettledWithPatientAdvance",  SqlDbType.Decimal) { Value = TotalAmountSettledWithPatientAdvance,   Precision = 16, Scale = 6 },
+                new SqlParameter("@isSupplementaryBill",                    SqlDbType.Int)     { Value = IsSupplementaryBill },
                 new SqlParameter("@userId",                    SqlDbType.Int)     { Value = UserId },
                 new SqlParameter("@IpAddress",                 SqlDbType.NVarChar, 20) { Value = IpAddress ?? string.Empty },
                 new SqlParameter("@Result",                    SqlDbType.Int)     { Direction = ParameterDirection.Output }
